@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic";
 
 import { generateOrderNumber, isValidUid, calcKhr } from "@/lib/utils";
 import { initiatePayment } from "@/lib/payment";
+import { getCurrentUser } from "@/lib/userAuth";
+import { getPointsSettings } from "@/lib/loyalty";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -16,6 +18,8 @@ const createOrderSchema = z.object({
   paymentMethod: z.enum(["KHPAY"]),
   promoCode: z.string().optional(),
   playerNickname: z.string().max(100).optional(),
+  // Loyalty points the logged-in user wants to redeem on this order (ignored for guests)
+  pointsToRedeem: z.number().int().min(0).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -92,6 +96,10 @@ export async function POST(req: NextRequest) {
     const userAgent = req.headers.get("user-agent") ?? "unknown";
     const exchangeRate = settings?.exchangeRate ?? 4100;
 
+    // Guest checkout stays fully supported — a session only exists if the
+    // shopper is logged in, and only logged-in users can redeem points.
+    const session = await getCurrentUser();
+
     // Promo code handling + order creation in a single transaction to
     // prevent race conditions on the promo usage counter.
     let promoCodeId: string | null = null;
@@ -120,6 +128,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Points redemption — only for logged-in users, on top of any promo
+    // discount, capped so the order never goes below $0.
+    let pointsRedeemed = 0;
+    let pointsDiscountUsd = 0;
+    let redeemingUser: { id: string; points: number } | null = null;
+
+    if (session && data.pointsToRedeem && data.pointsToRedeem > 0) {
+      const { pointsRedeemRate, minRedeemPoints } = await getPointsSettings();
+      const dbUser = await prisma.user.findUnique({ where: { id: session.userId } });
+
+      if (dbUser && dbUser.active && pointsRedeemRate > 0) {
+        const requested = Math.min(data.pointsToRedeem, dbUser.points);
+        if (requested >= minRedeemPoints) {
+          const requestedDiscount = Math.round((requested / pointsRedeemRate) * 100) / 100;
+          pointsDiscountUsd = Math.min(requestedDiscount, finalPrice);
+          // Recompute the exact points spent for the (possibly capped) discount
+          pointsRedeemed = Math.round(pointsDiscountUsd * pointsRedeemRate);
+          finalPrice = Math.round((finalPrice - pointsDiscountUsd) * 100) / 100;
+          redeemingUser = { id: dbUser.id, points: dbUser.points };
+        }
+      }
+    }
+
     const order = await prisma.$transaction(async (tx) => {
       if (promoCodeId) {
         await tx.promoCode.update({
@@ -127,7 +158,13 @@ export async function POST(req: NextRequest) {
           data: { usedCount: { increment: 1 } },
         });
       }
-      return tx.order.create({
+      if (redeemingUser && pointsRedeemed > 0) {
+        await tx.user.update({
+          where: { id: redeemingUser.id },
+          data: { points: { decrement: pointsRedeemed } },
+        });
+      }
+      const created = await tx.order.create({
         data: {
           orderNumber,
           gameId: game.id,
@@ -145,8 +182,23 @@ export async function POST(req: NextRequest) {
           userAgent,
           promoCodeId,
           discountUsd,
+          userId: session?.userId,
+          pointsRedeemed,
+          pointsDiscountUsd,
         },
       });
+      if (redeemingUser && pointsRedeemed > 0) {
+        await tx.pointsLedger.create({
+          data: {
+            userId: redeemingUser.id,
+            orderId: created.id,
+            type: "REDEEM",
+            points: -pointsRedeemed,
+            note: `Redeemed on ${created.orderNumber}`,
+          },
+        });
+      }
+      return created;
     });
 
     // Initiate payment with the gateway — if it fails (e.g. Cloudflare blocks
@@ -167,7 +219,7 @@ export async function POST(req: NextRequest) {
         returnUrl: `${publicUrl}/order?number=${order.orderNumber}`,
         cancelUrl: `${publicUrl}/games/${game.slug}`,
         callbackUrl: `${publicUrl}/api/payment/webhook/khpay`,
-        note: `SharuTopUp · ${game.name} · ${product.name}`,
+        note: `RITHTOPUP · ${game.name} · ${product.name}`,
         customerEmail: data.customerEmail,
         metadata: {
           game_slug: game.slug,

@@ -15,6 +15,9 @@ const settingsSchema = z.object({
   announcementTone: z.enum(["info", "warning", "promo"]).nullable().optional(),
   telegramBotToken: z.string().nullable().optional(),
   telegramChatId: z.string().nullable().optional(),
+  pointsPerUsd: z.number().min(0).optional(),
+  pointsRedeemRate: z.number().positive().optional(),
+  minRedeemPoints: z.number().int().min(0).optional(),
 });
 
 export async function GET() {

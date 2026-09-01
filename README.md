@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/-SharuTopUp-f97316?style=for-the-badge&labelColor=0f172a&logoColor=white" alt="SharuTopUp" />
+<img src="https://img.shields.io/badge/-RITHTOPUP-f97316?style=for-the-badge&labelColor=0f172a&logoColor=white" alt="RITHTOPUP" />
 
 ### ⚡ Instant game top-up storefront for Cambodia
 
@@ -20,7 +20,7 @@ A production-ready **Next.js 14** platform for selling in-game credits — with 
 
 ## 🎯 What is this?
 
-**SharuTopUp** lets customers buy Diamonds / UC / Genesis Crystals / game passes using a single KHQR code scannable by **every major Cambodian bank app** — ABA Pay, ACLEDA Pay, Wing, TrueMoney, Chip Mong, Prince Bank, and more.
+**RITHTOPUP** lets customers buy Diamonds / UC / Genesis Crystals / game passes using a single KHQR code scannable by **every major Cambodian bank app** — ABA Pay, ACLEDA Pay, Wing, TrueMoney, Chip Mong, Prince Bank, and more.
 
 | Customer side | Admin side |
 |---|---|
@@ -98,8 +98,8 @@ jose (JWT)  ·  bcryptjs  ·  pdfkit  ·  zod
 ### 1. Clone & install
 
 ```bash
-git clone https://github.com/angkerith1/sharutopup-site.git
-cd sharutopup-site
+git clone https://github.com/angkerith1/rithtopup-site.git
+cd rithtopup-site
 npm install
 ```
 
@@ -230,7 +230,7 @@ Copy the connection string (must end with `?sslmode=require`).
 ### Step 2 — Import the repo into Vercel
 
 1. Go to **[vercel.com/new](https://vercel.com/new)**
-2. Import `angkerith1/sharutopup-site`
+2. Import `angkerith1/rithtopup-site`
 3. Framework preset: **Next.js** (auto-detected)
 4. **Build Command:** leave as default (`npm run build`). Do **not** add `prisma db push` — run schema pushes from your laptop only.
 5. **Do not deploy yet** — add environment variables first ↓
@@ -308,7 +308,7 @@ DATABASE_URL="postgresql://user:pass@host/db?sslmode=require"
 
 # Auth
 JWT_SECRET="<32+ char random string>"
-ADMIN_EMAIL="admin@sharutopup.com"
+ADMIN_EMAIL="admin@rithtopup.com"
 ADMIN_PASSWORD="ChangeMeNow123!"
 
 # KHPay
@@ -454,13 +454,13 @@ Nickname lookup depends on a third-party validation API and can fail intermitten
 
 ## 📄 License
 
-Private — © SharuTopUp. All rights reserved.
+Private — © RITHTOPUP. All rights reserved.
 
 ---
 
 <div align="center">
 
 Built with ⚡ for the Cambodian gaming community.
-Support: **[@sharutopup](https://t.me/sharutopup)** on Telegram.
+Support: **[@rithtopup](https://t.me/rithtopup)** on Telegram.
 
 </div>

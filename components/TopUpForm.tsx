@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { isValidUid, isValidServerId, formatUsd } from "@/lib/utils";
 import { useCurrency } from "@/lib/currency";
-import { QrCode, ArrowRight, Lock, Check, Smartphone, Search, UserRoundCheck, AlertCircle, Tag, Loader2 } from "lucide-react";
+import { useCurrentUser } from "@/lib/useCurrentUser";
+import { QrCode, ArrowRight, Lock, Check, Smartphone, Search, UserRoundCheck, AlertCircle, Tag, Loader2, Coins } from "lucide-react";
 
 // Games that support automatic nickname lookup via /api/lookup-uid
 const LOOKUP_SLUGS = new Set(["mobile-legends", "free-fire", "genshin-impact", "honkai-star-rail"]);
@@ -52,6 +53,11 @@ export default function TopUpForm({ game, products }: { game: Game; products: Pr
   } | null>(null);
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
+
+  // Loyalty points (logged-in users only — guests skip this entirely)
+  const { user } = useCurrentUser();
+  const [usePoints, setUsePoints] = useState(false);
+  const canRedeemPoints = !!user && user.points >= user.minRedeemPoints;
 
   // ── Nickname auto-lookup (debounced 800 ms) ──
   const supportsLookup = LOOKUP_SLUGS.has(game.slug);
@@ -173,7 +179,10 @@ export default function TopUpForm({ game, products }: { game: Game; products: Pr
   }
 
   // Reset promo when product changes
-  const effectivePrice = promoApplied ? promoApplied.finalAmountUsd : (selectedProduct?.priceUsd ?? 0);
+  const priceAfterPromo = promoApplied ? promoApplied.finalAmountUsd : (selectedProduct?.priceUsd ?? 0);
+  const pointsDiscount =
+    usePoints && canRedeemPoints && user ? Math.min(user.pointsValueUsd, priceAfterPromo) : 0;
+  const effectivePrice = Math.round((priceAfterPromo - pointsDiscount) * 100) / 100;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -193,6 +202,7 @@ export default function TopUpForm({ game, products }: { game: Game; products: Pr
           paymentMethod: method,
           promoCode: promoApplied?.code || undefined,
           playerNickname: nickname || undefined,
+          pointsToRedeem: usePoints && user ? user.points : undefined,
         }),
       });
 
@@ -439,6 +449,32 @@ export default function TopUpForm({ game, products }: { game: Game; products: Pr
         )}
       </div>
 
+      {/* Loyalty points */}
+      {user && (
+        <div className="fade-up" style={{ animationDelay: "150ms" }}>
+          {canRedeemPoints ? (
+            <label className="flex items-center gap-3 rounded-xl border border-fox-border bg-fox-card p-3 cursor-pointer hover:border-fox-primary/50 transition-colors">
+              <input
+                type="checkbox"
+                checked={usePoints}
+                onChange={(e) => setUsePoints(e.target.checked)}
+                className="h-4 w-4 accent-fox-primary shrink-0"
+              />
+              <Coins className="h-4 w-4 text-fox-primary shrink-0" strokeWidth={2.5} />
+              <div className="flex-1 min-w-0 text-sm">
+                <span className="font-medium">Use my {user.points.toLocaleString()} points</span>
+                <span className="text-fox-muted"> (worth up to {formatUsd(user.pointsValueUsd)})</span>
+              </div>
+            </label>
+          ) : (
+            <p className="flex items-center gap-2 text-xs text-fox-muted">
+              <Coins className="h-3.5 w-3.5" strokeWidth={2.5} />
+              {user.points.toLocaleString()} points — earn {user.minRedeemPoints}+ to redeem for a discount
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Step 3: Payment */}
       <div className="fade-up" style={{ animationDelay: "160ms" }}>
         <div className="flex items-center gap-3 mb-4">
@@ -559,6 +595,12 @@ export default function TopUpForm({ game, products }: { game: Game; products: Pr
                         </div>
                       </>
                     )}
+                    {pointsDiscount > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-fox-primary">Points redeemed</span>
+                        <span className="text-fox-primary font-semibold">−{format(pointsDiscount)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-center">
                       <span className="text-fox-muted text-sm">Total</span>
                       <div className="text-right">
@@ -622,6 +664,9 @@ export default function TopUpForm({ game, products }: { game: Game; products: Pr
               )}
               {promoApplied && (
                 <div className="text-xs text-green-400">−{format(promoApplied.discountUsd)} off</div>
+              )}
+              {pointsDiscount > 0 && (
+                <div className="text-xs text-fox-primary">−{format(pointsDiscount)} in points</div>
               )}
             </div>
             <div className="text-right">

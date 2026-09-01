@@ -1,9 +1,9 @@
-# SharuTopUp — Deploy to Vercel + Neon (Free, ~10 min)
+# RITHTOPUP — Deploy to Vercel + Neon (Free, ~10 min)
 
 ## Step 1 — Create Neon database (2 min)
 
 1. Go to https://neon.tech → **Sign up** (GitHub login fastest)
-2. Create Project → name it `sharutopup` → pick region **Singapore** (closest to KH)
+2. Create Project → name it `rithtopup` → pick region **Singapore** (closest to KH)
 3. Copy the **connection string** — looks like:
    ```
    postgresql://neondb_owner:xxxxx@ep-xxx.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
@@ -19,9 +19,9 @@ git add .
 git commit -m "Initial commit"
 ```
 
-Then on https://github.com/new create a new **private** repo called `sharutopup` → copy the commands GitHub shows → paste in terminal. Usually:
+Then on https://github.com/new create a new **private** repo called `rithtopup` → copy the commands GitHub shows → paste in terminal. Usually:
 ```powershell
-git remote add origin https://github.com/YOUR_USERNAME/sharutopup.git
+git remote add origin https://github.com/YOUR_USERNAME/rithtopup.git
 git branch -M main
 git push -u origin main
 ```
@@ -32,7 +32,7 @@ Create a **temporary** `.env` file in the project:
 ```
 DATABASE_URL="<paste your Neon connection string here>"
 JWT_SECRET="any-long-random-string-min-32-chars-hereeeeee"
-ADMIN_EMAIL="admin@sharutopup.com"
+ADMIN_EMAIL="admin@rithtopup.com"
 ADMIN_PASSWORD="ChangeMeNow123!"
 PAYMENT_SIMULATION_MODE="true"
 NEXT_PUBLIC_BASE_URL="http://localhost:3000"
@@ -49,7 +49,7 @@ This creates all tables in Neon and loads your games + admin user.
 ## Step 4 — Deploy to Vercel (3 min)
 
 1. Go to https://vercel.com → **Sign up with GitHub**
-2. Click **Add New… → Project** → Import your `sharutopup` repo
+2. Click **Add New… → Project** → Import your `rithtopup` repo
 3. **Framework Preset**: Next.js (auto-detected)
 4. Expand **Environment Variables** → add ALL of these:
 
@@ -57,7 +57,7 @@ This creates all tables in Neon and loads your games + admin user.
    |---|---|
    | `DATABASE_URL` | your Neon connection string |
    | `JWT_SECRET` | same 32-char random string from Step 3 |
-   | `ADMIN_EMAIL` | `admin@sharutopup.com` |
+   | `ADMIN_EMAIL` | `admin@rithtopup.com` |
    | `ADMIN_PASSWORD` | your admin password |
    | `PAYMENT_SIMULATION_MODE` | `true` |
    | `NEXT_PUBLIC_BASE_URL` | **leave blank for now**, update after deploy |
@@ -69,14 +69,14 @@ This creates all tables in Neon and loads your games + admin user.
 
 ## Step 5 — Post-deploy (30 sec)
 
-1. After deploy succeeds, copy your live URL (e.g. `https://sharutopup.vercel.app`)
+1. After deploy succeeds, copy your live URL (e.g. `https://rithtopup.vercel.app`)
 2. Go to **Project Settings → Environment Variables** → set `NEXT_PUBLIC_BASE_URL` to that URL
 3. **Deployments → Redeploy** → done
 
 ## ✅ You're live
 
-- Public site: `https://sharutopup.vercel.app`
-- Admin: `https://sharutopup.vercel.app/admin/login`
+- Public site: `https://rithtopup.vercel.app`
+- Admin: `https://rithtopup.vercel.app/admin/login`
 
 ## Custom domain (optional, later)
 

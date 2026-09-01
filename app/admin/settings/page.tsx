@@ -31,6 +31,9 @@ export default function AdminSettingsPage() {
         announcementTone: form.announcementTone || "info",
         telegramBotToken: form.telegramBotToken || null,
         telegramChatId: form.telegramChatId || null,
+        pointsPerUsd: Number(form.pointsPerUsd),
+        pointsRedeemRate: Number(form.pointsRedeemRate),
+        minRedeemPoints: Number(form.minRedeemPoints),
       }),
     });
     setSaving(false);
@@ -138,6 +141,47 @@ export default function AdminSettingsPage() {
                 value={form.telegramChatId || ""}
                 onChange={(e) => setForm({ ...form, telegramChatId: e.target.value })}
                 placeholder="-1001234567890"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-fox-border">
+          <h2 className="font-semibold mb-1">Loyalty Points</h2>
+          <p className="text-xs text-fox-muted mb-3">Controls how customers earn and redeem points. Guest checkout is unaffected.</p>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <div>
+              <label className="label">Points per $1 paid</label>
+              <input
+                className="input"
+                type="number"
+                step="0.1"
+                min="0"
+                value={form.pointsPerUsd ?? 1}
+                onChange={(e) => setForm({ ...form, pointsPerUsd: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="label">Points per $1 discount</label>
+              <input
+                className="input"
+                type="number"
+                step="1"
+                min="1"
+                value={form.pointsRedeemRate ?? 100}
+                onChange={(e) => setForm({ ...form, pointsRedeemRate: e.target.value })}
+              />
+              <p className="text-xs text-fox-muted mt-1">e.g. 100 means 100 pts = $1 off.</p>
+            </div>
+            <div>
+              <label className="label">Minimum points to redeem</label>
+              <input
+                className="input"
+                type="number"
+                step="1"
+                min="0"
+                value={form.minRedeemPoints ?? 100}
+                onChange={(e) => setForm({ ...form, minRedeemPoints: e.target.value })}
               />
             </div>
           </div>

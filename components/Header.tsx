@@ -4,11 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import CurrencyToggle from "./CurrencyToggle";
+import AccountMenu from "./AccountMenu";
 
 const NAV = [
   { href: "/", label: "Home" },
   { href: "/#games", label: "Games" },
-  { href: "/order", label: "Track Order" },
   { href: "/#faq", label: "FAQ" },
 ];
 
@@ -93,16 +93,7 @@ export default function Header() {
 
         <div className="flex items-center gap-2">
           <CurrencyToggle className="hidden sm:inline-flex" />
-          <Link
-            href="/order"
-            className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-fox-border bg-fox-card/80 px-4 py-2 text-sm font-medium text-fox-text backdrop-blur-sm transition-all hover:border-fox-primary/60 hover:text-fox-primary"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
-            Track Order
-          </Link>
+          <AccountMenu className="hidden sm:block" />
 
           {/* Mobile burger */}
           <button
@@ -141,6 +132,9 @@ export default function Header() {
           <div className="mt-2 flex items-center justify-between rounded-lg border border-fox-border bg-fox-card/60 px-4 py-3">
             <span className="text-xs uppercase tracking-wider text-fox-muted">Display currency</span>
             <CurrencyToggle />
+          </div>
+          <div className="mt-2">
+            <AccountMenu />
           </div>
         </nav>
       </div>

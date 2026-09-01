@@ -1,0 +1,106 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import { Lock, ArrowRight } from "lucide-react";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") || "/account";
+
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: identifier.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Login failed");
+      router.push(next);
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      <Header />
+      <main className="mx-auto max-w-md px-4 py-16 sm:px-6">
+        <div className="card p-6 sm:p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-fox-primary to-fox-accent text-black">
+              <Lock className="h-5 w-5" strokeWidth={2.5} />
+            </div>
+            <div>
+              <h1 className="font-display text-xl font-bold">Sign in</h1>
+              <p className="text-xs text-fox-muted">Track orders and earn loyalty points</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="label">Email or phone number</label>
+              <input
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="you@email.com or 012345678"
+                className="input"
+                required
+              />
+            </div>
+            <div>
+              <label className="label">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="input"
+                required
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary w-full disabled:opacity-50"
+            >
+              {submitting ? "Signing in..." : "Sign in"}
+              {!submitting && <ArrowRight className="h-4 w-4" strokeWidth={2.5} />}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-fox-muted">
+            New here?{" "}
+            <Link href="/register" className="text-fox-primary hover:underline">
+              Create an account
+            </Link>
+          </p>
+        </div>
+      </main>
+      <Footer />
+    </>
+  );
+}

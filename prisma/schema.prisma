@@ -1,4 +1,4 @@
-// Prisma schema for SharuTopUp
+// Prisma schema for RITHTOPUP
 // Local dev: sqlite (file:./dev.db)
 // Production (Vercel/Neon): change provider to "postgresql" and run `prisma db push`
 generator client {
@@ -36,6 +36,35 @@ model Game {
   orders      Order[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String?  @unique
+  phone        String?  @unique
+  passwordHash String
+  name         String?
+  points       Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastLoginAt  DateTime?
+  orders       Order[]
+  pointsLedger PointsLedger[]
+}
+
+model PointsLedger {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String?
+  type      String   // EARN | REDEEM | REFUND | ADJUST
+  points    Int      // positive = credited to user, negative = debited
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([orderId])
 }
 
 model Product {
@@ -90,10 +119,17 @@ model Order {
   promoCodeId    String?
   promoCode      PromoCode? @relation(fields: [promoCodeId], references: [id])
   discountUsd    Float      @default(0)
+  userId         String?
+  user           User?      @relation(fields: [userId], references: [id])
+  pointsEarned   Int        @default(0)
+  pointsRedeemed Int        @default(0)
+  pointsDiscountUsd Float   @default(0)
+  pointsAwarded  Boolean    @default(false) // guards against double-crediting on repeated PAID webhooks
 
   @@index([status])
   @@index([createdAt])
   @@index([customerEmail])
+  @@index([userId])
 }
 
 model PromoCode {
@@ -124,16 +160,19 @@ model Admin {
 
 model Settings {
   id          Int      @id @default(1)
-  siteName    String   @default("SharuTopUp")
+  siteName    String   @default("RITHTOPUP")
   exchangeRate Float   @default(4100) // KHR per 1 USD
-  supportTelegram String? @default("@sharutopup")
-  supportEmail String? @default("support@sharutopup.com")
+  supportTelegram String? @default("@rithtopup")
+  supportEmail String? @default("support@rithtopup.com")
   maintenanceMode Boolean @default(false)
   maintenanceMessage String?
   announcement String?
   announcementTone String? @default("info") // info | warning | promo
   telegramBotToken String?
   telegramChatId   String?
+  pointsPerUsd      Float   @default(1)   // points earned per $1 actually paid
+  pointsRedeemRate  Float   @default(100) // points needed for $1 of discount
+  minRedeemPoints   Int     @default(100) // minimum points a user must redeem at once
   updatedAt   DateTime @updatedAt
 }
 

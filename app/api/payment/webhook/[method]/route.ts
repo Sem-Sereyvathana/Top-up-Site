@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { verifyWebhook, PaymentMethod } from "@/lib/payment";
 import { notifyTelegram, escapeHtml } from "@/lib/telegram";
+import { awardPointsForOrder, refundRedeemedPointsForOrder } from "@/lib/loyalty";
 import { NextRequest, NextResponse } from "next/server";
 
 // KHPay webhook receiver.
@@ -92,6 +93,10 @@ export async function POST(
       },
     });
 
+    // Credit loyalty points now that the order is actually paid (no-op for
+    // guest orders / already-credited orders).
+    await awardPointsForOrder(order.id);
+
     // Fire-and-forget Telegram notification to the operator.
     const fullOrder = await prisma.order.findUnique({
       where: { id: order.id },
@@ -117,6 +122,8 @@ export async function POST(
         failureReason: `KHPay: ${event}`,
       },
     });
+    // Give back any points the customer redeemed on this now-failed order.
+    await refundRedeemedPointsForOrder(order.id);
   }
 
   return NextResponse.json({ ok: true });

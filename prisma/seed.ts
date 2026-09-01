@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("⚡ Seeding SharuTopUp database...");
+  console.log("⚡ Seeding RITHTOPUP database...");
 
   // --- Settings singleton ---
   await prisma.settings.upsert({
@@ -12,15 +12,15 @@ async function main() {
     update: {},
     create: {
       id: 1,
-      siteName: "SharuTopUp",
+      siteName: "RITHTOPUP",
       exchangeRate: 4100,
-      supportTelegram: "@sharutopup",
-      supportEmail: "support@sharutopup.com",
+      supportTelegram: "@rithtopup",
+      supportEmail: "support@rithtopup.com",
     },
   });
 
   // --- Admin user ---
-  const adminEmail = process.env.ADMIN_EMAIL || "admin@sharutopup.com";
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@rithtopup.com";
   const adminPassword = process.env.ADMIN_PASSWORD || "ChangeMeNow123!";
   const passwordHash = await bcrypt.hash(adminPassword, 10);
   await prisma.admin.upsert({
@@ -42,8 +42,8 @@ async function main() {
       name: "Mobile Legends: Bang Bang",
       publisher: "Moonton",
       description: "Top up Diamonds instantly for Mobile Legends",
-      imageUrl: "https://placehold.co/400x400/f97316/ffffff?text=MLBB",
-      bannerUrl: "https://placehold.co/1200x400/f97316/ffffff?text=MLBB+Banner",
+      imageUrl: "https://cdn.rithtopup.com/games/mlbb.jpg",
+      bannerUrl: "https://cdn.rithtopup.com/banners/mlbb.jpg",
       currencyName: "Diamonds",
       uidLabel: "User ID (Zone ID)",
       uidExample: "12345678",
@@ -75,8 +75,8 @@ async function main() {
       name: "Garena Free Fire",
       publisher: "Garena",
       description: "Top up Diamonds for Free Fire MAX and Free Fire",
-      imageUrl: "https://placehold.co/400x400/ef4444/ffffff?text=Free+Fire",
-      bannerUrl: "https://placehold.co/1200x400/ef4444/ffffff?text=Free+Fire+Banner",
+      imageUrl: "https://cdn.rithtopup.com/games/freefire.jpg",
+      bannerUrl: "https://cdn.rithtopup.com/banners/freefire.jpg",
       currencyName: "Diamonds",
       uidLabel: "Player ID",
       uidExample: "1234567890",
@@ -98,8 +98,8 @@ async function main() {
       name: "PUBG Mobile",
       publisher: "Tencent",
       description: "Top up UC for PUBG Mobile Global and KR",
-      imageUrl: "https://placehold.co/400x400/eab308/ffffff?text=PUBGM",
-      bannerUrl: "https://placehold.co/1200x400/eab308/ffffff?text=PUBGM+Banner",
+      imageUrl: "https://cdn.rithtopup.com/games/pubgm.jpg",
+      bannerUrl: "https://cdn.rithtopup.com/banners/pubgm.jpg",
       currencyName: "UC",
       uidLabel: "Player ID",
       uidExample: "5123456789",
@@ -119,7 +119,7 @@ async function main() {
       name: "Genshin Impact",
       publisher: "HoYoverse",
       description: "Top up Genesis Crystals for Genshin Impact",
-      imageUrl: "https://placehold.co/400x400/3b82f6/ffffff?text=Genshin",
+      imageUrl: "https://cdn.rithtopup.com/games/genshin.jpg",
       currencyName: "Genesis Crystals",
       uidLabel: "UID",
       uidExample: "812345678",
@@ -142,7 +142,7 @@ async function main() {
       name: "Honkai: Star Rail",
       publisher: "HoYoverse",
       description: "Top up Oneiric Shards for Honkai: Star Rail",
-      imageUrl: "https://placehold.co/400x400/8b5cf6/ffffff?text=HSR",
+      imageUrl: "https://cdn.rithtopup.com/games/hsr.jpg",
       currencyName: "Oneiric Shards",
       uidLabel: "UID",
       uidExample: "812345678",
@@ -161,7 +161,7 @@ async function main() {
       name: "Call of Duty: Mobile",
       publisher: "Activision",
       description: "Top up CP for Call of Duty Mobile",
-      imageUrl: "https://placehold.co/400x400/22c55e/ffffff?text=CODM",
+      imageUrl: "https://cdn.rithtopup.com/games/codm.jpg",
       currencyName: "CP",
       uidLabel: "Player ID",
       uidExample: "1234567890",

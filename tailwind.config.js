@@ -13,28 +13,28 @@ module.exports = {
       },
       colors: {
         fox: {
-          bg: "#0A0A0F",
-          surface: "#12121A",
-          card: "#1A1A26",
-          border: "#24243A",
-          primary: "#FF6B1A",
-          accent: "#FFB800",
-          gold: "#FFD15C",
-          text: "#F5F5F7",
-          muted: "#8B8B9E",
+          bg: "#0B0F17",       // Deep Slate Background
+          surface: "#111827",  // Dark Gray Surface
+          card: "#1F2937",     // Card Background
+          border: "#374151",   // Subtle Gray Border
+          primary: "#3B82F6",  // Electric Blue
+          accent: "#8B5CF6",   // Neon Purple
+          gold: "#A855F7",     // Accent Purple
+          text: "#F9FAFB",     // Crisp White Text
+          muted: "#9CA3AF",    // Neutral Muted Text
         },
       },
       boxShadow: {
-        "glow-sm": "0 0 12px rgba(255, 107, 26, 0.35)",
-        "glow": "0 0 30px rgba(255, 107, 26, 0.45)",
-        "glow-lg": "0 0 60px rgba(255, 107, 26, 0.55)",
-        "inner-glow": "inset 0 0 24px rgba(255, 107, 26, 0.25)",
+        "glow-sm": "0 0 12px rgba(59, 130, 246, 0.35)",
+        "glow": "0 0 30px rgba(59, 130, 246, 0.45)",
+        "glow-lg": "0 0 60px rgba(139, 92, 246, 0.55)",
+        "inner-glow": "inset 0 0 24px rgba(59, 130, 246, 0.25)",
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
         "gradient-conic": "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
         "aurora":
-          "radial-gradient(60% 60% at 20% 20%, rgba(255,107,26,0.35) 0%, transparent 60%), radial-gradient(55% 55% at 80% 30%, rgba(255,184,0,0.28) 0%, transparent 60%), radial-gradient(50% 50% at 50% 90%, rgba(255,209,92,0.22) 0%, transparent 60%)",
+          "radial-gradient(60% 60% at 20% 20%, rgba(59,130,246,0.35) 0%, transparent 60%), radial-gradient(55% 55% at 80% 30%, rgba(139,92,246,0.28) 0%, transparent 60%), radial-gradient(50% 50% at 50% 90%, rgba(168,85,247,0.22) 0%, transparent 60%)",
       },
       animation: {
         glow: "glow 2s ease-in-out infinite alternate",
@@ -57,8 +57,8 @@ module.exports = {
       },
       keyframes: {
         glow: {
-          "0%": { boxShadow: "0 0 20px rgba(255, 107, 26, 0.3)" },
-          "100%": { boxShadow: "0 0 40px rgba(255, 107, 26, 0.6)" },
+          "0%": { boxShadow: "0 0 20px rgba(59, 130, 246, 0.3)" },
+          "100%": { boxShadow: "0 0 40px rgba(139, 92, 246, 0.6)" },
         },
         float: {
           "0%, 100%": { transform: "translateY(0px)" },

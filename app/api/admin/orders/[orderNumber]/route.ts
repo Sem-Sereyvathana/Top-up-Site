@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { writeAudit } from "@/lib/audit";
 import { notifyTelegram, escapeHtml } from "@/lib/telegram";
+import { awardPointsForOrder, refundRedeemedPointsForOrder } from "@/lib/loyalty";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -62,6 +63,16 @@ export async function PATCH(
     where: { id: order.id },
     data,
   });
+
+  if (parsed.data.status === "PAID") {
+    await awardPointsForOrder(order.id);
+  } else if (
+    parsed.data.status === "FAILED" ||
+    parsed.data.status === "CANCELLED" ||
+    parsed.data.status === "REFUNDED"
+  ) {
+    await refundRedeemedPointsForOrder(order.id);
+  }
 
   if (parsed.data.status && parsed.data.status !== order.status) {
     await writeAudit({
