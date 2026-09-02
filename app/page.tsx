@@ -44,11 +44,6 @@ export default async function HomePage() {
 
       {/* 4. Product Cards Grid */}
       <section id="games" className="relative mx-auto max-w-7xl px-4 py-8 pb-16 sm:px-6 lg:px-8">
-        <div className="text-center mb-8">
-          <h2 className="font-display text-3xl sm:text-4xl font-bold mb-2 text-fox-text">Choose Your Game</h2>
-          <p className="text-fox-muted text-sm">Tap a game to top up instantly</p>
-        </div>
-
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
           {games.map((game, i) => (
             <div

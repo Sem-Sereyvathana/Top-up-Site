@@ -7,13 +7,13 @@ import CurrencyToggle from "./CurrencyToggle";
 import AccountMenu from "./AccountMenu";
 
 const NAV = [
-  { href: "/", label: "Home" },
-  { href: "/#games", label: "Games" },
-  { href: "/#faq", label: "FAQ" },
+  { href: "/game-items", label: "Game Items" },
+  { href: "/accounts", label: "Account" },
 ];
 
 export default function Header() {
   const pathname = usePathname();
+  const isHome = pathname === "/";
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -23,6 +23,10 @@ export default function Header() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // First nav item toggles label based on route, but always links home
+  const homeItem = { href: "/", label: isHome ? "Home" : "Top up" };
+  const fullNav = [homeItem, ...NAV];
 
   return (
     <header
@@ -67,11 +71,11 @@ export default function Header() {
         </Link>
 
         <nav className="hidden md:flex items-center gap-1 rounded-full border border-fox-border/70 bg-fox-card/50 px-2 py-1.5 backdrop-blur-md">
-          {NAV.map((item) => {
+          {fullNav.map((item) => {
             const active =
               item.href === "/"
                 ? pathname === "/"
-                : pathname?.startsWith(item.href.replace(/#.*/, ""));
+                : pathname?.startsWith(item.href);
             return (
               <Link
                 key={item.href}
@@ -119,7 +123,7 @@ export default function Header() {
         }`}
       >
         <nav className="flex flex-col p-4 gap-1">
-          {NAV.map((item) => (
+          {fullNav.map((item) => (
             <Link
               key={item.href}
               href={item.href}

@@ -155,7 +155,6 @@ export default async function AdminDashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 my-8">
         {[
           { href: "/admin/banners", icon: "🖼️", label: "Banners" },
-          { href: "/admin/faqs", icon: "❓", label: "FAQ" },
           { href: "/admin/blog", icon: "📝", label: "Blog" },
           { href: "/admin/customers", icon: "👥", label: "Customers" },
           { href: "/admin/banlist", icon: "🚫", label: "Banlist" },
