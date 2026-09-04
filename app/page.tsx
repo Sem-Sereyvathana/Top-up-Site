@@ -10,8 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const [games, banners] = await Promise.all([
     prisma.game.findMany({
-      where: { active: true },
-      orderBy: [{ featured: "desc" }, { sortOrder: "asc" }],
+      orderBy: [{ active: "desc" }, { featured: "desc" }, { sortOrder: "asc" }],
     }),
     prisma.heroBanner.findMany({
       where: { active: true },
@@ -58,6 +57,7 @@ export default async function HomePage() {
                 currencyName={game.currencyName}
                 imageUrl={game.imageUrl}
                 featured={game.featured}
+                active={game.active}
               />
             </div>
           ))}

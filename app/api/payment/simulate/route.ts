@@ -1,6 +1,7 @@
 ﻿import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
+import { decrementStockForOrder } from "@/lib/stock";
 import { NextRequest, NextResponse } from "next/server";
 
 // Simulation: pretends payment succeeded and marks order PAID, then DELIVERED.
@@ -30,6 +31,8 @@ export async function GET(req: NextRequest) {
         paidAt: new Date(),
       },
     });
+
+    await decrementStockForOrder(order.id);
 
     // In real life you'd trigger fulfillment here (queue job).
     // For simulation, mark DELIVERED right away:

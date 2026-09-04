@@ -5,6 +5,7 @@ import { isValidUid, isValidServerId, formatUsd } from "@/lib/utils";
 import { useCurrency } from "@/lib/currency";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { QrCode, ArrowRight, Lock, Check, Smartphone, Search, UserRoundCheck, AlertCircle, Tag, Loader2, Coins } from "lucide-react";
+import RobuxStockBadge from "@/components/RobuxStockBadge";
 
 // Games that support automatic nickname lookup via /api/lookup-uid
 const LOOKUP_SLUGS = new Set(["mobile-legends", "free-fire", "genshin-impact", "honkai-star-rail"]);
@@ -18,6 +19,11 @@ interface Product {
   bonus: number;
   priceUsd: number;
   badge: string | null;
+  stock?: number | null;
+}
+
+function isOutOfStock(p: Product): boolean {
+  return p.stock !== null && p.stock !== undefined && p.stock <= 0;
 }
 
 interface Game {
@@ -31,9 +37,15 @@ interface Game {
   servers: string[];
 }
 
+// Shows a live "X Robux in stock" badge, synced with the admin's Robux Stock page.
+const isRobuxGame = (g: Game) =>
+  g.slug === "roblox" || g.currencyName.toLowerCase().includes("robux");
+
 export default function TopUpForm({ game, products }: { game: Game; products: Product[] }) {
   const { format, currency, toKhr } = useCurrency();
-  const [selected, setSelected] = useState<string | null>(products[0]?.id ?? null);
+  const [selected, setSelected] = useState<string | null>(
+    (products.find((p) => !isOutOfStock(p)) ?? products[0])?.id ?? null
+  );
   const [uid, setUid] = useState("");
   const [serverId, setServerId] = useState(
     ZONE_ID_SLUGS.has(game.slug) ? "" : (game.servers[0] ?? "")
@@ -145,6 +157,8 @@ export default function TopUpForm({ game, products }: { game: Game; products: Pr
   const needsServer = game.requiresServer || useZoneField;
   const canSubmit =
     !!selected &&
+    !!selectedProduct &&
+    !isOutOfStock(selectedProduct) &&
     isValidUid(uid) &&
     (!needsServer || serverId.trim().length > 0);
 
@@ -231,21 +245,44 @@ export default function TopUpForm({ game, products }: { game: Game; products: Pr
           <h2 className="font-display text-xl font-bold">Choose Package</h2>
         </div>
 
+        {isRobuxGame(game) && (
+          <div className="mb-4">
+            <RobuxStockBadge />
+          </div>
+        )}
+
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
           {products.map((p) => {
             const isSelected = selected === p.id;
+            const outOfStock = isOutOfStock(p);
+            const hasStock = p.stock !== null && p.stock !== undefined;
+            const lowStock = hasStock && !outOfStock && (p.stock as number) <= 5;
             return (
               <button
                 type="button"
                 key={p.id}
-                onClick={() => setSelected(p.id)}
-                className={`group relative overflow-hidden text-left rounded-xl border-2 p-3 sm:p-4 transition-all duration-300 hover:-translate-y-0.5 ${
-                  isSelected
+                disabled={outOfStock}
+                onClick={() => !outOfStock && setSelected(p.id)}
+                className={`group relative overflow-hidden text-left rounded-xl border-2 p-3 sm:p-4 transition-all duration-300 ${
+                  outOfStock
+                    ? "border-fox-border bg-fox-card/50 opacity-50 cursor-not-allowed"
+                    : "hover:-translate-y-0.5"
+                } ${
+                  outOfStock
+                    ? ""
+                    : isSelected
                     ? "border-fox-primary bg-gradient-to-br from-fox-primary/15 to-fox-accent/5 shadow-lg shadow-fox-primary/30 ring-1 ring-fox-primary/50"
                     : "border-fox-border bg-fox-card hover:border-fox-primary/50 hover:shadow-md hover:shadow-fox-primary/10"
                 }`}
               >
-                {isSelected && (
+                {outOfStock && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-fox-bg/70 backdrop-blur-[1px]">
+                    <span className="rounded-full border border-fox-border bg-fox-card px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-fox-muted">
+                      Out of Stock
+                    </span>
+                  </div>
+                )}
+                {!outOfStock && isSelected && (
                   <span className="pointer-events-none absolute inset-0 opacity-60">
                     <span className="absolute -inset-y-1 -left-1/3 w-1/3 rotate-12 bg-gradient-to-r from-transparent via-fox-primary/30 to-transparent animate-shimmer" />
                   </span>
@@ -288,6 +325,17 @@ export default function TopUpForm({ game, products }: { game: Game; products: Pr
                   <div className="font-semibold text-sm leading-tight">{p.name}</div>
                 )}
 
+                {lowStock && (
+                  <div className="text-[10px] text-yellow-400 font-semibold mt-1">
+                    Only {p.stock} left
+                  </div>
+                )}
+                {hasStock && !outOfStock && !lowStock && (
+                  <div className="text-[10px] text-fox-muted mt-1">
+                    {p.stock} in stock
+                  </div>
+                )}
+
                 <div className={`mt-3 pt-3 border-t font-mono font-bold text-sm sm:text-base transition-colors ${
                   isSelected
                     ? "border-fox-primary/40 text-fox-primary"
@@ -318,7 +366,7 @@ export default function TopUpForm({ game, products }: { game: Game; products: Pr
               </label>
               <input
                 type="text"
-                inputMode="numeric"
+                inputMode="text"
                 value={uid}
                 onChange={(e) => setUid(e.target.value)}
                 placeholder={useZoneField ? "12345678" : (game.uidExample || "Enter your player ID")}
@@ -332,7 +380,7 @@ export default function TopUpForm({ game, products }: { game: Game; products: Pr
               )}
               {uid && !isValidUid(uid) && (
                 <p className="text-xs text-red-400 mt-1">
-                  UID should be 6–20 digits.
+                  Must be 3–20 characters (letters, numbers, underscores).
                 </p>
               )}
             </div>
@@ -553,6 +601,11 @@ export default function TopUpForm({ game, products }: { game: Game; products: Pr
 
               {selectedProduct ? (
                 <div className="space-y-3">
+                  {isOutOfStock(selectedProduct) && (
+                    <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2.5 text-xs text-red-300">
+                      This package just sold out — pick another one.
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-fox-muted">{game.name}</span>
                   </div>

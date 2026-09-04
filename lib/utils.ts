@@ -20,9 +20,11 @@ export function calcKhr(usd: number, rate: number = 4100): number {
   return Math.round(usd * rate / 100) * 100; // round to nearest 100 KHR
 }
 
-// Validate UID format - basic: digits only, 5-20 chars
+// Validate player identifier - accepts numeric UIDs (e.g. Mobile Legends,
+// Free Fire) as well as alphanumeric usernames (e.g. Roblox), 3-20 chars,
+// letters/numbers/underscores only.
 export function isValidUid(uid: string): boolean {
-  return /^\d{5,20}$/.test(uid.trim());
+  return /^[a-zA-Z0-9_]{3,20}$/.test(uid.trim());
 }
 
 // Validate server zone id

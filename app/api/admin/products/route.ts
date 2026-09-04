@@ -12,6 +12,7 @@ const productSchema = z.object({
   priceUsd: z.number().positive(),
   badge: z.string().optional().nullable(),
   active: z.boolean().default(true),
+  stock: z.number().int().min(0).nullable().optional(),
   sortOrder: z.number().int().default(0),
 });
 

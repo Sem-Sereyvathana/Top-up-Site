@@ -45,6 +45,38 @@ export default function AdminProductsPage() {
     await loadAll();
   }
 
+  // Quick restock: ask for a delta (e.g. 50, or -5 to correct downward)
+  // and PATCH the new absolute total. Works for any product that already
+  // has a numeric stock set; products left at "unlimited" (null) are
+  // prompted to set an initial count first.
+  async function adjustStock(p: any) {
+    const current = p.stock === null || p.stock === undefined ? null : p.stock;
+    const promptLabel = current === null
+      ? `"${p.name}" is currently unlimited. Enter a starting stock count:`
+      : `"${p.name}" has ${current} in stock. Enter amount to add (use a negative number to subtract):`;
+    const input = window.prompt(promptLabel, current === null ? "0" : "");
+    if (input === null || input.trim() === "") return;
+
+    const delta = Number(input);
+    if (!Number.isFinite(delta) || !Number.isInteger(delta)) {
+      alert("Please enter a whole number.");
+      return;
+    }
+
+    const next = current === null ? delta : current + delta;
+    if (next < 0) {
+      alert(`That would bring stock below 0 (currently ${current}).`);
+      return;
+    }
+
+    await fetch(`/api/admin/products/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stock: next }),
+    });
+    await loadAll();
+  }
+
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
@@ -89,6 +121,7 @@ export default function AdminProductsPage() {
                 <th className="text-right px-5 py-3">Amount</th>
                 <th className="text-right px-5 py-3">Bonus</th>
                 <th className="text-right px-5 py-3">Price USD</th>
+                <th className="text-right px-5 py-3">Stock</th>
                 <th className="text-left px-5 py-3">Badge</th>
                 <th className="text-center px-5 py-3">Active</th>
                 <th className="text-right px-5 py-3">Actions</th>
@@ -96,9 +129,9 @@ export default function AdminProductsPage() {
             </thead>
             <tbody className="divide-y divide-fox-border">
               {loading ? (
-                <tr><td colSpan={8} className="px-5 py-12 text-center text-fox-muted">Loading...</td></tr>
+                <tr><td colSpan={9} className="px-5 py-12 text-center text-fox-muted">Loading...</td></tr>
               ) : products.length === 0 ? (
-                <tr><td colSpan={8} className="px-5 py-16 text-center">
+                <tr><td colSpan={9} className="px-5 py-16 text-center">
                     <div className="text-4xl mb-3">💎</div>
                     <p className="text-fox-muted mb-1">No products yet</p>
                     <p className="text-xs text-fox-muted/60 mb-3">Add packages for customers to purchase.</p>
@@ -112,6 +145,24 @@ export default function AdminProductsPage() {
                     <td className="px-5 py-3 text-right font-mono">{p.amount.toLocaleString()}</td>
                     <td className="px-5 py-3 text-right font-mono text-fox-accent">{p.bonus > 0 ? `+${p.bonus}` : "—"}</td>
                     <td className="px-5 py-3 text-right font-mono text-fox-primary">${p.priceUsd.toFixed(2)}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        {p.stock === null || p.stock === undefined ? (
+                          <span className="text-fox-muted font-mono">∞</span>
+                        ) : p.stock <= 0 ? (
+                          <span className="text-red-400 font-semibold font-mono">Out</span>
+                        ) : (
+                          <span className={`font-mono ${p.stock <= 5 ? "text-yellow-400" : ""}`}>{p.stock}</span>
+                        )}
+                        <button
+                          onClick={() => adjustStock(p)}
+                          title={p.stock === null || p.stock === undefined ? "Set starting stock" : "Add / remove stock"}
+                          className="text-fox-accent text-xs hover:underline whitespace-nowrap"
+                        >
+                          {p.stock === null || p.stock === undefined ? "Set stock" : "+ Stock"}
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-5 py-3 text-xs">{p.badge || "—"}</td>
                     <td className="px-5 py-3 text-center">
                       <button onClick={() => toggleActive(p)}>
@@ -144,6 +195,7 @@ function ProductForm({ games, defaultGameId, initial, onCancel, onSaved }: any) 
     priceUsd: initial?.priceUsd ?? 0,
     badge: initial?.badge || "",
     active: initial?.active ?? true,
+    stock: initial?.stock === null || initial?.stock === undefined ? "" : String(initial.stock),
     sortOrder: initial?.sortOrder ?? 0,
   });
   const [saving, setSaving] = useState(false);
@@ -160,6 +212,7 @@ function ProductForm({ games, defaultGameId, initial, onCancel, onSaved }: any) 
       priceUsd: Number(form.priceUsd),
       sortOrder: Number(form.sortOrder),
       badge: form.badge || null,
+      stock: form.stock.trim() === "" ? null : Number(form.stock),
     };
     const url = initial ? `/api/admin/products/${initial.id}` : "/api/admin/products";
     const method = initial ? "PATCH" : "POST";
@@ -213,6 +266,17 @@ function ProductForm({ games, defaultGameId, initial, onCancel, onSaved }: any) 
         <div>
           <label className="label">Badge (Hot / Best Value / Pass / custom)</label>
           <input className="input" value={form.badge} onChange={(e) => setForm({ ...form, badge: e.target.value })} />
+        </div>
+        <div>
+          <label className="label">Stock (leave blank for unlimited)</label>
+          <input
+            className="input"
+            type="number"
+            min={0}
+            placeholder="Unlimited"
+            value={form.stock}
+            onChange={(e) => setForm({ ...form, stock: e.target.value })}
+          />
         </div>
         <div>
           <label className="label">Sort Order</label>

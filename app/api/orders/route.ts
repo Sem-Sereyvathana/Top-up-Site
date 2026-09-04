@@ -11,7 +11,7 @@ import { z } from "zod";
 const createOrderSchema = z.object({
   gameId: z.string().min(1),
   productId: z.string().min(1),
-  playerUid: z.string().min(5).max(20),
+  playerUid: z.string().min(3).max(20),
   serverId: z.string().optional(),
   customerEmail: z.string().email().optional(),
   customerPhone: z.string().optional(),
@@ -86,6 +86,9 @@ export async function POST(req: NextRequest) {
     }
     if (!product || !product.active || product.gameId !== game.id) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+    if (product.stock !== null && product.stock <= 0) {
+      return NextResponse.json({ error: "This package is out of stock" }, { status: 409 });
     }
     if (game.requiresServer && !data.serverId) {
       return NextResponse.json({ error: "Server is required for this game" }, { status: 400 });

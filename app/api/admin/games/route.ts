@@ -16,7 +16,7 @@ const imagePath = z
 const gameSchema = z.object({
   slug: z.string().min(2).regex(/^[a-z0-9-]+$/),
   name: z.string().min(1),
-  publisher: z.string().min(1),
+  publisher: z.string().optional().or(z.literal("")),
   description: z.string().optional(),
   imageUrl: imagePath,
   bannerUrl: imagePath.optional().or(z.literal("")),

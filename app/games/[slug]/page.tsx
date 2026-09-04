@@ -56,9 +56,11 @@ export default async function GamePage({ params }: { params: { slug: string } })
               }}
             />
             <div>
-              <p className="text-[10px] sm:text-xs uppercase tracking-widest text-fox-muted mb-1">
-                {game.publisher}
-              </p>
+              {game.publisher && (
+                <p className="text-[10px] sm:text-xs uppercase tracking-widest text-fox-muted mb-1">
+                  {game.publisher}
+                </p>
+              )}
               <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight mb-1 sm:mb-2">
                 {game.name}
               </h1>
@@ -95,6 +97,7 @@ export default async function GamePage({ params }: { params: { slug: string } })
             bonus: p.bonus,
             priceUsd: p.priceUsd,
             badge: p.badge,
+            stock: p.stock,
           }))}
         />
       </main>

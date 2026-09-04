@@ -12,7 +12,7 @@ model Game {
   id             String        @id @default(cuid())
   slug           String        @unique
   name           String
-  publisher      String
+  publisher      String?
   description    String?
   imageUrl       String
   bannerUrl      String?
@@ -74,6 +74,7 @@ model Product {
   badge     String?
   imageUrl  String?
   active    Boolean  @default(true)
+  stock     Int?
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -116,6 +117,7 @@ model Order {
   pointsDiscountUsd Float      @default(0)
   pointsEarned      Int        @default(0)
   pointsRedeemed    Int        @default(0)
+  stockDecremented  Boolean    @default(false)
   userId            String?
   game              Game       @relation(fields: [gameId], references: [id])
   product           Product    @relation(fields: [productId], references: [id])
@@ -170,6 +172,12 @@ model Settings {
   minRedeemPoints    Int      @default(100)
   pointsPerUsd       Float    @default(1)
   pointsRedeemRate   Float    @default(100)
+}
+
+model RobuxStock {
+  id         Int      @id @default(1)
+  totalRobux Int      @default(0)
+  updatedAt  DateTime @updatedAt
 }
 
 model HeroBanner {

@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { writeAudit } from "@/lib/audit";
 import { notifyTelegram, escapeHtml } from "@/lib/telegram";
 import { awardPointsForOrder, refundRedeemedPointsForOrder } from "@/lib/loyalty";
+import { decrementStockForOrder, restoreStockForOrder } from "@/lib/stock";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -66,12 +67,14 @@ export async function PATCH(
 
   if (parsed.data.status === "PAID") {
     await awardPointsForOrder(order.id);
+    await decrementStockForOrder(order.id);
   } else if (
     parsed.data.status === "FAILED" ||
     parsed.data.status === "CANCELLED" ||
     parsed.data.status === "REFUNDED"
   ) {
     await refundRedeemedPointsForOrder(order.id);
+    await restoreStockForOrder(order.id);
   }
 
   if (parsed.data.status && parsed.data.status !== order.status) {

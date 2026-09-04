@@ -48,6 +48,7 @@ export default async function AdminLayout({
             { href: "/admin/orders", label: "Orders", icon: "📦" },
             { href: "/admin/games", label: "Games", icon: "🎮" },
             { href: "/admin/products", label: "Products", icon: "💎" },
+            { href: "/admin/robux-stock", label: "Robux Stock", icon: "🪙" },
             { href: "/admin/game-items", label: "Game Items", icon: "🎁" },
             { href: "/admin/accounts", label: "Accounts", icon: "🕹️" },
             { href: "/admin/promo-codes", label: "Promo Codes", icon: "🏷️" },

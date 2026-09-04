@@ -11,6 +11,7 @@ const updateSchema = z.object({
   priceUsd: z.number().positive().optional(),
   badge: z.string().nullable().optional(),
   active: z.boolean().optional(),
+  stock: z.number().int().min(0).nullable().optional(),
   sortOrder: z.number().int().optional(),
 });
 

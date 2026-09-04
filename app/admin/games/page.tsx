@@ -127,7 +127,7 @@ export default function AdminGamesPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-fox-muted">{g.slug}</td>
-                    <td className="px-5 py-3 text-fox-muted">{g.publisher}</td>
+                    <td className="px-5 py-3 text-fox-muted">{g.publisher || "—"}</td>
                     <td className="px-5 py-3 text-right font-mono">{g._count.products}</td>
                     <td className="px-5 py-3 text-right font-mono">{g._count.orders}</td>
                     <td className="px-5 py-3 text-center">
@@ -187,6 +187,7 @@ function GameForm({ initial, onCancel, onSaved }: { initial: any; onCancel: () =
       servers: JSON.stringify(form.servers.split(",").map((s: string) => s.trim()).filter(Boolean)),
       bannerUrl: form.bannerUrl || undefined,
       description: form.description || undefined,
+      publisher: form.publisher || undefined,
       uidExample: form.uidExample || undefined,
     };
     const url = initial ? `/api/admin/games/${initial.id}` : "/api/admin/games";
@@ -225,8 +226,8 @@ function GameForm({ initial, onCancel, onSaved }: { initial: any; onCancel: () =
           />
         </div>
         <div>
-          <label className="label">Publisher</label>
-          <input className="input" value={form.publisher} onChange={(e) => setForm({ ...form, publisher: e.target.value })} required />
+          <label className="label">Publisher <span className="text-fox-muted/60 font-normal">(optional)</span></label>
+          <input className="input" value={form.publisher} onChange={(e) => setForm({ ...form, publisher: e.target.value })} />
         </div>
         <div>
           <label className="label">Currency Name (e.g. Diamonds)</label>
