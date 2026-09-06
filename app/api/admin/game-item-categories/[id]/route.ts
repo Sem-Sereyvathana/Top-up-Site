@@ -9,6 +9,7 @@ const updateSchema = z.object({
   name: z.string().min(1).optional(),
   imageUrl: z.string().nullable().optional(),
   sortOrder: z.number().int().optional(),
+  deliveryMode: z.enum(["DIRECT", "MANUAL"]).optional(),
 });
 
 export async function PATCH(

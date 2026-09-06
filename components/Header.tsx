@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import CurrencyToggle from "./CurrencyToggle";
 import AccountMenu from "./AccountMenu";
+import CartButton from "./CartButton";
 
 const NAV = [
   { href: "/game-items", label: "Game Items" },
@@ -97,6 +98,7 @@ export default function Header() {
 
         <div className="flex items-center gap-2">
           <CurrencyToggle className="hidden sm:inline-flex" />
+          {pathname?.startsWith("/game-items") && <CartButton />}
           <AccountMenu className="hidden sm:block" />
 
           {/* Mobile burger */}

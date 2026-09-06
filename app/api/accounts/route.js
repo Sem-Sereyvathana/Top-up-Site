@@ -15,16 +15,26 @@ const accountSchema = z.object({
   sold: z.boolean().default(false),
   active: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
+  // Admin-only login handover, only ever sent back to a buyer once their
+  // order is PAID and the account's game has deliveryMode = "DIRECT".
+  credentials: z.string().optional().nullable(),
 });
 
 export async function GET(req) {
+  // NOTE: this route has no auth middleware (only /admin/* and /api/admin/*
+  // are protected — see middleware.ts), so it's reachable by anyone, not
+  // just the admin panel. `credentials` (login handover) must never appear
+  // here — it's stripped below even though admin's edit form would
+  // otherwise like to see it prefilled. Admin can still overwrite it via
+  // PATCH; only reading it back is blocked.
   const gameId = req.nextUrl.searchParams.get("gameId");
   const accounts = await prisma.gameAccount.findMany({
     where: gameId ? { gameId } : undefined,
     include: { Game: { select: { name: true, slug: true } } },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
   });
-  return NextResponse.json(accounts);
+  const safe = accounts.map(({ credentials, ...rest }) => rest);
+  return NextResponse.json(safe);
 }
 
 export async function POST(req) {
@@ -38,5 +48,6 @@ export async function POST(req) {
   }
   const account = await prisma.gameAccount.create({ data: parsed.data });
   await writeAudit({ action: "game-account.create", targetType: "gameAccount", targetId: account.id });
-  return NextResponse.json(account);
+  const { credentials, ...safe } = account;
+  return NextResponse.json(safe);
 }

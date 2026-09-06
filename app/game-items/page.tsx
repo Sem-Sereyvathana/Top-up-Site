@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import GameItemsBrowser from "@/components/GameItemsBrowser";
+import ShopCartBrowser, { ShopCartCard } from "@/components/ShopCartBrowser";
 
 export const metadata: Metadata = {
   title: "Game Items — SHARUTOPUP",
@@ -22,11 +22,30 @@ export default async function GameItemsPage() {
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
   });
 
+  const cards: ShopCartCard[] = items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    imageUrl: item.imageUrl,
+    priceUsd: item.priceUsd,
+    badge: item.badge,
+    groupKey: item.Category?.slug ?? "__general__",
+    groupLabel: item.Category?.name ?? "General",
+    groupImageUrl: item.Category?.imageUrl ?? null,
+    groupSortOrder: item.Category?.sortOrder ?? Number.MAX_SAFE_INTEGER,
+  }));
+
   return (
     <>
       <Header />
       <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <GameItemsBrowser items={items} />
+        <ShopCartBrowser
+          cards={cards}
+          kind="items"
+          checkoutHref="/game-items/checkout"
+          allowQuantity
+          emptyStateTitle="Items coming soon"
+          emptyStateBody="We're stocking the shelves. Check back shortly for skins, bundles, and rare in-game items."
+        />
       </main>
       <Footer />
     </>

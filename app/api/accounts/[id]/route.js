@@ -15,6 +15,7 @@ const updateSchema = z.object({
   sold: z.boolean().optional(),
   active: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
+  credentials: z.string().optional().nullable(),
 });
 
 export async function PATCH(req, { params }) {
@@ -28,7 +29,10 @@ export async function PATCH(req, { params }) {
     data: parsed.data,
   });
   await writeAudit({ action: "game-account.update", targetType: "gameAccount", targetId: params.id, details: parsed.data });
-  return NextResponse.json(account);
+  // Same unauthenticated-route caution as GET /api/accounts — never echo
+  // credentials back in the response body.
+  const { credentials, ...safe } = account;
+  return NextResponse.json(safe);
 }
 
 export async function DELETE(_req, { params }) {

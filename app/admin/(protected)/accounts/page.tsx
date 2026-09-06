@@ -19,6 +19,7 @@ interface GameAccount {
   sold: boolean;
   active: boolean;
   sortOrder: number;
+  credentials: string | null;
   Game?: { name: string; slug: string } | null;
 }
 
@@ -32,6 +33,7 @@ const empty = {
   sold: false,
   active: true,
   sortOrder: 0,
+  credentials: "",
 };
 
 export default function AccountsAdminPage() {
@@ -49,7 +51,7 @@ export default function AccountsAdminPage() {
     setLoading(true);
     const [gRes, aRes] = await Promise.all([
       fetch("/api/admin/games").then((r) => r.json()),
-      fetch("/api/accounts").then((r) => r.json()),
+      fetch("/api/admin/accounts").then((r) => r.json()),
     ]);
     setGames(gRes);
     setAccounts(aRes);
@@ -81,6 +83,7 @@ export default function AccountsAdminPage() {
       sold: acc.sold,
       active: acc.active,
       sortOrder: acc.sortOrder,
+      credentials: acc.credentials || "",
     });
   }
 
@@ -117,8 +120,9 @@ export default function AccountsAdminPage() {
       sold: form.sold,
       active: form.active,
       sortOrder: Number(form.sortOrder),
+      credentials: form.credentials || null,
     };
-    const url = editing ? `/api/accounts/${editing.id}` : "/api/accounts";
+    const url = editing ? `/api/admin/accounts/${editing.id}` : "/api/admin/accounts";
     const method = editing ? "PATCH" : "POST";
     const res = await fetch(url, {
       method,
@@ -137,7 +141,7 @@ export default function AccountsAdminPage() {
   }
 
   async function toggleActive(acc: GameAccount) {
-    await fetch(`/api/accounts/${acc.id}`, {
+    await fetch(`/api/admin/accounts/${acc.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !acc.active }),
@@ -146,7 +150,7 @@ export default function AccountsAdminPage() {
   }
 
   async function toggleSold(acc: GameAccount) {
-    await fetch(`/api/accounts/${acc.id}`, {
+    await fetch(`/api/admin/accounts/${acc.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sold: !acc.sold }),
@@ -156,7 +160,7 @@ export default function AccountsAdminPage() {
 
   async function remove(acc: GameAccount) {
     if (!confirm(`Delete "${acc.title}"?`)) return;
-    await fetch(`/api/accounts/${acc.id}`, { method: "DELETE" });
+    await fetch(`/api/admin/accounts/${acc.id}`, { method: "DELETE" });
     await loadAll();
   }
 
@@ -235,6 +239,21 @@ export default function AccountsAdminPage() {
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">
+                Login handover <span className="font-normal text-fox-muted/60">(username/password/notes — admin-only, never shown to buyers until they've paid)</span>
+              </label>
+              <textarea
+                className="input font-mono text-xs"
+                rows={3}
+                placeholder={"Username: ...\nPassword: ...\nRecovery email: ..."}
+                value={form.credentials}
+                onChange={(e) => setForm({ ...form, credentials: e.target.value })}
+              />
+              <p className="mt-1 text-xs text-fox-muted/70">
+                Only revealed automatically if this account&apos;s game has delivery set to &quot;Direct&quot; on the Games page — otherwise buyers are pointed to Telegram after paying.
+              </p>
             </div>
             <div className="sm:col-span-2">
               <label className="label">Image</label>

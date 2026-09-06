@@ -28,6 +28,9 @@ const gameSchema = z.object({
   featured: z.boolean().default(false),
   active: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
+  // Only read by the Accounts marketplace (see app/accounts and
+  // app/api/game-account-orders) — irrelevant to Top-up.
+  deliveryMode: z.enum(["DIRECT", "MANUAL"]).default("DIRECT"),
 });
 
 export async function GET() {

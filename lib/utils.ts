@@ -1,11 +1,11 @@
 // Generate human-friendly order number: RT-XXXXXX
-export function generateOrderNumber(): string {
+export function generateOrderNumber(prefix: string = "RT"): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let n = "";
   for (let i = 0; i < 6; i++) {
     n += chars[Math.floor(Math.random() * chars.length)];
   }
-  return `RT-${n}`;
+  return `${prefix}-${n}`;
 }
 
 export function formatUsd(amount: number): string {

@@ -36,7 +36,7 @@ function renderPdf(order: {
   createdAt: Date;
   paidAt: Date | null;
   deliveredAt: Date | null;
-  game: { name: string; publisher: string; currencyName: string };
+  game: { name: string; publisher: string | null; currencyName: string };
   product: { name: string; amount: number; bonus: number; priceUsd: number };
   // Only present for multi-package cart orders (Roblox) — each becomes its
   // own row in the items table below. Regular single-package orders leave

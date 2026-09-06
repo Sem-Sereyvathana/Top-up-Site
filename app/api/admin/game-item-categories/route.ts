@@ -9,6 +9,7 @@ const categorySchema = z.object({
   name: z.string().min(1),
   imageUrl: z.string().optional().nullable(),
   sortOrder: z.number().int().default(0),
+  deliveryMode: z.enum(["DIRECT", "MANUAL"]).default("DIRECT"),
 });
 
 function slugify(s: string): string {

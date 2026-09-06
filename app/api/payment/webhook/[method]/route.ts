@@ -6,6 +6,8 @@ import { notifyTelegram, escapeHtml } from "@/lib/telegram";
 import { awardPointsForOrder, refundRedeemedPointsForOrder } from "@/lib/loyalty";
 import { decrementStockForOrder, restoreStockForOrder } from "@/lib/stock";
 import { finalizeOrderAfterPayment } from "@/lib/fulfillment";
+import { handleGameItemOrderWebhook } from "@/lib/gameItemFulfillment";
+import { handleGameAccountOrderWebhook } from "@/lib/gameAccountFulfillment";
 import { NextRequest, NextResponse } from "next/server";
 
 // KHPay webhook receiver.
@@ -57,6 +59,17 @@ export async function POST(
 
   if (!orderNumber && !transactionId) {
     return NextResponse.json({ error: "Missing identifier" }, { status: 400 });
+  }
+
+  // Game Items / Accounts marketplace orders use their own tables (GI-/AC-
+  // prefixed order numbers, set in lib/utils.ts generateOrderNumber) and are
+  // handled entirely separately from the Top-up Order flow below — nothing
+  // past this point touches Order/Product/Game.
+  if (orderNumber?.startsWith("GI-")) {
+    return handleGameItemOrderWebhook(orderNumber, event, data, transactionId);
+  }
+  if (orderNumber?.startsWith("AC-")) {
+    return handleGameAccountOrderWebhook(orderNumber, event, data, transactionId);
   }
 
   const order = orderNumber

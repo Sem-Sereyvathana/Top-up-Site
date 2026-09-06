@@ -26,6 +26,11 @@ model Game {
   sortOrder      Int           @default(0)
   seoTitle       String?
   seoDescription String?
+  // "DIRECT" = admin can hand over a purchased Account for this game straight
+  // away (no chat needed first); "MANUAL" = buyer is pointed to Telegram to
+  // arrange handoff after paying. Only used by the Accounts marketplace —
+  // Top-up / Products never read this field.
+  deliveryMode   String        @default("DIRECT")
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   GameAccount    GameAccount[]
@@ -279,9 +284,14 @@ model GameAccount {
   sold        Boolean  @default(false)
   active      Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // Admin-only login handover (username/password/notes), set when this
+  // account's game has deliveryMode = "DIRECT". Never returned by any public
+  // API until the buyer's order is PAID/DELIVERED.
+  credentials String?
   createdAt   DateTime @default(now()) @db.Timestamp(6)
   updatedAt   DateTime @default(now()) @db.Timestamp(6)
   Game        Game?    @relation(fields: [gameId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  orderItems  GameAccountOrderItem[]
 
   @@index([gameId])
 }
@@ -302,6 +312,7 @@ model GameItem {
   updatedAt   DateTime          @default(now()) @db.Timestamp(6)
   Game        Game?             @relation(fields: [gameId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   Category    GameItemCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  orderItems  GameItemOrderItem[]
 
   @@index([gameId])
   @@index([categoryId])
@@ -310,12 +321,122 @@ model GameItem {
 // Categories for the Game Items storefront. Intentionally separate from
 // `Game` (which powers Top-up) so the two features never share taxonomy.
 model GameItemCategory {
-  id        String     @id @default(dbgenerated("(gen_random_uuid())::text"))
-  name      String
-  slug      String     @unique
-  imageUrl  String?
-  sortOrder Int        @default(0)
-  createdAt DateTime   @default(now()) @db.Timestamp(6)
-  updatedAt DateTime   @default(now()) @db.Timestamp(6)
-  GameItem  GameItem[]
+  id           String     @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name         String
+  slug         String     @unique
+  imageUrl     String?
+  sortOrder    Int        @default(0)
+  // "DIRECT" = admin delivers straight into the buyer's game account using
+  // the Username they typed at checkout; "MANUAL" = buyer is pointed to
+  // Telegram to arrange face-to-face handoff after paying.
+  deliveryMode String     @default("DIRECT")
+  createdAt    DateTime   @default(now()) @db.Timestamp(6)
+  updatedAt    DateTime   @default(now()) @db.Timestamp(6)
+  GameItem     GameItem[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Game Items marketplace orders. Deliberately its own table, independent of
+// the Top-up `Order`/`Product` model — a shopper can select several GameItem
+// cards (optionally across different categories) and check out once; every
+// selected line becomes a GameItemOrderItem under one GameItemOrder. Uses
+// the same KHPay gateway as Top-up and Accounts via lib/payment.ts.
+// ─────────────────────────────────────────────────────────────────────────
+model GameItemOrder {
+  id               String    @id @default(cuid())
+  orderNumber      String    @unique
+  buyerUsername    String
+  // Optional Telegram/phone/email the buyer leaves so admin can reach them —
+  // always shown as a hint, required by the UI when deliveryMode is MANUAL.
+  customerContact  String?
+  amountUsd        Float
+  amountKhr        Float?
+  currency         String    @default("USD")
+  paymentMethod    String
+  paymentRef       String?
+  paymentUrl       String?
+  qrString         String?
+  paymentExpiresAt DateTime?
+  // Snapshot of resolveDeliveryMode() across the order's line items at
+  // checkout time, so it can't change retroactively if admin edits a
+  // category later. "DIRECT" only when every line's category is DIRECT.
+  deliveryMode     String
+  status           String    @default("PENDING")
+  deliveryNote     String?
+  failureReason    String?
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  paidAt           DateTime?
+  deliveredAt      DateTime?
+  items            GameItemOrderItem[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model GameItemOrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  gameItemId   String
+  name         String
+  quantity     Int      @default(1)
+  unitPriceUsd Float
+  createdAt    DateTime @default(now())
+  order        GameItemOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  gameItem     GameItem      @relation(fields: [gameItemId], references: [id])
+
+  @@index([orderId])
+  @@index([gameItemId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Accounts marketplace orders. Same pattern as GameItemOrder above, kept
+// completely separate — its own table, never joined against GameItemOrder
+// or the Top-up Order model, even though the storefront UI is designed to
+// look identical.
+// ─────────────────────────────────────────────────────────────────────────
+model GameAccountOrder {
+  id               String    @id @default(cuid())
+  orderNumber      String    @unique
+  customerContact  String?
+  amountUsd        Float
+  amountKhr        Float?
+  currency         String    @default("USD")
+  paymentMethod    String
+  paymentRef       String?
+  paymentUrl       String?
+  qrString         String?
+  paymentExpiresAt DateTime?
+  // Snapshot of resolveDeliveryMode() across the order's accounts' Game at
+  // checkout time. "DIRECT" only when every account's game is DIRECT.
+  deliveryMode     String
+  status           String    @default("PENDING")
+  deliveryNote     String?
+  failureReason    String?
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  paidAt           DateTime?
+  deliveredAt      DateTime?
+  items            GameAccountOrderItem[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model GameAccountOrderItem {
+  id            String   @id @default(cuid())
+  orderId       String
+  gameAccountId String
+  title         String
+  unitPriceUsd  Float
+  createdAt     DateTime @default(now())
+  order         GameAccountOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  gameAccount   GameAccount      @relation(fields: [gameAccountId], references: [id])
+
+  @@index([orderId])
+  @@index([gameAccountId])
 }

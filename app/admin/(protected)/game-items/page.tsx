@@ -8,6 +8,7 @@ interface Category {
   name: string;
   imageUrl: string | null;
   sortOrder: number;
+  deliveryMode: "DIRECT" | "MANUAL";
 }
 
 interface GameItem {
@@ -34,7 +35,7 @@ const empty = {
   sortOrder: 0,
 };
 
-const emptyCategory = { name: "", imageUrl: "" };
+const emptyCategory = { name: "", imageUrl: "", deliveryMode: "DIRECT" as "DIRECT" | "MANUAL" };
 
 export default function GameItemsAdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -124,7 +125,7 @@ export default function GameItemsAdminPage() {
 
   function openEditCategory(cat: Category) {
     setEditingCatId(cat.id);
-    setCatForm({ name: cat.name, imageUrl: cat.imageUrl || "" });
+    setCatForm({ name: cat.name, imageUrl: cat.imageUrl || "", deliveryMode: cat.deliveryMode });
   }
 
   function closeCategoryForm() {
@@ -136,7 +137,7 @@ export default function GameItemsAdminPage() {
     e.preventDefault();
     if (!catForm.name.trim()) return;
     setCatSaving(true);
-    const payload = { name: catForm.name, imageUrl: catForm.imageUrl || null };
+    const payload = { name: catForm.name, imageUrl: catForm.imageUrl || null, deliveryMode: catForm.deliveryMode };
     const url = editingCatId
       ? `/api/admin/game-item-categories/${editingCatId}`
       : "/api/admin/game-item-categories";
@@ -245,6 +246,16 @@ export default function GameItemsAdminPage() {
                   <div className="h-5 w-5 rounded bg-fox-bg/60" />
                 )}
                 <span className="text-sm">{cat.name}</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                    cat.deliveryMode === "DIRECT"
+                      ? "bg-green-400/10 text-green-400"
+                      : "bg-yellow-400/10 text-yellow-400"
+                  }`}
+                  title={cat.deliveryMode === "DIRECT" ? "Admin delivers directly, no chat needed" : "Buyer is pointed to Telegram after paying"}
+                >
+                  {cat.deliveryMode === "DIRECT" ? "Direct" : "Manual"}
+                </span>
                 <button
                   type="button"
                   onClick={() => openEditCategory(cat)}
@@ -273,6 +284,17 @@ export default function GameItemsAdminPage() {
               value={catForm.name}
               onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
             />
+          </div>
+          <div className="min-w-[150px]">
+            <label className="label">Delivery</label>
+            <select
+              className="input"
+              value={catForm.deliveryMode}
+              onChange={(e) => setCatForm({ ...catForm, deliveryMode: e.target.value as "DIRECT" | "MANUAL" })}
+            >
+              <option value="DIRECT">Direct (admin sends it in-game)</option>
+              <option value="MANUAL">Manual (buyer messages Telegram)</option>
+            </select>
           </div>
           <div>
             <label className="btn-ghost cursor-pointer">

@@ -174,6 +174,8 @@ function GameForm({ initial, onCancel, onSaved }: { initial: any; onCancel: () =
     featured: initial?.featured || false,
     active: initial?.active ?? true,
     sortOrder: initial?.sortOrder || 0,
+    // Only matters for the Accounts marketplace — see app/accounts.
+    deliveryMode: initial?.deliveryMode || "DIRECT",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -267,6 +269,18 @@ function GameForm({ initial, onCancel, onSaved }: { initial: any; onCancel: () =
         <div>
           <label className="label">Sort Order</label>
           <input className="input" type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: Number(e.target.value) })} />
+        </div>
+        <div>
+          <label className="label">Accounts delivery</label>
+          <select
+            className="input"
+            value={form.deliveryMode}
+            onChange={(e) => setForm({ ...form, deliveryMode: e.target.value })}
+          >
+            <option value="DIRECT">Direct (admin hands over login right away)</option>
+            <option value="MANUAL">Manual (buyer messages Telegram first)</option>
+          </select>
+          <p className="mt-1 text-xs text-fox-muted/70">Only affects Accounts listed under this game.</p>
         </div>
       </div>
 

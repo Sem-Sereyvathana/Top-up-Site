@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { prisma } from "@/lib/prisma";
 import { CurrencyProvider } from "@/lib/currency";
+import { ShopCartProvider } from "@/lib/shopCart";
 import RouteProgress from "@/components/RouteProgress";
 import AnnouncementBar from "@/components/AnnouncementBar";
 
@@ -39,8 +40,10 @@ export default async function RootLayout({
       <body>
         <RouteProgress />
         <CurrencyProvider exchangeRate={exchangeRate}>
-          <AnnouncementBar />
-          {children}
+          <ShopCartProvider>
+            <AnnouncementBar />
+            {children}
+          </ShopCartProvider>
         </CurrencyProvider>
       </body>
     </html>
