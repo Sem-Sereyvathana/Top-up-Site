@@ -14,7 +14,6 @@ export default function AdminRobuxStockPage() {
   const [total, setTotal] = useState<number | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
   const [saving, setSaving] = useState<"add" | "remove" | "set" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [history, setHistory] = useState<AuditEntry[]>([]);
@@ -49,14 +48,13 @@ export default function AdminRobuxStockPage() {
       const r = await fetch("/api/admin/robux-stock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ op, amount: n, note: note || undefined }),
+        body: JSON.stringify({ op, amount: n }),
       });
       if (!r.ok) throw new Error("Request failed");
       const data = await r.json();
       setTotal(data.totalRobux);
       setUpdatedAt(data.updatedAt);
       setAmount("");
-      setNote("");
       setMessage(
         op === "add"
           ? `Added ${n.toLocaleString()} Robux to stock.`
@@ -104,7 +102,7 @@ export default function AdminRobuxStockPage() {
         </div>
       </div>
 
-      <div className="card p-6 space-y-4">
+      <div className="card p-6 space-y-5">
         <h2 className="font-semibold">Adjust stock</h2>
 
         <div>
@@ -119,15 +117,6 @@ export default function AdminRobuxStockPage() {
           />
         </div>
 
-        <div>
-          <label className="label">Note (optional)</label>
-          <input
-            className="input"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="e.g. Restocked from reseller"
-          />
-        </div>
 
         <div className="flex flex-wrap gap-3 pt-2">
           <button

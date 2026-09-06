@@ -9,16 +9,15 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const admin = await getCurrentAdmin();
-  // If we're on login page, let it render without checks
-  // (login page is outside this layout in practice because it's at /admin/login
-  // with its own page component that bypasses this check)
 
+  // This layout only wraps pages under app/admin/(protected)/ — the login
+  // page lives at app/admin/login/ (a sibling, outside this route group),
+  // so it's never subject to this check and there's no risk of a redirect
+  // loop. Belt-and-braces alongside the middleware: if there's ever a gap
+  // in the middleware matcher, this still stops the page itself from
+  // rendering for a signed-out visitor.
   if (!admin) {
-    // Only redirect if not already on login; but since login is under /admin
-    // we need a small trick: check cookie indirectly. The middleware will redirect
-    // first — so reaching here without admin means someone hit the login page.
-    // We just render children in that case.
-    return <>{children}</>;
+    redirect("/admin/login");
   }
 
   return (
@@ -46,6 +45,7 @@ export default async function AdminLayout({
           {[
             { href: "/admin", label: "Dashboard", icon: "📊" },
             { href: "/admin/orders", label: "Orders", icon: "📦" },
+            { href: "/admin/robux-orders", label: "Robux Orders", icon: "🪙" },
             { href: "/admin/games", label: "Games", icon: "🎮" },
             { href: "/admin/products", label: "Products", icon: "💎" },
             { href: "/admin/robux-stock", label: "Robux Stock", icon: "🪙" },

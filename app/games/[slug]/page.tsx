@@ -5,6 +5,7 @@ import TopUpForm from "@/components/TopUpForm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Zap } from "lucide-react";
+import { isRobuxGame } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,10 @@ export default async function GamePage({ params }: { params: { slug: string } })
   });
 
   if (!game || !game.active) notFound();
+
+  const robuxStock = isRobuxGame(game)
+    ? (await prisma.robuxStock.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } })).totalRobux
+    : null;
 
   return (
     <>
@@ -90,6 +95,7 @@ export default async function GamePage({ params }: { params: { slug: string } })
             requiresServer: game.requiresServer,
             servers: (() => { try { return JSON.parse(game.servers || "[]"); } catch { return []; } })(),
           }}
+          robuxStock={robuxStock}
           products={game.products.map((p) => ({
             id: p.id,
             name: p.name,

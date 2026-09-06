@@ -3,11 +3,16 @@ export const dynamic = "force-dynamic";
 
 import { writeAudit } from "@/lib/audit";
 import { fetchKhpayStatus } from "@/lib/payment";
+import { awardPointsForOrder } from "@/lib/loyalty";
+import { decrementStockForOrder } from "@/lib/stock";
+import { finalizeOrderAfterPayment } from "@/lib/fulfillment";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
  * Admin debug endpoint: pulls the latest KHPay status for an order
- * and, if paid, flips the order to PAID.
+ * and, if paid, flips the order to PAID (Roblox/Robux) or DELIVERED
+ * (every other game) — same rule as the real webhook, for the case where
+ * the webhook itself never arrived and an admin refreshes manually.
  */
 export async function POST(
   _req: NextRequest,
@@ -26,15 +31,15 @@ export async function POST(
 
   let updated = order;
   if (remote && (remote.paid || remote.status === "paid") && order.status === "PENDING") {
-    updated = await prisma.order.update({
-      where: { id: order.id },
-      data: { status: "PAID", paidAt: new Date() },
-    });
+    const finalStatus = await finalizeOrderAfterPayment(order.id);
+    await awardPointsForOrder(order.id);
+    await decrementStockForOrder(order.id);
+    updated = (await prisma.order.findUnique({ where: { id: order.id } })) ?? order;
     await writeAudit({
       action: "order.khpay_refresh.auto_paid",
       targetType: "order",
       targetId: order.id,
-      details: { paymentRef: order.paymentRef, remote },
+      details: { paymentRef: order.paymentRef, remote, newStatus: finalStatus },
     });
   } else if (
     remote &&

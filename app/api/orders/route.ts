@@ -1,26 +1,41 @@
-﻿import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
-import { generateOrderNumber, isValidUid, calcKhr } from "@/lib/utils";
+import { generateOrderNumber, isValidUid, calcKhr, isRobuxGame } from "@/lib/utils";
 import { initiatePayment } from "@/lib/payment";
 import { getCurrentUser } from "@/lib/userAuth";
 import { getPointsSettings } from "@/lib/loyalty";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-const createOrderSchema = z.object({
-  gameId: z.string().min(1),
+// A single line in a multi-package cart order. Cart orders are currently
+// only allowed for Roblox (enforced below, not here) — every other game
+// keeps using the plain `productId` field exactly as before.
+const cartItemSchema = z.object({
   productId: z.string().min(1),
-  playerUid: z.string().min(3).max(20),
-  serverId: z.string().optional(),
-  customerEmail: z.string().email().optional(),
-  customerPhone: z.string().optional(),
-  paymentMethod: z.enum(["KHPAY"]),
-  promoCode: z.string().optional(),
-  playerNickname: z.string().max(100).optional(),
-  // Loyalty points the logged-in user wants to redeem on this order (ignored for guests)
-  pointsToRedeem: z.number().int().min(0).optional(),
+  quantity: z.number().int().min(1).max(50),
 });
+
+const createOrderSchema = z
+  .object({
+    gameId: z.string().min(1),
+    // Legacy single-package flow — still required for every non-cart order.
+    productId: z.string().min(1).optional(),
+    // New multi-package cart flow (Roblox only).
+    items: z.array(cartItemSchema).min(1).max(10).optional(),
+    playerUid: z.string().min(3).max(20),
+    serverId: z.string().optional(),
+    customerEmail: z.string().email().optional(),
+    customerPhone: z.string().optional(),
+    paymentMethod: z.enum(["KHPAY"]),
+    promoCode: z.string().optional(),
+    playerNickname: z.string().max(100).optional(),
+    // Loyalty points the logged-in user wants to redeem on this order (ignored for guests)
+    pointsToRedeem: z.number().int().min(0).optional(),
+  })
+  .refine((d) => !!d.productId || (d.items && d.items.length > 0), {
+    message: "productId or items is required",
+  });
 
 export async function POST(req: NextRequest) {
   try {
@@ -74,22 +89,115 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Validate game + product match and pricing
-    const [game, product, settings] = await Promise.all([
-      prisma.game.findUnique({ where: { id: data.gameId } }),
-      prisma.product.findUnique({ where: { id: data.productId } }),
-      prisma.settings.findUnique({ where: { id: 1 } }),
-    ]);
+    // Validate game + product(s) and pricing.
+    //
+    // Two shapes come through here: the original single-package order
+    // (`data.productId`, used by every game exactly as before) and the new
+    // multi-package cart order (`data.items`, Roblox only — see TopUpForm's
+    // cart mode). Both converge on the same `game`, `product` (the "primary"
+    // package for legacy single-product fields/messages) and `lineItems`
+    // (what actually gets created as OrderItem rows + charged) so everything
+    // below — promo codes, points, order creation, payment init — is shared.
+    const isCartOrder = !!data.items && data.items.length > 0;
 
-    if (!game || !game.active) {
-      return NextResponse.json({ error: "Game not found" }, { status: 404 });
+    let game: Awaited<ReturnType<typeof prisma.game.findUnique>>;
+    let product: Awaited<ReturnType<typeof prisma.product.findUnique>>;
+    let settings: Awaited<ReturnType<typeof prisma.settings.findUnique>>;
+    let lineItems: { product: NonNullable<typeof product>; quantity: number }[] = [];
+    let subtotalUsd = 0;
+
+    if (isCartOrder) {
+      [game, settings] = await Promise.all([
+        prisma.game.findUnique({ where: { id: data.gameId } }),
+        prisma.settings.findUnique({ where: { id: 1 } }),
+      ]);
+
+      if (!game || !game.active) {
+        return NextResponse.json({ error: "Game not found" }, { status: 404 });
+      }
+      // Multi-package cart checkout is only wired up for Roblox for now.
+      // Uses the same isRobuxGame() check as the client (TopUpForm) so the
+      // two never drift apart — previously this checked slug === "roblox"
+      // only, which rejected carts for any Roblox game whose slug wasn't
+      // literally "roblox" even though the client had already shown cart UI.
+      if (!isRobuxGame(game)) {
+        return NextResponse.json(
+          { error: "Selecting multiple packages isn't supported for this game." },
+          { status: 400 }
+        );
+      }
+
+      const ids = data.items!.map((i) => i.productId);
+      const found = await prisma.product.findMany({ where: { id: { in: ids } } });
+      const byId = new Map(found.map((p) => [p.id, p]));
+
+      for (const it of data.items!) {
+        const p = byId.get(it.productId);
+        if (!p || !p.active || p.gameId !== game.id) {
+          return NextResponse.json({ error: "One of the selected packages is no longer available" }, { status: 404 });
+        }
+        if (p.stock !== null && p.stock < it.quantity) {
+          return NextResponse.json({ error: `"${p.name}" just sold out — remove it and try again` }, { status: 409 });
+        }
+        lineItems.push({ product: p, quantity: it.quantity });
+      }
+
+      // Roblox uses the admin-managed Robux stock as inventory. Check it again
+      // on the server so it can't be bypassed by calling the orders API
+      // directly — the combined amount across every line must fit.
+      const robuxStock = await prisma.robuxStock.upsert({
+        where: { id: 1 },
+        update: {},
+        create: { id: 1 },
+      });
+      const requiredRobux = lineItems.reduce(
+        (sum, li) => sum + Math.max(0, li.product.amount) * li.quantity,
+        0
+      );
+      if (requiredRobux > 0 && robuxStock.totalRobux < requiredRobux) {
+        return NextResponse.json({ error: "Stock is not enough" }, { status: 409 });
+      }
+
+      product = lineItems[0].product;
+      subtotalUsd = Math.round(
+        lineItems.reduce((sum, li) => sum + li.product.priceUsd * li.quantity, 0) * 100
+      ) / 100;
+    } else {
+      [game, product, settings] = await Promise.all([
+        prisma.game.findUnique({ where: { id: data.gameId } }),
+        prisma.product.findUnique({ where: { id: data.productId! } }),
+        prisma.settings.findUnique({ where: { id: 1 } }),
+      ]);
+
+      if (!game || !game.active) {
+        return NextResponse.json({ error: "Game not found" }, { status: 404 });
+      }
+      if (!product || !product.active || product.gameId !== game.id) {
+        return NextResponse.json({ error: "Product not found" }, { status: 404 });
+      }
+      if (product.stock !== null && product.stock <= 0) {
+        return NextResponse.json({ error: "This package is out of stock" }, { status: 409 });
+      }
+
+      // Roblox uses the admin-managed Robux stock as inventory. Check it again
+      // on the server so a disabled package cannot be bypassed by calling the
+      // orders API directly.
+      if (isRobuxGame(game)) {
+        const robuxStock = await prisma.robuxStock.upsert({
+          where: { id: 1 },
+          update: {},
+          create: { id: 1 },
+        });
+        const requiredRobux = Math.max(0, product.amount);
+        if (product.amount > 0 && robuxStock.totalRobux < requiredRobux) {
+          return NextResponse.json({ error: "Stock is not enough" }, { status: 409 });
+        }
+      }
+
+      subtotalUsd = product.priceUsd;
+      lineItems = [{ product, quantity: 1 }];
     }
-    if (!product || !product.active || product.gameId !== game.id) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
-    }
-    if (product.stock !== null && product.stock <= 0) {
-      return NextResponse.json({ error: "This package is out of stock" }, { status: 409 });
-    }
+
     if (game.requiresServer && !data.serverId) {
       return NextResponse.json({ error: "Server is required for this game" }, { status: 400 });
     }
@@ -107,7 +215,7 @@ export async function POST(req: NextRequest) {
     // prevent race conditions on the promo usage counter.
     let promoCodeId: string | null = null;
     let discountUsd = 0;
-    let finalPrice = product.priceUsd;
+    let finalPrice = subtotalUsd;
 
     if (data.promoCode) {
       const promo = await prisma.promoCode.findUnique({
@@ -118,15 +226,15 @@ export async function POST(req: NextRequest) {
         promo.active &&
         (!promo.expiresAt || promo.expiresAt >= new Date()) &&
         (promo.maxUses === 0 || promo.usedCount < promo.maxUses) &&
-        product.priceUsd >= promo.minOrderUsd
+        subtotalUsd >= promo.minOrderUsd
       ) {
         discountUsd =
           promo.discountType === "PERCENT"
-            ? (product.priceUsd * promo.discountValue) / 100
+            ? (subtotalUsd * promo.discountValue) / 100
             : promo.discountValue;
-        discountUsd = Math.min(discountUsd, product.priceUsd);
+        discountUsd = Math.min(discountUsd, subtotalUsd);
         discountUsd = Math.round(discountUsd * 100) / 100;
-        finalPrice = Math.round((product.priceUsd - discountUsd) * 100) / 100;
+        finalPrice = Math.round((subtotalUsd - discountUsd) * 100) / 100;
         promoCodeId = promo.id;
       }
     }
@@ -188,6 +296,23 @@ export async function POST(req: NextRequest) {
           userId: session?.userId,
           pointsRedeemed,
           pointsDiscountUsd,
+          // Only multi-package cart orders (Roblox) get a line-item
+          // breakdown — every other order leaves this empty, exactly as
+          // before.
+          ...(isCartOrder
+            ? {
+                items: {
+                  create: lineItems.map((li) => ({
+                    productId: li.product.id,
+                    name: li.product.name,
+                    amount: li.product.amount,
+                    bonus: li.product.bonus,
+                    quantity: li.quantity,
+                    unitPriceUsd: li.product.priceUsd,
+                  })),
+                },
+              }
+            : {}),
         },
       });
       if (redeemingUser && pointsRedeemed > 0) {
@@ -213,6 +338,14 @@ export async function POST(req: NextRequest) {
     const envPublic = process.env.PUBLIC_APP_URL;
     const publicUrl = (isPublicHttpUrl(envPublic) ? envPublic : baseUrl).replace(/\/$/, "");
 
+    // For a multi-package cart, describe every line instead of just the
+    // primary product — single-package orders (every other game, plus a
+    // one-package Roblox order) get exactly the same string as before.
+    const packageDescription =
+      lineItems.length > 1
+        ? lineItems.map((li) => `${li.product.name} x${li.quantity}`).join(", ")
+        : product.name;
+
     let khpayPageUrl: string | null = null;
     try {
       const init = await initiatePayment({
@@ -222,11 +355,11 @@ export async function POST(req: NextRequest) {
         returnUrl: `${publicUrl}/order?number=${order.orderNumber}`,
         cancelUrl: `${publicUrl}/games/${game.slug}`,
         callbackUrl: `${publicUrl}/api/payment/webhook/khpay`,
-        note: `RITHTOPUP · ${game.name} · ${product.name}`,
+        note: `RITHTOPUP · ${game.name} · ${packageDescription}`,
         customerEmail: data.customerEmail,
         metadata: {
           game_slug: game.slug,
-          product_name: product.name,
+          product_name: packageDescription,
           player_uid: data.playerUid,
         },
       });

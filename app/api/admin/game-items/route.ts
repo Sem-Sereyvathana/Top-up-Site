@@ -6,7 +6,7 @@ import { z } from "zod";
 import { writeAudit } from "@/lib/audit";
 
 const gameItemSchema = z.object({
-  gameId: z.string().min(1).optional().nullable(),
+  categoryId: z.string().min(1).optional().nullable(),
   name: z.string().min(1),
   description: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
@@ -17,11 +17,11 @@ const gameItemSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const gameId = req.nextUrl.searchParams.get("gameId");
+  const categoryId = req.nextUrl.searchParams.get("categoryId");
   const items = await prisma.gameItem.findMany({
-    where: gameId ? { gameId } : undefined,
-    include: { Game: { select: { name: true, slug: true } } },
-    orderBy: [{ Game: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+    where: categoryId ? { categoryId } : undefined,
+    include: { Category: { select: { name: true, slug: true } } },
+    orderBy: [{ Category: { sortOrder: "asc" } }, { sortOrder: "asc" }],
   });
   return NextResponse.json(items);
 }

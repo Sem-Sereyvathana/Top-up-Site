@@ -13,13 +13,18 @@ function getSecret() {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Only guard /admin/* (except /admin/login itself)
-  if (!pathname.startsWith("/admin") || pathname === "/admin/login") {
+  // Always let the login page and the login/logout API through.
+  if (pathname === "/admin/login" || pathname.startsWith("/api/admin/auth")) {
     return NextResponse.next();
   }
 
-  // Also skip auth endpoints
-  if (pathname.startsWith("/api/admin/auth")) {
+  // Guard every other /admin/* page and every /api/admin/* endpoint.
+  // (Previously this only matched paths starting with "/admin", which
+  // silently excluded "/api/admin/*" — since that starts with "/api", not
+  // "/admin" — and let every admin API route through with no auth check
+  // at all. The fix: match either prefix explicitly.)
+  const isProtected = pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
+  if (!isProtected) {
     return NextResponse.next();
   }
 
@@ -46,5 +51,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*"],
+  matcher: ["/admin", "/admin/:path*", "/api/admin/:path*"],
 };

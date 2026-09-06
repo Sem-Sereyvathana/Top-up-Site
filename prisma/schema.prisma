@@ -79,9 +79,32 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   orders    Order[]
+  orderItems OrderItem[]
   game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
   @@index([gameId, active])
+}
+
+// A single line inside a multi-package cart order. Only used for orders where
+// the shopper picked more than one package in one checkout (currently: Roblox
+// only — see TopUpForm's cart mode). Regular single-package orders across all
+// other games never create these rows and keep using `Order.productId`
+// directly, so nothing about their behavior changes.
+model OrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  productId    String
+  name         String
+  amount       Int
+  bonus        Int      @default(0)
+  quantity     Int      @default(1)
+  unitPriceUsd Float
+  createdAt    DateTime @default(now())
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product  @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 model Order {
@@ -123,6 +146,7 @@ model Order {
   product           Product    @relation(fields: [productId], references: [id])
   promoCode         PromoCode? @relation(fields: [promoCodeId], references: [id])
   user              User?      @relation(fields: [userId], references: [id])
+  items             OrderItem[]
 
   @@index([status])
   @@index([createdAt])
@@ -263,19 +287,35 @@ model GameAccount {
 }
 
 model GameItem {
-  id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id          String            @id @default(dbgenerated("(gen_random_uuid())::text"))
   gameId      String?
+  categoryId  String?
   name        String
   description String?
   imageUrl    String?
   priceUsd    Float
   priceKhr    Float?
   badge       String?
-  active      Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now()) @db.Timestamp(6)
-  updatedAt   DateTime @default(now()) @db.Timestamp(6)
-  Game        Game?    @relation(fields: [gameId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  active      Boolean           @default(true)
+  sortOrder   Int               @default(0)
+  createdAt   DateTime          @default(now()) @db.Timestamp(6)
+  updatedAt   DateTime          @default(now()) @db.Timestamp(6)
+  Game        Game?             @relation(fields: [gameId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Category    GameItemCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([gameId])
+  @@index([categoryId])
+}
+
+// Categories for the Game Items storefront. Intentionally separate from
+// `Game` (which powers Top-up) so the two features never share taxonomy.
+model GameItemCategory {
+  id        String     @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name      String
+  slug      String     @unique
+  imageUrl  String?
+  sortOrder Int        @default(0)
+  createdAt DateTime   @default(now()) @db.Timestamp(6)
+  updatedAt DateTime   @default(now()) @db.Timestamp(6)
+  GameItem  GameItem[]
 }

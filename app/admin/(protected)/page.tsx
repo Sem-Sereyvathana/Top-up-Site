@@ -46,6 +46,9 @@ export default async function AdminDashboard() {
       include: {
         game: { select: { name: true } },
         product: { select: { name: true } },
+        // Only present for multi-package cart orders (Roblox) — combined
+        // into a single Robux total in the table below.
+        items: { select: { amount: true, quantity: true } },
       },
     }),
     prisma.game.count({ where: { active: true } }),
@@ -201,7 +204,11 @@ export default async function AdminDashboard() {
                     </Link>
                   </td>
                   <td className="px-4 sm:px-5 py-3 text-xs sm:text-sm">{o.game.name}</td>
-                  <td className="px-4 sm:px-5 py-3 text-fox-muted text-xs sm:text-sm hidden md:table-cell">{o.product.name}</td>
+                  <td className="px-4 sm:px-5 py-3 text-fox-muted text-xs sm:text-sm hidden md:table-cell">
+                    {o.items && o.items.length > 0
+                      ? `${o.items.reduce((sum, it) => sum + Math.max(0, it.amount) * it.quantity, 0).toLocaleString()} Robux (${o.items.length} pkgs)`
+                      : o.product.name}
+                  </td>
                   <td className="px-4 sm:px-5 py-3 font-mono text-xs hidden lg:table-cell">{o.playerUid}</td>
                   <td className="px-4 sm:px-5 py-3 text-right font-mono text-xs sm:text-sm">${o.amountUsd.toFixed(2)}</td>
                   <td className="px-4 sm:px-5 py-3">

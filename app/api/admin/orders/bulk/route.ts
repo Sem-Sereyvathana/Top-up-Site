@@ -1,4 +1,4 @@
-﻿import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 import { writeAudit } from "@/lib/audit";
@@ -23,7 +23,20 @@ export async function DELETE(req: NextRequest) {
   }
 
   const status = typeof body.status === "string" ? body.status : "ALL";
-  const where = status === "ALL" ? undefined : { status };
+
+  // Bulk delete is triggered from the normal automated-game Orders page.
+  // Always protect Roblox/Robux orders from being deleted here.
+  const robuxGameFilter = {
+    OR: [
+      { slug: "roblox" },
+      { currencyName: { contains: "robux", mode: "insensitive" as const } },
+    ],
+  };
+
+  const where: any = {
+    NOT: { game: robuxGameFilter },
+  };
+  if (status !== "ALL") where.status = status;
 
   const result = await prisma.order.deleteMany({ where });
 

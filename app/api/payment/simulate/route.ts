@@ -2,9 +2,11 @@
 export const dynamic = "force-dynamic";
 
 import { decrementStockForOrder } from "@/lib/stock";
+import { finalizeOrderAfterPayment } from "@/lib/fulfillment";
 import { NextRequest, NextResponse } from "next/server";
 
-// Simulation: pretends payment succeeded and marks order PAID, then DELIVERED.
+// Simulation: pretends payment succeeded and marks order PAID, then —
+// unless it's a Roblox/Robux order, which needs manual delivery — DELIVERED.
 // Only active when PAYMENT_SIMULATION_MODE=true or no real credentials set.
 export async function GET(req: NextRequest) {
   if (process.env.PAYMENT_SIMULATION_MODE !== "true") {
@@ -21,27 +23,13 @@ export async function GET(req: NextRequest) {
   const order = await prisma.order.findUnique({ where: { orderNumber } });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
-  // Mark as paid
+  // Mark as paid (and, for every game except Roblox/Robux, delivered)
   if (order.status === "PENDING") {
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        status: "PAID",
-        paymentRef: ref ?? order.paymentRef,
-        paidAt: new Date(),
-      },
-    });
-
+    // Robux/Roblox stays at PAID here — the admin delivers it manually from
+    // the Robux Orders queue. Every other game is moved straight to
+    // DELIVERED by finalizeOrderAfterPayment.
+    await finalizeOrderAfterPayment(order.id, { paymentRef: ref ?? undefined });
     await decrementStockForOrder(order.id);
-
-    // In real life you'd trigger fulfillment here (queue job).
-    // For simulation, mark DELIVERED right away:
-    setTimeout(async () => {
-      await prisma.order.update({
-        where: { id: order.id },
-        data: { status: "DELIVERED", deliveredAt: new Date() },
-      });
-    }, 100);
   }
 
   // Render a simple "payment complete" page that redirects to order tracker.

@@ -4,17 +4,23 @@ import Footer from "@/components/Footer";
 import GameCard from "@/components/GameCard";
 import RecentOrdersTicker from "@/components/RecentOrdersTicker";
 import HeroCarousel from "@/components/HeroCarousel";
+import { isRobuxGame } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [games, banners] = await Promise.all([
+  const [games, banners, robuxStock] = await Promise.all([
     prisma.game.findMany({
       orderBy: [{ active: "desc" }, { featured: "desc" }, { sortOrder: "asc" }],
     }),
     prisma.heroBanner.findMany({
       where: { active: true },
       orderBy: { sortOrder: "asc" },
+    }),
+    prisma.robuxStock.upsert({
+      where: { id: 1 },
+      update: {},
+      create: { id: 1 },
     }),
   ]);
 
@@ -58,6 +64,7 @@ export default async function HomePage() {
                 imageUrl={game.imageUrl}
                 featured={game.featured}
                 active={game.active}
+                robuxStock={isRobuxGame(game) ? robuxStock.totalRobux : null}
               />
             </div>
           ))}

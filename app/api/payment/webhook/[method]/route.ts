@@ -5,6 +5,7 @@ import { verifyWebhook, PaymentMethod } from "@/lib/payment";
 import { notifyTelegram, escapeHtml } from "@/lib/telegram";
 import { awardPointsForOrder, refundRedeemedPointsForOrder } from "@/lib/loyalty";
 import { decrementStockForOrder, restoreStockForOrder } from "@/lib/stock";
+import { finalizeOrderAfterPayment } from "@/lib/fulfillment";
 import { NextRequest, NextResponse } from "next/server";
 
 // KHPay webhook receiver.
@@ -85,14 +86,10 @@ export async function POST(
       return NextResponse.json({ error: "Amount mismatch" }, { status: 400 });
     }
 
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        status: "PAID",
-        paidAt: new Date(),
-        paymentRef: transactionId || order.paymentRef,
-      },
-    });
+    // Roblox/Robux stops at PAID for manual admin fulfillment; every other
+    // game (Mobile Legends, PUBG, Free Fire, etc.) has nothing left to do
+    // once payment clears, so it's marked DELIVERED right here.
+    await finalizeOrderAfterPayment(order.id, { paymentRef: transactionId || order.paymentRef || undefined });
 
     // Credit loyalty points now that the order is actually paid (no-op for
     // guest orders / already-credited orders).
@@ -104,15 +101,22 @@ export async function POST(
     // Fire-and-forget Telegram notification to the operator.
     const fullOrder = await prisma.order.findUnique({
       where: { id: order.id },
-      include: { game: true, product: true },
+      include: { game: true, product: true, items: true },
     });
     if (fullOrder) {
       const baseUrl = process.env.PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "";
       const link = baseUrl ? `\n<a href="${baseUrl}/admin/orders/${fullOrder.orderNumber}">Open in admin</a>` : "";
+      // Multi-package cart orders (Roblox) get a combined total instead of
+      // just the first package, so the operator sees the real amount to
+      // deliver — every other order keeps showing the plain product name.
+      const packageLine =
+        fullOrder.items.length > 0
+          ? `${fullOrder.items.reduce((sum, it) => sum + Math.max(0, it.amount) * it.quantity, 0).toLocaleString()} Robux (${fullOrder.items.length} packages)`
+          : fullOrder.product.name;
       await notifyTelegram(
-        `ðŸ’° <b>New paid order</b>\n` +
+        `💰 <b>${fullOrder.status === "DELIVERED" ? "Order delivered" : "New paid order"}</b>\n` +
           `<b>#${escapeHtml(fullOrder.orderNumber)}</b>\n` +
-          `${escapeHtml(fullOrder.game.name)} â€” ${escapeHtml(fullOrder.product.name)}\n` +
+          `${escapeHtml(fullOrder.game.name)} — ${escapeHtml(packageLine)}\n` +
           `UID: <code>${escapeHtml(fullOrder.playerUid)}</code>\n` +
           `Amount: $${fullOrder.amountUsd.toFixed(2)}${link}`
       );

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import RobuxStockBadge from "@/components/RobuxStockBadge";
 
 interface GameCardProps {
   slug: string;
@@ -8,6 +9,7 @@ interface GameCardProps {
   imageUrl: string;
   featured?: boolean;
   active?: boolean;
+  robuxStock?: number | null;
 }
 
 function GameCardContent({
@@ -15,11 +17,13 @@ function GameCardContent({
   imageUrl,
   featured,
   active,
+  robuxStock,
 }: {
   name: string;
   imageUrl: string;
   featured?: boolean;
   active: boolean;
+  robuxStock?: number | null;
 }) {
   return (
     <div className="relative flex flex-col items-center rounded-2xl border border-fox-border/60 bg-fox-card p-4 sm:p-5 transition-all duration-500 group-hover:border-transparent group-hover:bg-fox-card/90">
@@ -57,6 +61,12 @@ function GameCardContent({
         )}
       </div>
 
+      {active && robuxStock !== null && robuxStock !== undefined && (
+        <div className="w-full">
+          <RobuxStockBadge compact initialTotal={robuxStock} />
+        </div>
+      )}
+
       <h3
         className={
           active
@@ -82,7 +92,7 @@ function GameCardContent({
   );
 }
 
-export default function GameCard({ slug, name, publisher, currencyName, imageUrl, featured, active = true }: GameCardProps) {
+export default function GameCard({ slug, name, publisher, currencyName, imageUrl, featured, active = true, robuxStock = null }: GameCardProps) {
   if (!active) {
     return (
       <div
@@ -90,7 +100,7 @@ export default function GameCard({ slug, name, publisher, currencyName, imageUrl
         title={name + " (coming soon)"}
         className="game-card group relative block cursor-not-allowed rounded-2xl opacity-70"
       >
-        <GameCardContent name={name} imageUrl={imageUrl} featured={featured} active={false} />
+        <GameCardContent name={name} imageUrl={imageUrl} featured={featured} active={false} robuxStock={robuxStock} />
       </div>
     );
   }
@@ -104,7 +114,13 @@ export default function GameCard({ slug, name, publisher, currencyName, imageUrl
         className="pointer-events-none absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-fox-primary via-fox-accent to-fox-gold opacity-0 transition-opacity duration-500 group-hover:opacity-100"
         aria-hidden
       />
-      <GameCardContent name={name} imageUrl={imageUrl} featured={featured} active={true} />
+      <GameCardContent
+        name={name}
+        imageUrl={imageUrl}
+        featured={featured}
+        active={true}
+        robuxStock={robuxStock}
+      />
     </Link>
   );
 }

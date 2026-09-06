@@ -31,3 +31,12 @@ export function isValidUid(uid: string): boolean {
 export function isValidServerId(sid: string): boolean {
   return /^\d{1,5}$/.test(sid.trim());
 }
+
+// Whether a game supports the multi-package cart flow (currently: Roblox).
+// IMPORTANT: this must be the exact same check on the client (TopUpForm,
+// to decide whether to render cart UI) and the server (the orders API, to
+// decide whether to accept an `items` array). If these ever drift apart,
+// the client can offer multi-select for a game the server then rejects.
+export function isRobuxGame(game: { slug: string; currencyName: string }): boolean {
+  return game.slug === "roblox" || game.currencyName.toLowerCase().includes("robux");
+}

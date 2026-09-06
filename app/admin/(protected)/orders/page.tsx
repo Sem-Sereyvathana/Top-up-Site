@@ -184,7 +184,18 @@ export default function AdminOrdersPage() {
                       </Link>
                     </td>
                     <td className="px-5 py-3">{o.game.name}</td>
-                    <td className="px-5 py-3 text-fox-muted">{o.product.name}</td>
+                    <td className="px-5 py-3 text-fox-muted">
+                      {o.items && o.items.length > 0 ? (
+                        <span>
+                          <span className="font-medium text-fox-text">
+                            {o.items.reduce((sum: number, it: any) => sum + Math.max(0, it.amount) * it.quantity, 0).toLocaleString()} Robux
+                          </span>
+                          <span className="text-xs text-fox-muted/70"> ({o.items.length} package{o.items.length > 1 ? "s" : ""})</span>
+                        </span>
+                      ) : (
+                        o.product.name
+                      )}
+                    </td>
                     <td className="px-5 py-3 font-mono text-xs">{o.playerUid}</td>
                     <td className="px-5 py-3 text-right font-mono">${o.amountUsd.toFixed(2)}</td>
                     <td className="px-5 py-3 text-xs text-fox-muted">{o.paymentMethod.replace("_", " ")}</td>

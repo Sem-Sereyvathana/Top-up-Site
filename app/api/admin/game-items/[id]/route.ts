@@ -6,7 +6,7 @@ import { z } from "zod";
 import { writeAudit } from "@/lib/audit";
 
 const updateSchema = z.object({
-  gameId: z.string().min(1).nullable().optional(),
+  categoryId: z.string().min(1).nullable().optional(),
   name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
   imageUrl: z.string().nullable().optional(),

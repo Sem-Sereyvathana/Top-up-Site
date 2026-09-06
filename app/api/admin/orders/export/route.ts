@@ -1,4 +1,4 @@
-﻿import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -15,7 +15,18 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status") || undefined;
   const q = searchParams.get("q")?.trim();
 
-  const where: Record<string, unknown> = {};
+  // This export belongs to the normal automated-game Orders page, so never
+  // include Roblox/Robux orders in it.
+  const robuxGameFilter = {
+    OR: [
+      { slug: "roblox" },
+      { currencyName: { contains: "robux", mode: "insensitive" as const } },
+    ],
+  };
+
+  const where: Record<string, unknown> = {
+    NOT: { game: robuxGameFilter },
+  };
   if (status && status !== "ALL") where.status = status;
   if (q) {
     where.OR = [
@@ -31,6 +42,9 @@ export async function GET(req: NextRequest) {
     include: {
       game: { select: { name: true } },
       product: { select: { name: true } },
+      // Only present for multi-package cart orders (Roblox) — combined into
+      // a single Robux total in the "Product" column below.
+      items: { select: { amount: true, quantity: true } },
     },
     orderBy: { createdAt: "desc" },
     take: 5000,
@@ -59,7 +73,9 @@ export async function GET(req: NextRequest) {
       o.orderNumber,
       o.status,
       o.game?.name,
-      o.product?.name,
+      o.items && o.items.length > 0
+        ? `${o.items.reduce((sum, it) => sum + Math.max(0, it.amount) * it.quantity, 0)} Robux (${o.items.length} packages)`
+        : o.product?.name,
       o.playerUid,
       o.serverId,
       o.amountUsd.toFixed(2),

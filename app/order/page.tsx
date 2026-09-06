@@ -11,6 +11,7 @@ interface OrderInfo {
   status: string;
   gameName: string;
   productName: string;
+  items?: { name: string; amount: number; bonus: number; quantity: number; unitPriceUsd: number }[];
   playerUid: string;
   amountUsd: number;
   paymentMethod: string;
@@ -270,8 +271,24 @@ export default function OrderPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-fox-muted">Package</span>
-                <span className="font-medium">{order.productName}</span>
+                <span className="font-medium">
+                  {order.items && order.items.length > 1
+                    ? `${order.items.reduce((sum, it) => sum + Math.max(0, it.amount) * it.quantity, 0).toLocaleString()} Robux`
+                    : order.productName}
+                </span>
               </div>
+              {order.items && order.items.length > 1 && (
+                <div className="flex justify-between">
+                  <span className="text-fox-muted">Breakdown</span>
+                  <span className="text-right text-xs text-fox-muted space-y-0.5">
+                    {order.items.map((it, i) => (
+                      <div key={i}>
+                        {it.amount.toLocaleString()} Robux{it.quantity > 1 ? ` ×${it.quantity}` : ""}
+                      </div>
+                    ))}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-fox-muted">Player UID</span>
                 <span className="font-mono">{order.playerUid}</span>

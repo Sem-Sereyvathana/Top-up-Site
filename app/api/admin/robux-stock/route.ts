@@ -1,4 +1,4 @@
-﻿import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 import { writeAudit } from "@/lib/audit";
@@ -8,7 +8,6 @@ import { z } from "zod";
 const adjustSchema = z.object({
   op: z.enum(["add", "remove", "set"]),
   amount: z.number().int().min(0),
-  note: z.string().max(200).optional().nullable(),
 });
 
 export async function GET() {
@@ -26,7 +25,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid", details: parsed.error.flatten() }, { status: 400 });
   }
-  const { op, amount, note } = parsed.data;
+  const { op, amount } = parsed.data;
 
   const current = await prisma.robuxStock.upsert({
     where: { id: 1 },
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest) {
     action: `robux_stock.${op}`,
     targetType: "robux_stock",
     targetId: "1",
-    details: { amount, note: note || undefined, before: current.totalRobux, after: updated.totalRobux },
+    details: { amount, before: current.totalRobux, after: updated.totalRobux },
   });
 
   return NextResponse.json(updated);

@@ -38,6 +38,10 @@ function renderPdf(order: {
   deliveredAt: Date | null;
   game: { name: string; publisher: string; currencyName: string };
   product: { name: string; amount: number; bonus: number; priceUsd: number };
+  // Only present for multi-package cart orders (Roblox) — each becomes its
+  // own row in the items table below. Regular single-package orders leave
+  // this empty and fall back to the single `product` row, unchanged.
+  items?: { name: string; amount: number; bonus: number; quantity: number; unitPriceUsd: number }[];
 }): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 0 });
@@ -172,6 +176,27 @@ function renderPdf(order: {
     // --- Items table ------------------------------------------------------
     y = Math.max(y + 110, detailY + 20);
 
+    // Multi-package cart orders (Roblox) get one row per package; every
+    // other order keeps the exact single row it always had.
+    const invoiceRows =
+      order.items && order.items.length > 0
+        ? order.items.map((it) => ({
+            name: it.name,
+            amount: it.amount,
+            bonus: it.bonus,
+            quantity: it.quantity,
+            unitPriceUsd: it.unitPriceUsd,
+          }))
+        : [
+            {
+              name: order.product.name,
+              amount: order.product.amount,
+              bonus: order.product.bonus,
+              quantity: 1,
+              unitPriceUsd: order.product.priceUsd,
+            },
+          ];
+
     // Table header
     const tableH = 28;
     doc.rect(marginX, y, contentW, tableH).fill(BRAND.ink);
@@ -194,45 +219,54 @@ function renderPdf(order: {
 
     y += tableH;
 
-    // Row
+    // Rows — one per package
     const rowH = 64;
-    doc.rect(marginX, y, contentW, rowH).fill(BRAND.surface);
+    invoiceRows.forEach((row, i) => {
+      doc.rect(marginX, y, contentW, rowH).fill(BRAND.surface);
 
-    doc
-      .fillColor(BRAND.text)
-      .font("Helvetica-Bold")
-      .fontSize(11)
-      .text(order.product.name, col.desc, y + 12, { width: contentW - 230 });
-    const bonusText = order.product.bonus > 0 ? ` (+${order.product.bonus} bonus)` : "";
-    doc
-      .fillColor(BRAND.muted)
-      .font("Helvetica")
-      .fontSize(9)
-      .text(
-        `${order.game.name} — ${order.product.amount}${bonusText} ${order.game.currencyName}`,
-        col.desc,
-        y + 28,
-        { width: contentW - 230 }
-      );
-    doc
-      .fillColor(BRAND.muted)
-      .fontSize(8)
-      .text(`Delivered to UID ${order.playerUid}`, col.desc, y + 44, { width: contentW - 230 });
+      doc
+        .fillColor(BRAND.text)
+        .font("Helvetica-Bold")
+        .fontSize(11)
+        .text(row.name, col.desc, y + 12, { width: contentW - 230 });
+      const bonusText = row.bonus > 0 ? ` (+${row.bonus} bonus)` : "";
+      doc
+        .fillColor(BRAND.muted)
+        .font("Helvetica")
+        .fontSize(9)
+        .text(
+          `${order.game.name} — ${row.amount}${bonusText} ${order.game.currencyName}`,
+          col.desc,
+          y + 28,
+          { width: contentW - 230 }
+        );
+      if (i === 0) {
+        doc
+          .fillColor(BRAND.muted)
+          .fontSize(8)
+          .text(`Delivered to UID ${order.playerUid}`, col.desc, y + 44, { width: contentW - 230 });
+      }
 
-    doc
-      .fillColor(BRAND.text)
-      .font("Helvetica")
-      .fontSize(10)
-      .text("1", col.qty, y + 24, { width: 40, align: "center" });
-    doc.text(`$${order.product.priceUsd.toFixed(2)}`, col.unit, y + 24, {
-      width: 60,
-      align: "right",
+      doc
+        .fillColor(BRAND.text)
+        .font("Helvetica")
+        .fontSize(10)
+        .text(String(row.quantity), col.qty, y + 24, { width: 40, align: "center" });
+      doc.text(`$${row.unitPriceUsd.toFixed(2)}`, col.unit, y + 24, {
+        width: 60,
+        align: "right",
+      });
+      doc
+        .font("Helvetica-Bold")
+        .text(
+          `$${(order.items && order.items.length > 0 ? row.unitPriceUsd * row.quantity : order.amountUsd).toFixed(2)}`,
+          col.total - 60,
+          y + 24,
+          { width: 60, align: "right" }
+        );
+
+      y += rowH;
     });
-    doc
-      .font("Helvetica-Bold")
-      .text(`$${order.amountUsd.toFixed(2)}`, col.total - 60, y + 24, { width: 60, align: "right" });
-
-    y += rowH;
 
     // Totals block
     const totalsW = 240;
@@ -347,6 +381,9 @@ export async function GET(
     include: {
       game: { select: { name: true, publisher: true, currencyName: true } },
       product: { select: { name: true, amount: true, bonus: true, priceUsd: true } },
+      // Only present for multi-package cart orders (Roblox) — renderPdf
+      // draws one table row per item instead of the single product row.
+      items: { select: { name: true, amount: true, bonus: true, quantity: true, unitPriceUsd: true } },
     },
   });
 

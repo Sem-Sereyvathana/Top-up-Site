@@ -24,6 +24,7 @@ interface OrderPayment {
   gameName: string;
   gameSlug: string;
   productName: string;
+  items?: { name: string; amount: number; bonus: number; quantity: number; unitPriceUsd: number }[];
   playerUid: string;
   serverId: string | null;
   amountUsd: number;
@@ -434,7 +435,25 @@ export default function CheckoutPage() {
                       </button>
                     </Row>
                     <Row label="Game">{order.gameName}</Row>
-                    <Row label="Package">{order.productName}</Row>
+                    {order.items && order.items.length > 1 ? (
+                      <>
+                        <Row label="Package">
+                          {order.items.reduce((sum, it) => sum + Math.max(0, it.amount) * it.quantity, 0).toLocaleString()} Robux
+                        </Row>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-fox-muted">Breakdown</span>
+                          <span className="text-right text-xs text-fox-muted space-y-0.5">
+                            {order.items.map((it, i) => (
+                              <div key={i}>
+                                {it.amount.toLocaleString()} Robux{it.quantity > 1 ? ` ×${it.quantity}` : ""}
+                              </div>
+                            ))}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <Row label="Package">{order.productName}</Row>
+                    )}
                     <Row label="Player UID">
                       <span className="font-mono">{order.playerUid}</span>
                       {order.serverId && <span className="text-fox-muted"> ({order.serverId})</span>}

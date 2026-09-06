@@ -3,14 +3,16 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Save, X, Image as ImageIcon } from "lucide-react";
 
-interface Game {
+interface Category {
   id: string;
   name: string;
+  imageUrl: string | null;
+  sortOrder: number;
 }
 
 interface GameItem {
   id: string;
-  gameId: string | null;
+  categoryId: string | null;
   name: string;
   description: string | null;
   imageUrl: string | null;
@@ -18,11 +20,11 @@ interface GameItem {
   badge: string | null;
   active: boolean;
   sortOrder: number;
-  Game?: { name: string; slug: string } | null;
+  Category?: { name: string; slug: string } | null;
 }
 
 const empty = {
-  gameId: "",
+  categoryId: "",
   name: "",
   description: "",
   imageUrl: "",
@@ -32,8 +34,10 @@ const empty = {
   sortOrder: 0,
 };
 
+const emptyCategory = { name: "", imageUrl: "" };
+
 export default function GameItemsAdminPage() {
-  const [games, setGames] = useState<Game[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<GameItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<GameItem | null>(null);
@@ -43,13 +47,19 @@ export default function GameItemsAdminPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Inline category manager
+  const [catForm, setCatForm] = useState(emptyCategory);
+  const [catUploading, setCatUploading] = useState(false);
+  const [catSaving, setCatSaving] = useState(false);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+
   async function loadAll() {
     setLoading(true);
-    const [gRes, iRes] = await Promise.all([
-      fetch("/api/admin/games").then((r) => r.json()),
+    const [cRes, iRes] = await Promise.all([
+      fetch("/api/admin/game-item-categories").then((r) => r.json()),
       fetch("/api/admin/game-items").then((r) => r.json()),
     ]);
-    setGames(gRes);
+    setCategories(cRes);
     setItems(iRes);
     setLoading(false);
   }
@@ -70,7 +80,7 @@ export default function GameItemsAdminPage() {
     setEditing(item);
     setError(null);
     setForm({
-      gameId: item.gameId || "",
+      categoryId: item.categoryId || "",
       name: item.name,
       description: item.description || "",
       imageUrl: item.imageUrl || "",
@@ -100,12 +110,64 @@ export default function GameItemsAdminPage() {
     setUploading(false);
   }
 
+  async function uploadCatImage(file: File) {
+    setCatUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+    if (res.ok) {
+      const data = await res.json();
+      setCatForm((f) => ({ ...f, imageUrl: data.url }));
+    }
+    setCatUploading(false);
+  }
+
+  function openEditCategory(cat: Category) {
+    setEditingCatId(cat.id);
+    setCatForm({ name: cat.name, imageUrl: cat.imageUrl || "" });
+  }
+
+  function closeCategoryForm() {
+    setEditingCatId(null);
+    setCatForm(emptyCategory);
+  }
+
+  async function saveCategory(e: React.FormEvent) {
+    e.preventDefault();
+    if (!catForm.name.trim()) return;
+    setCatSaving(true);
+    const payload = { name: catForm.name, imageUrl: catForm.imageUrl || null };
+    const url = editingCatId
+      ? `/api/admin/game-item-categories/${editingCatId}`
+      : "/api/admin/game-item-categories";
+    const method = editingCatId ? "PATCH" : "POST";
+    await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setCatSaving(false);
+    closeCategoryForm();
+    await loadAll();
+  }
+
+  async function deleteCategory(cat: Category) {
+    if (
+      !confirm(
+        `Delete category "${cat.name}"? Items in it will become uncategorized (General), not deleted.`
+      )
+    )
+      return;
+    await fetch(`/api/admin/game-item-categories/${cat.id}`, { method: "DELETE" });
+    await loadAll();
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
     const payload = {
-      gameId: form.gameId || null,
+      categoryId: form.categoryId || null,
       name: form.name,
       description: form.description || null,
       imageUrl: form.imageUrl || null,
@@ -161,6 +223,84 @@ export default function GameItemsAdminPage() {
         </button>
       </div>
 
+      {/* Inline category manager — categories here are independent of the
+          Top-up "Games" list; they only exist for the storefront items page. */}
+      <div className="card p-5 mb-8">
+        <h2 className="font-semibold mb-1">Categories</h2>
+        <p className="text-fox-muted text-xs mb-4">
+          Your own item categories (e.g. Blox Fruits, GAG). Not linked to the Top-up games list.
+        </p>
+
+        {categories.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {categories.map((cat) => (
+              <div
+                key={cat.id}
+                className="flex items-center gap-2 rounded-lg border border-fox-border bg-fox-surface px-3 py-1.5"
+              >
+                {cat.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={cat.imageUrl} alt="" className="h-5 w-5 rounded object-cover" />
+                ) : (
+                  <div className="h-5 w-5 rounded bg-fox-bg/60" />
+                )}
+                <span className="text-sm">{cat.name}</span>
+                <button
+                  type="button"
+                  onClick={() => openEditCategory(cat)}
+                  className="text-fox-accent text-xs hover:underline"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteCategory(cat)}
+                  className="text-red-400 text-xs hover:underline"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={saveCategory} className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[160px]">
+            <label className="label">{editingCatId ? "Edit category name" : "New category name"}</label>
+            <input
+              className="input"
+              placeholder="e.g. Blox Fruits"
+              value={catForm.name}
+              onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="btn-ghost cursor-pointer">
+              <ImageIcon className="h-4 w-4" />
+              {catUploading ? "Uploading..." : "Icon"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && uploadCatImage(e.target.files[0])}
+              />
+            </label>
+          </div>
+          {catForm.imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={catForm.imageUrl} alt="" className="h-9 w-9 rounded-lg border border-fox-border object-cover" />
+          )}
+          <button type="submit" disabled={catSaving || !catForm.name.trim()} className="btn-primary">
+            <Save className="h-4 w-4" /> {catSaving ? "Saving..." : editingCatId ? "Save" : "Add category"}
+          </button>
+          {editingCatId && (
+            <button type="button" onClick={closeCategoryForm} className="btn-ghost">
+              <X className="h-4 w-4" /> Cancel
+            </button>
+          )}
+        </form>
+      </div>
+
       {showForm && (
         <form onSubmit={save} className="card p-5 mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -172,15 +312,15 @@ export default function GameItemsAdminPage() {
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="label">Game</label>
+              <label className="label">Category</label>
               <select
                 className="input"
-                value={form.gameId}
-                onChange={(e) => setForm({ ...form, gameId: e.target.value })}
+                value={form.categoryId}
+                onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
               >
-                <option value="">— General (no specific game) —</option>
-                {games.map((g) => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
+                <option value="">— General (no category) —</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
@@ -297,7 +437,7 @@ export default function GameItemsAdminPage() {
               <thead className="bg-fox-surface text-fox-muted text-xs uppercase tracking-wider">
                 <tr>
                   <th className="text-left px-5 py-3">Item</th>
-                  <th className="text-left px-5 py-3">Game</th>
+                  <th className="text-left px-5 py-3">Category</th>
                   <th className="text-right px-5 py-3">Price USD</th>
                   <th className="text-left px-5 py-3">Badge</th>
                   <th className="text-center px-5 py-3">Active</th>
@@ -318,7 +458,7 @@ export default function GameItemsAdminPage() {
                         <span className="font-medium">{item.name}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-fox-muted">{item.Game?.name || "General"}</td>
+                    <td className="px-5 py-3 text-fox-muted">{item.Category?.name || "General"}</td>
                     <td className="px-5 py-3 text-right font-mono text-fox-primary">${item.priceUsd.toFixed(2)}</td>
                     <td className="px-5 py-3 text-xs">{item.badge || "—"}</td>
                     <td className="px-5 py-3 text-center">

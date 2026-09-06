@@ -31,6 +31,9 @@ export async function GET(
     include: {
       game: true,
       product: true,
+      // Only present for multi-package cart orders (Roblox) — see
+      // TopUpForm's cart mode / app/api/orders/route.ts.
+      items: true,
     },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -66,6 +69,13 @@ export async function PATCH(
   });
 
   if (parsed.data.status === "PAID") {
+    await awardPointsForOrder(order.id);
+    await decrementStockForOrder(order.id);
+  } else if (parsed.data.status === "DELIVERED") {
+    // Some orders (e.g. manually top-up games like Roblox) get marked
+    // DELIVERED directly without ever passing through an explicit PAID
+    // step — decrementStockForOrder is idempotent (guarded by the
+    // `stockDecremented` flag) so it's safe to call here too.
     await awardPointsForOrder(order.id);
     await decrementStockForOrder(order.id);
   } else if (

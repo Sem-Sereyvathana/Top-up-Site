@@ -6,6 +6,21 @@ import Link from "next/link";
 
 const STATUSES = ["PENDING", "PAID", "PROCESSING", "DELIVERED", "FAILED", "REFUNDED", "CANCELLED"];
 
+// For a multi-package Roblox cart order, combine every line into a single
+// total (e.g. 1000 + 100 = 1100 Robux) so admins process one clear number
+// instead of juggling separate packages. Regular single-package orders
+// (order.items is empty) fall back to the plain product name, unchanged.
+function packageSummary(order: any): { label: string; totalRobux: number | null } {
+  if (order.items && order.items.length > 0) {
+    const totalRobux = order.items.reduce(
+      (sum: number, it: any) => sum + Math.max(0, it.amount) * it.quantity,
+      0
+    );
+    return { label: `${totalRobux.toLocaleString()} Robux`, totalRobux };
+  }
+  return { label: order.product.name, totalRobux: null };
+}
+
 export default function AdminOrderDetailPage() {
   const params = useParams() as { orderNumber: string };
   const router = useRouter();
@@ -123,8 +138,21 @@ export default function AdminOrderDetailPage() {
             </div>
             <div className="flex justify-between">
               <dt className="text-fox-muted">Package</dt>
-              <dd className="font-medium">{order.product.name}</dd>
+              <dd className="font-medium">{packageSummary(order).label}</dd>
             </div>
+            {order.items && order.items.length > 1 && (
+              <div className="flex justify-between">
+                <dt className="text-fox-muted">Breakdown</dt>
+                <dd className="text-right text-xs text-fox-muted space-y-0.5">
+                  {order.items.map((it: any) => (
+                    <div key={it.id}>
+                      {it.amount.toLocaleString()} Robux
+                      {it.quantity > 1 ? ` ×${it.quantity}` : ""}
+                    </div>
+                  ))}
+                </dd>
+              </div>
+            )}
             <div className="flex justify-between">
               <dt className="text-fox-muted">Player UID</dt>
               <dd className="font-mono text-fox-accent">{order.playerUid}</dd>
@@ -249,11 +277,11 @@ export default function AdminOrderDetailPage() {
               )}
 
               <button
-                onClick={() => copyToClipboard(order.product.name, "Package")}
+                onClick={() => copyToClipboard(packageSummary(order).label, "Package")}
                 className="group flex flex-col items-start gap-1 rounded-lg border border-fox-border bg-fox-surface/80 px-4 py-3 text-left transition-colors hover:border-fox-primary/60 hover:bg-fox-surface"
               >
                 <span className="text-[10px] uppercase tracking-widest text-fox-muted">Package</span>
-                <span className="text-lg font-bold text-fox-text truncate">{order.product.name}</span>
+                <span className="text-lg font-bold text-fox-text truncate">{packageSummary(order).label}</span>
                 <span className="text-[10px] text-fox-primary opacity-0 transition-opacity group-hover:opacity-100">
                   {copied === "Package" ? "✓ Copied!" : "Click to copy name"}
                 </span>
