@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { generateOrderNumber, calcKhr } from "@/lib/utils";
 import { initiatePayment } from "@/lib/payment";
 import { resolveDeliveryMode } from "@/lib/deliveryMode";
+import { getCurrentUser } from "@/lib/userAuth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -108,6 +109,11 @@ export async function POST(req: NextRequest) {
     const orderNumber = generateOrderNumber("AC");
     const userAgent = req.headers.get("user-agent") ?? "unknown";
 
+    // Guest checkout stays fully supported — a session only exists if the
+    // buyer happens to be signed in, in which case we tag the order so it
+    // shows up in their account History.
+    const session = await getCurrentUser();
+
     const order = await prisma.gameAccountOrder.create({
       data: {
         orderNumber,
@@ -119,6 +125,7 @@ export async function POST(req: NextRequest) {
         status: "PENDING",
         ipAddress,
         userAgent,
+        userId: session?.userId,
         items: {
           create: ids.map((id) => ({
             gameAccountId: id,

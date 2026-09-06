@@ -6,7 +6,15 @@ export default function ItemsOrderTrackerPage() {
   return (
     <MarketplaceOrderTracker
       apiBase="/api/game-item-orders"
-      placeholder="GI-XXXXXX"
+      autoRedirectManualPaid
+      buildTelegramMessage={(order: any) => {
+        const items = order.items
+          .map((it: any) => `${it.name}${it.quantity > 1 ? ` x${it.quantity}` : ""}`)
+          .join(", ");
+        return `Hi! I just paid for order #${order.orderNumber} (${items}) — $${order.amountUsd.toFixed(
+          2
+        )}. My in-game username is ${order.buyerUsername}. Please help arrange delivery!`;
+      }}
       renderDetails={(order: any) => (
         <>
           <div className="flex justify-between">

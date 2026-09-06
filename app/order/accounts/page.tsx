@@ -31,7 +31,6 @@ export default function AccountsOrderTrackerPage() {
   return (
     <MarketplaceOrderTracker
       apiBase="/api/game-account-orders"
-      placeholder="AC-XXXXXX"
       renderDetails={(order: any) => (
         <div className="flex justify-between">
           <span className="text-fox-muted">Accounts</span>

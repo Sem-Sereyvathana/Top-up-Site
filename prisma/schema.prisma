@@ -51,6 +51,8 @@ model User {
   updatedAt    DateTime       @updatedAt
   lastLoginAt  DateTime?
   orders       Order[]
+  gameItemOrders    GameItemOrder[]
+  gameAccountOrders GameAccountOrder[]
   pointsLedger PointsLedger[]
 }
 
@@ -308,6 +310,12 @@ model GameItem {
   badge       String?
   active      Boolean           @default(true)
   sortOrder   Int               @default(0)
+  // "DIRECT" = admin delivers this item straight into the buyer's game
+  // account using the Username they typed at checkout; "MANUAL" = buyer is
+  // pointed to Telegram to arrange face-to-face handoff after paying. Set
+  // per item (not per category) since two items in the same category can
+  // need different handling.
+  deliveryMode String           @default("DIRECT")
   createdAt   DateTime          @default(now()) @db.Timestamp(6)
   updatedAt   DateTime          @default(now()) @db.Timestamp(6)
   Game        Game?             @relation(fields: [gameId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -320,15 +328,19 @@ model GameItem {
 
 // Categories for the Game Items storefront. Intentionally separate from
 // `Game` (which powers Top-up) so the two features never share taxonomy.
+// Purely a grouping/display concept — delivery mode lives on GameItem now.
 model GameItemCategory {
   id           String     @id @default(dbgenerated("(gen_random_uuid())::text"))
   name         String
   slug         String     @unique
   imageUrl     String?
   sortOrder    Int        @default(0)
-  // "DIRECT" = admin delivers straight into the buyer's game account using
-  // the Username they typed at checkout; "MANUAL" = buyer is pointed to
-  // Telegram to arrange face-to-face handoff after paying.
+  // DEPRECATED — no longer read or written by the app. Kept here (instead
+  // of dropped in the same `db push` that adds GameItem.deliveryMode) so
+  // prisma/scripts/backfill-item-deliverymode.ts has a safe window to copy
+  // each existing value onto its items before the column is ever dropped.
+  // Safe to remove this field (and run `db push` once more) any time after
+  // you've run that backfill script.
   deliveryMode String     @default("DIRECT")
   createdAt    DateTime   @default(now()) @db.Timestamp(6)
   updatedAt    DateTime   @default(now()) @db.Timestamp(6)
@@ -346,8 +358,10 @@ model GameItemOrder {
   id               String    @id @default(cuid())
   orderNumber      String    @unique
   buyerUsername    String
-  // Optional Telegram/phone/email the buyer leaves so admin can reach them —
-  // always shown as a hint, required by the UI when deliveryMode is MANUAL.
+  // Optional Telegram/phone/email — no longer collected at checkout for
+  // Game Items (a MANUAL order sends the buyer to admin's Telegram, with
+  // order details pre-filled, right after payment). Left here in case it's
+  // ever set some other way.
   customerContact  String?
   amountUsd        Float
   amountKhr        Float?
@@ -358,8 +372,8 @@ model GameItemOrder {
   qrString         String?
   paymentExpiresAt DateTime?
   // Snapshot of resolveDeliveryMode() across the order's line items at
-  // checkout time, so it can't change retroactively if admin edits a
-  // category later. "DIRECT" only when every line's category is DIRECT.
+  // checkout time, so it can't change retroactively if admin edits an
+  // item later. "DIRECT" only when every line item is DIRECT.
   deliveryMode     String
   status           String    @default("PENDING")
   deliveryNote     String?
@@ -370,10 +384,16 @@ model GameItemOrder {
   updatedAt        DateTime  @updatedAt
   paidAt           DateTime?
   deliveredAt      DateTime?
+  // Set when the buyer was signed in at checkout, so their order shows up
+  // in the account History page. Null for guest checkouts — guest orders
+  // stay lookup-only via the order number.
+  userId           String?
+  user             User?     @relation(fields: [userId], references: [id])
   items            GameItemOrderItem[]
 
   @@index([status])
   @@index([createdAt])
+  @@index([userId])
 }
 
 model GameItemOrderItem {
@@ -421,10 +441,16 @@ model GameAccountOrder {
   updatedAt        DateTime  @updatedAt
   paidAt           DateTime?
   deliveredAt      DateTime?
+  // Set when the buyer was signed in at checkout, so their order shows up
+  // in the account History page. Null for guest checkouts — guest orders
+  // stay lookup-only via the order number.
+  userId           String?
+  user             User?     @relation(fields: [userId], references: [id])
   items            GameAccountOrderItem[]
 
   @@index([status])
   @@index([createdAt])
+  @@index([userId])
 }
 
 model GameAccountOrderItem {

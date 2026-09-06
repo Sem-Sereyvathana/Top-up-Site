@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Search, Package, CheckCircle2, XCircle, Truck, CreditCard, Send, FileText } from "lucide-react";
+import Link from "next/link";
+import { Package, CheckCircle2, XCircle, Truck, CreditCard, Send, FileText, History } from "lucide-react";
 
 interface OrderInfo {
   orderNumber: string;
@@ -48,7 +49,6 @@ const STATUS_META: Record<string, { label: string; color: string; desc: string }
 
 export default function OrderPage() {
   const searchParams = useSearchParams();
-  const [orderNumber, setOrderNumber] = useState("");
   const [order, setOrder] = useState<OrderInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +89,6 @@ export default function OrderPage() {
     const num = searchParams?.get("number");
     if (num && !order && !loading) {
       const upperNum = num.trim().toUpperCase();
-      setOrderNumber(upperNum);
       setLoading(true);
       setError(null);
       (async () => {
@@ -112,27 +111,6 @@ export default function OrderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  async function lookup(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setOrder(null);
-    try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(orderNumber.trim().toUpperCase())}`);
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Order not found");
-      }
-      const data = await res.json();
-      setOrder(data);
-      if (!TERMINAL_STATUSES.has(data.status)) startPolling(data.orderNumber);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   const meta = order ? STATUS_META[order.status] : null;
   const currentStep = order ? STATUS_ORDER[order.status] ?? -1 : -1;
   const isFailed = order ? currentStep === -1 : false;
@@ -142,40 +120,34 @@ export default function OrderPage() {
     <>
       <Header />
       <main className="mx-auto max-w-2xl px-4 py-12 sm:py-16 sm:px-6 lg:px-8">
-        <div className="text-center mb-8 sm:mb-10">
-          <h1 className="font-display text-3xl sm:text-4xl font-bold mb-2">Track Your Order</h1>
-          <p className="text-fox-muted text-sm sm:text-base">Enter your order number to see the latest status.</p>
-        </div>
+        {loading && !order && (
+          <div className="card h-40 animate-pulse mb-8" />
+        )}
 
-        <form onSubmit={lookup} className="card p-5 sm:p-6 mb-8">
-          <label className="label">Order Number</label>
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={orderNumber}
-              onChange={(e) => setOrderNumber(e.target.value)}
-              placeholder="FOX-XXXXXX"
-              className="input font-mono uppercase text-lg"
-              required
-            />
-            <button type="submit" disabled={loading} className="btn-primary shrink-0">
-              {loading ? (
-                <span className="h-4 w-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              ) : (
-                <>
-                  <Search className="h-4 w-4" strokeWidth={2.5} />
-                  Look Up
-                </>
-              )}
-            </button>
-          </div>
-          {error && (
-            <p className="mt-3 text-sm text-red-400 flex items-center gap-2">
+        {error && (
+          <div className="card p-6 mb-8 text-center">
+            <p className="text-sm text-red-400 flex items-center justify-center gap-2 mb-4">
               <XCircle className="h-4 w-4 shrink-0" strokeWidth={2} />
               {error}
             </p>
-          )}
-        </form>
+            <Link href="/history" className="btn-ghost inline-flex items-center gap-2">
+              <History className="h-4 w-4" strokeWidth={2} />
+              View order history
+            </Link>
+          </div>
+        )}
+
+        {!loading && !order && !error && (
+          <div className="card p-8 mb-8 text-center">
+            <p className="text-sm text-fox-muted mb-4">
+              We couldn't find an order number in this link. You can view all your past orders in History.
+            </p>
+            <Link href="/history" className="btn-primary inline-flex items-center gap-2">
+              <History className="h-4 w-4" strokeWidth={2} />
+              Go to History
+            </Link>
+          </div>
+        )}
 
         {order && meta && (
           <div className="card overflow-hidden fade-up">

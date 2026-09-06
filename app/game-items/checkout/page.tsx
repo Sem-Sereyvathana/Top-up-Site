@@ -14,6 +14,7 @@ export default function GameItemsCheckoutPage() {
       usernamePlaceholder="Your username in this game"
       backHref="/game-items"
       pageTitle="Checkout — Game Items"
+      collectContact={false}
     />
   );
 }

@@ -26,6 +26,12 @@ interface ShopCheckoutProps {
   usernamePlaceholder?: string;
   backHref: string;
   pageTitle: string;
+  // Whether to show the "Telegram / phone / email" field in the Payment
+  // step. Defaults to true (Accounts marketplace still needs it — admin
+  // reaches out to the buyer directly). Game Items no longer needs it: a
+  // MANUAL order sends the buyer straight to admin's Telegram, with the
+  // order details pre-filled, right after payment is confirmed.
+  collectContact?: boolean;
 }
 
 export default function ShopCheckout({
@@ -38,6 +44,7 @@ export default function ShopCheckout({
   usernamePlaceholder = "Your username in this game",
   backHref,
   pageTitle,
+  collectContact = true,
 }: ShopCheckoutProps) {
   const { format } = useCurrency();
   const router = useRouter();
@@ -105,9 +112,9 @@ export default function ShopCheckout({
     setError(null);
     try {
       const payload: Record<string, unknown> = {
-        customerContact: contact.trim() || undefined,
         paymentMethod: "KHPAY",
       };
+      if (collectContact) payload.customerContact = contact.trim() || undefined;
       if (requireUsername) payload.buyerUsername = username.trim();
 
       if (cartListField === "items") {
@@ -287,17 +294,19 @@ export default function ShopCheckout({
               </div>
 
               <div className="card p-5 sm:p-6 space-y-4">
-                <div>
-                  <label className="label">
-                    Telegram / phone / email <span className="font-normal text-fox-muted/60">(optional)</span>
-                  </label>
-                  <input
-                    className="input"
-                    value={contact}
-                    onChange={(e) => setContact(e.target.value)}
-                    placeholder="@yourhandle"
-                  />
-                </div>
+                {collectContact && (
+                  <div>
+                    <label className="label">
+                      Telegram / phone / email <span className="font-normal text-fox-muted/60">(optional)</span>
+                    </label>
+                    <input
+                      className="input"
+                      value={contact}
+                      onChange={(e) => setContact(e.target.value)}
+                      placeholder="@yourhandle"
+                    />
+                  </div>
+                )}
 
                 {error && (
                   <div className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">

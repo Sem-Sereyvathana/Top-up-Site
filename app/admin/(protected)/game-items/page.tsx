@@ -8,7 +8,6 @@ interface Category {
   name: string;
   imageUrl: string | null;
   sortOrder: number;
-  deliveryMode: "DIRECT" | "MANUAL";
 }
 
 interface GameItem {
@@ -21,6 +20,7 @@ interface GameItem {
   badge: string | null;
   active: boolean;
   sortOrder: number;
+  deliveryMode: "DIRECT" | "MANUAL";
   Category?: { name: string; slug: string } | null;
 }
 
@@ -33,9 +33,10 @@ const empty = {
   badge: "",
   active: true,
   sortOrder: 0,
+  deliveryMode: "DIRECT" as "DIRECT" | "MANUAL",
 };
 
-const emptyCategory = { name: "", imageUrl: "", deliveryMode: "DIRECT" as "DIRECT" | "MANUAL" };
+const emptyCategory = { name: "", imageUrl: "" };
 
 export default function GameItemsAdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -89,6 +90,7 @@ export default function GameItemsAdminPage() {
       badge: item.badge || "",
       active: item.active,
       sortOrder: item.sortOrder,
+      deliveryMode: item.deliveryMode,
     });
   }
 
@@ -125,7 +127,7 @@ export default function GameItemsAdminPage() {
 
   function openEditCategory(cat: Category) {
     setEditingCatId(cat.id);
-    setCatForm({ name: cat.name, imageUrl: cat.imageUrl || "", deliveryMode: cat.deliveryMode });
+    setCatForm({ name: cat.name, imageUrl: cat.imageUrl || "" });
   }
 
   function closeCategoryForm() {
@@ -137,7 +139,7 @@ export default function GameItemsAdminPage() {
     e.preventDefault();
     if (!catForm.name.trim()) return;
     setCatSaving(true);
-    const payload = { name: catForm.name, imageUrl: catForm.imageUrl || null, deliveryMode: catForm.deliveryMode };
+    const payload = { name: catForm.name, imageUrl: catForm.imageUrl || null };
     const url = editingCatId
       ? `/api/admin/game-item-categories/${editingCatId}`
       : "/api/admin/game-item-categories";
@@ -176,6 +178,7 @@ export default function GameItemsAdminPage() {
       badge: form.badge || null,
       active: form.active,
       sortOrder: Number(form.sortOrder),
+      deliveryMode: form.deliveryMode,
     };
     const url = editing ? `/api/admin/game-items/${editing.id}` : "/api/admin/game-items";
     const method = editing ? "PATCH" : "POST";
@@ -246,16 +249,6 @@ export default function GameItemsAdminPage() {
                   <div className="h-5 w-5 rounded bg-fox-bg/60" />
                 )}
                 <span className="text-sm">{cat.name}</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                    cat.deliveryMode === "DIRECT"
-                      ? "bg-green-400/10 text-green-400"
-                      : "bg-yellow-400/10 text-yellow-400"
-                  }`}
-                  title={cat.deliveryMode === "DIRECT" ? "Admin delivers directly, no chat needed" : "Buyer is pointed to Telegram after paying"}
-                >
-                  {cat.deliveryMode === "DIRECT" ? "Direct" : "Manual"}
-                </span>
                 <button
                   type="button"
                   onClick={() => openEditCategory(cat)}
@@ -284,17 +277,6 @@ export default function GameItemsAdminPage() {
               value={catForm.name}
               onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
             />
-          </div>
-          <div className="min-w-[150px]">
-            <label className="label">Delivery</label>
-            <select
-              className="input"
-              value={catForm.deliveryMode}
-              onChange={(e) => setCatForm({ ...catForm, deliveryMode: e.target.value as "DIRECT" | "MANUAL" })}
-            >
-              <option value="DIRECT">Direct (admin sends it in-game)</option>
-              <option value="MANUAL">Manual (buyer messages Telegram)</option>
-            </select>
           </div>
           <div>
             <label className="btn-ghost cursor-pointer">
@@ -420,6 +402,17 @@ export default function GameItemsAdminPage() {
                 onChange={(e) => setForm({ ...form, sortOrder: Number(e.target.value) })}
               />
             </div>
+            <div>
+              <label className="label">Delivery</label>
+              <select
+                className="input"
+                value={form.deliveryMode}
+                onChange={(e) => setForm({ ...form, deliveryMode: e.target.value as "DIRECT" | "MANUAL" })}
+              >
+                <option value="DIRECT">Direct (admin sends it in-game)</option>
+                <option value="MANUAL">Manual (buyer messages Telegram)</option>
+              </select>
+            </div>
             <div className="flex items-end">
               <label className="flex items-center gap-2">
                 <input
@@ -462,6 +455,7 @@ export default function GameItemsAdminPage() {
                   <th className="text-left px-5 py-3">Category</th>
                   <th className="text-right px-5 py-3">Price USD</th>
                   <th className="text-left px-5 py-3">Badge</th>
+                  <th className="text-left px-5 py-3">Delivery</th>
                   <th className="text-center px-5 py-3">Active</th>
                   <th className="text-right px-5 py-3">Actions</th>
                 </tr>
@@ -483,6 +477,18 @@ export default function GameItemsAdminPage() {
                     <td className="px-5 py-3 text-fox-muted">{item.Category?.name || "General"}</td>
                     <td className="px-5 py-3 text-right font-mono text-fox-primary">${item.priceUsd.toFixed(2)}</td>
                     <td className="px-5 py-3 text-xs">{item.badge || "—"}</td>
+                    <td className="px-5 py-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                          item.deliveryMode === "DIRECT"
+                            ? "bg-green-400/10 text-green-400"
+                            : "bg-yellow-400/10 text-yellow-400"
+                        }`}
+                        title={item.deliveryMode === "DIRECT" ? "Admin delivers directly, no chat needed" : "Buyer is pointed to Telegram after paying"}
+                      >
+                        {item.deliveryMode === "DIRECT" ? "Direct" : "Manual"}
+                      </span>
+                    </td>
                     <td className="px-5 py-3 text-center">
                       <button onClick={() => toggleActive(item)}>
                         <span className={`inline-block h-5 w-9 rounded-full relative transition-colors ${item.active ? "bg-green-500" : "bg-fox-border"}`}>

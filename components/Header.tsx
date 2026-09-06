@@ -10,6 +10,7 @@ import CartButton from "./CartButton";
 const NAV = [
   { href: "/game-items", label: "Game Items" },
   { href: "/accounts", label: "Account" },
+  { href: "/history", label: "History" },
 ];
 
 export default function Header() {

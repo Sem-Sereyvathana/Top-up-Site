@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { generateOrderNumber, calcKhr } from "@/lib/utils";
 import { initiatePayment } from "@/lib/payment";
 import { resolveDeliveryMode } from "@/lib/deliveryMode";
+import { getCurrentUser } from "@/lib/userAuth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -63,7 +64,6 @@ export async function POST(req: NextRequest) {
     const ids = data.items.map((i) => i.gameItemId);
     const found = await prisma.gameItem.findMany({
       where: { id: { in: ids } },
-      include: { Category: { select: { deliveryMode: true } } },
     });
     const byId = new Map(found.map((it) => [it.id, it]));
 
@@ -77,15 +77,8 @@ export async function POST(req: NextRequest) {
     }
 
     const deliveryMode = resolveDeliveryMode(
-      lineItems.map((li) => li.gameItem.Category?.deliveryMode)
+      lineItems.map((li) => li.gameItem.deliveryMode)
     );
-
-    if (deliveryMode === "MANUAL" && !data.customerContact?.trim()) {
-      return NextResponse.json(
-        { error: "Please leave a Telegram, phone, or email so we can reach you to arrange delivery." },
-        { status: 400 }
-      );
-    }
 
     const subtotalUsd =
       Math.round(
@@ -96,6 +89,11 @@ export async function POST(req: NextRequest) {
     const exchangeRate = settings?.exchangeRate ?? 4100;
     const orderNumber = generateOrderNumber("GI");
     const userAgent = req.headers.get("user-agent") ?? "unknown";
+
+    // Guest checkout stays fully supported — a session only exists if the
+    // buyer happens to be signed in, in which case we tag the order so it
+    // shows up in their account History.
+    const session = await getCurrentUser();
 
     const order = await prisma.gameItemOrder.create({
       data: {
@@ -109,6 +107,7 @@ export async function POST(req: NextRequest) {
         status: "PENDING",
         ipAddress,
         userAgent,
+        userId: session?.userId,
         items: {
           create: lineItems.map((li) => ({
             gameItemId: li.gameItem.id,

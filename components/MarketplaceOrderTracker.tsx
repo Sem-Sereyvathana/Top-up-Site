@@ -2,16 +2,21 @@
 
 import { useState, useEffect, useRef, useCallback, ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Search, Package, CheckCircle2, XCircle, Truck, CreditCard, Send } from "lucide-react";
+import { Package, CheckCircle2, XCircle, Truck, CreditCard, Send, History } from "lucide-react";
 
 // Order-status tracker shared by the Game Items and Accounts marketplaces.
-// Mirrors app/order/page.tsx (Top-up's tracker, left untouched) but stops
-// at PAID rather than auto-advancing to DELIVERED — both new marketplaces
-// always need a human (admin) to hit "Mark delivered" themselves once the
-// items/account have actually been handed over. See lib/gameItemFulfillment
-// and lib/gameAccountFulfillment.
+// Mirrors app/order/page.tsx (Top-up's tracker) but stops at PAID rather
+// than auto-advancing to DELIVERED — both new marketplaces always need a
+// human (admin) to hit "Mark delivered" themselves once the items/account
+// have actually been handed over. See lib/gameItemFulfillment and
+// lib/gameAccountFulfillment.
+//
+// No manual search box here — orders are reached either via the ?number=
+// query param (post-payment redirect) or from the account History page,
+// which lists every past order with a direct link straight here.
 
 interface MarketplaceOrderInfo {
   orderNumber: string;
@@ -54,21 +59,30 @@ const TERMINAL_STATUSES = new Set(["DELIVERED", "FAILED", "REFUNDED", "CANCELLED
 
 export default function MarketplaceOrderTracker({
   apiBase,
-  placeholder,
   renderDetails,
   renderPostPaidExtra,
+  buildTelegramMessage,
+  autoRedirectManualPaid = false,
 }: {
   apiBase: string;
-  placeholder: string;
   renderDetails: (order: MarketplaceOrderInfo) => ReactNode;
   renderPostPaidExtra?: (order: MarketplaceOrderInfo) => ReactNode;
+  // Builds the pre-filled Telegram message text for a MANUAL order once
+  // it's PAID, e.g. including the order number and items so admin can
+  // verify at a glance. Optional — plain link with no pre-filled text if
+  // omitted.
+  buildTelegramMessage?: (order: MarketplaceOrderInfo) => string;
+  // When true, automatically navigates the browser to admin's Telegram
+  // (with buildTelegramMessage pre-filled) the moment a MANUAL order is
+  // seen as PAID, instead of just showing a button the buyer has to tap.
+  autoRedirectManualPaid?: boolean;
 }) {
   const searchParams = useSearchParams();
-  const [orderNumber, setOrderNumber] = useState("");
   const [order, setOrder] = useState<MarketplaceOrderInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const telegramRedirectedRef = useRef(false);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -102,7 +116,6 @@ export default function MarketplaceOrderTracker({
     const num = searchParams?.get("number");
     if (num && !order && !loading) {
       const upperNum = num.trim().toUpperCase();
-      setOrderNumber(upperNum);
       setLoading(true);
       setError(null);
       (async () => {
@@ -125,70 +138,58 @@ export default function MarketplaceOrderTracker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  async function lookup(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setOrder(null);
-    try {
-      const res = await fetch(`${apiBase}/${encodeURIComponent(orderNumber.trim().toUpperCase())}`);
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Order not found");
-      }
-      const data = await res.json();
-      setOrder(data);
-      if (!TERMINAL_STATUSES.has(data.status)) startPolling(data.orderNumber);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   const meta = order ? STATUS_META[order.status] : null;
   const currentStep = order ? STATUS_ORDER[order.status] ?? -1 : -1;
   const isFailed = order ? currentStep === -1 : false;
   const isPolling = order ? !TERMINAL_STATUSES.has(order.status) : false;
 
+  const needsManualTelegram =
+    !!order && order.status === "PAID" && order.deliveryMode === "MANUAL" && !!order.supportTelegram;
+  const telegramUrl = needsManualTelegram
+    ? `https://t.me/${order!.supportTelegram!.replace(/^@/, "")}${
+        buildTelegramMessage ? `?text=${encodeURIComponent(buildTelegramMessage(order!))}` : ""
+      }`
+    : null;
+
+  useEffect(() => {
+    if (!autoRedirectManualPaid || !needsManualTelegram || !telegramUrl) return;
+    if (telegramRedirectedRef.current) return;
+    telegramRedirectedRef.current = true;
+    window.location.href = telegramUrl;
+  }, [autoRedirectManualPaid, needsManualTelegram, telegramUrl]);
+
   return (
     <>
       <Header />
       <main className="mx-auto max-w-2xl px-4 py-12 sm:py-16 sm:px-6 lg:px-8">
-        <div className="text-center mb-8 sm:mb-10">
-          <h1 className="font-display text-3xl sm:text-4xl font-bold mb-2">Track Your Order</h1>
-          <p className="text-fox-muted text-sm sm:text-base">Enter your order number to see the latest status.</p>
-        </div>
+        {loading && !order && (
+          <div className="card h-40 animate-pulse mb-8" />
+        )}
 
-        <form onSubmit={lookup} className="card p-5 sm:p-6 mb-8">
-          <label className="label">Order Number</label>
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={orderNumber}
-              onChange={(e) => setOrderNumber(e.target.value)}
-              placeholder={placeholder}
-              className="input font-mono uppercase text-lg"
-              required
-            />
-            <button type="submit" disabled={loading} className="btn-primary shrink-0">
-              {loading ? (
-                <span className="h-4 w-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              ) : (
-                <>
-                  <Search className="h-4 w-4" strokeWidth={2.5} />
-                  Look Up
-                </>
-              )}
-            </button>
-          </div>
-          {error && (
-            <p className="mt-3 text-sm text-red-400 flex items-center gap-2">
+        {error && (
+          <div className="card p-6 mb-8 text-center">
+            <p className="text-sm text-red-400 flex items-center justify-center gap-2 mb-4">
               <XCircle className="h-4 w-4 shrink-0" strokeWidth={2} />
               {error}
             </p>
-          )}
-        </form>
+            <Link href="/history" className="btn-ghost inline-flex items-center gap-2">
+              <History className="h-4 w-4" strokeWidth={2} />
+              View order history
+            </Link>
+          </div>
+        )}
+
+        {!loading && !order && !error && (
+          <div className="card p-8 mb-8 text-center">
+            <p className="text-sm text-fox-muted mb-4">
+              We couldn't find an order number in this link. You can view all your past orders in History.
+            </p>
+            <Link href="/history" className="btn-primary inline-flex items-center gap-2">
+              <History className="h-4 w-4" strokeWidth={2} />
+              Go to History
+            </Link>
+          </div>
+        )}
 
         {order && meta && (
           <div className="card overflow-hidden fade-up">
@@ -309,16 +310,23 @@ export default function MarketplaceOrderTracker({
               <div className="mx-5 sm:mx-6 mb-5 sm:mb-6 space-y-3">{renderPostPaidExtra(order)}</div>
             )}
 
-            {order.status === "PAID" && order.deliveryMode === "MANUAL" && order.supportTelegram && (
+            {needsManualTelegram && telegramUrl && (
               <div className="mx-5 sm:mx-6 mb-5 sm:mb-6">
+                {autoRedirectManualPaid && (
+                  <p className="mb-2 text-center text-xs text-fox-muted">
+                    Redirecting you to Telegram to confirm your order…
+                  </p>
+                )}
                 <a
-                  href={`https://t.me/${order.supportTelegram.replace(/^@/, "")}`}
+                  href={telegramUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 w-full rounded-xl border border-[#229ED9]/40 bg-[#229ED9]/10 hover:bg-[#229ED9]/20 text-[#229ED9] py-3 text-sm font-medium transition-colors"
                 >
                   <Send className="h-4 w-4" strokeWidth={2} />
-                  Message @{order.supportTelegram.replace(/^@/, "")} to arrange delivery
+                  {autoRedirectManualPaid
+                    ? "Open Telegram manually"
+                    : `Message @${order.supportTelegram!.replace(/^@/, "")} to arrange delivery`}
                 </a>
               </div>
             )}

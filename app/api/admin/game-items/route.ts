@@ -14,6 +14,7 @@ const gameItemSchema = z.object({
   badge: z.string().optional().nullable(),
   active: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
+  deliveryMode: z.enum(["DIRECT", "MANUAL"]).default("DIRECT"),
 });
 
 export async function GET(req: NextRequest) {

@@ -14,6 +14,7 @@ const updateSchema = z.object({
   badge: z.string().nullable().optional(),
   active: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
+  deliveryMode: z.enum(["DIRECT", "MANUAL"]).optional(),
 });
 
 export async function PATCH(
