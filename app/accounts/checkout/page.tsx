@@ -12,6 +12,7 @@ export default function AccountsCheckoutPage() {
       requireUsername={false}
       backHref="/accounts"
       pageTitle="Checkout — Accounts"
+      paymentPageHref={(n) => `/checkout/accounts/${n}`}
     />
   );
 }

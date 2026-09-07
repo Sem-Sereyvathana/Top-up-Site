@@ -232,14 +232,27 @@ export default function ShopCartBrowser({
                               </button>
                             ))}
 
-                          <button
-                            type="button"
-                            onClick={() => buyNow(card)}
-                            className="flex w-full items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-fox-primary to-fox-accent py-1.5 text-xs font-bold text-black hover:opacity-90"
-                          >
-                            <Zap className="h-3.5 w-3.5" strokeWidth={2.5} />
-                            Buy Now
-                          </button>
+                          {!inCart && (
+                            <button
+                              type="button"
+                              onClick={() => buyNow(card)}
+                              className="flex w-full items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-fox-primary to-fox-accent py-1.5 text-xs font-bold text-black hover:opacity-90"
+                            >
+                              <Zap className="h-3.5 w-3.5" strokeWidth={2.5} />
+                              Buy Now
+                            </button>
+                          )}
+
+                          {inCart && (
+                            <button
+                              type="button"
+                              onClick={() => router.push(checkoutHref)}
+                              className="flex w-full items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-fox-primary to-fox-accent py-1.5 text-xs font-bold text-black hover:opacity-90"
+                            >
+                              <ShoppingCart className="h-3.5 w-3.5" strokeWidth={2.5} />
+                              Go to Checkout
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

@@ -1,13 +1,20 @@
 "use client";
 
 import MarketplaceCheckout, { Row } from "@/components/MarketplaceCheckout";
+import { useShopCart, clearBuyNow, clearPendingOrder } from "@/lib/shopCart";
 
 export default function ItemsCheckoutPage() {
+  const { clear } = useShopCart();
   return (
     <MarketplaceCheckout
       apiBase="/api/game-item-orders"
       cancelHref="/game-items"
       orderTrackHref={(n) => `/order/items?number=${n}`}
+      onPaid={() => {
+        clear("items");
+        clearBuyNow();
+        clearPendingOrder("items");
+      }}
       renderSummary={(order: any) => (
         <>
           <Row label="Username">

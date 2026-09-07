@@ -163,3 +163,47 @@ export function clearBuyNow() {
     /* ignore */
   }
 }
+
+/**
+ * Tracks the most recent unpaid order created from checkout, per kind and
+ * per mode (cart vs. buy-now), so that coming back to the checkout page
+ * (e.g. via the payment screen's "Cancel and go back" link) can offer to
+ * resume straight to that order's payment screen instead of making the
+ * buyer fill in the username/contact form again. Cleared once the order
+ * is actually paid (see MarketplaceCheckout's onPaid) or if the buyer
+ * explicitly chooses to start a new order instead.
+ */
+export interface PendingOrderInfo {
+  orderNumber: string;
+  mode: "cart" | "buyNow";
+  createdAt: number;
+}
+
+function pendingOrderKey(kind: ShopKind) {
+  return `sharu:pendingOrder:${kind}`;
+}
+
+export function getPendingOrder(kind: ShopKind): PendingOrderInfo | null {
+  try {
+    const raw = localStorage.getItem(pendingOrderKey(kind));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setPendingOrder(kind: ShopKind, info: PendingOrderInfo) {
+  try {
+    localStorage.setItem(pendingOrderKey(kind), JSON.stringify(info));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearPendingOrder(kind: ShopKind) {
+  try {
+    localStorage.removeItem(pendingOrderKey(kind));
+  } catch {
+    /* ignore */
+  }
+}

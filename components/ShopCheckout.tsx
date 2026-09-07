@@ -6,7 +6,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useCurrency } from "@/lib/currency";
-import { useShopCart, readBuyNow, clearBuyNow, ShopKind, ShopCartLine } from "@/lib/shopCart";
+import { useShopCart, readBuyNow, getPendingOrder, setPendingOrder, clearPendingOrder, ShopKind, ShopCartLine } from "@/lib/shopCart";
 import {
   ArrowRight,
   Lock,
@@ -14,6 +14,7 @@ import {
   AlertCircle,
   UserRoundCheck,
   ShoppingCart,
+  Clock,
 } from "lucide-react";
 
 interface ShopCheckoutProps {
@@ -26,6 +27,10 @@ interface ShopCheckoutProps {
   usernamePlaceholder?: string;
   backHref: string;
   pageTitle: string;
+  // Where this marketplace's payment/QR screen lives for a given order
+  // number — used to offer "resume payment" instead of the form below when
+  // there's already an unpaid order sitting from a previous visit.
+  paymentPageHref: (orderNumber: string) => string;
   // Whether to show the "Telegram / phone / email" field in the Payment
   // step. Defaults to true (Accounts marketplace still needs it — admin
   // reaches out to the buyer directly). Game Items no longer needs it: a
@@ -44,12 +49,13 @@ export default function ShopCheckout({
   usernamePlaceholder = "Your username in this game",
   backHref,
   pageTitle,
+  paymentPageHref,
   collectContact = true,
 }: ShopCheckoutProps) {
   const { format } = useCurrency();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { linesFor, removeLine, clear } = useShopCart();
+  const { linesFor, removeLine } = useShopCart();
 
   const isBuyNow = searchParams.get("buyNow") === "1";
   const [buyNowLine, setBuyNowLine] = useState<ShopCartLine | null>(null);
@@ -62,6 +68,49 @@ export default function ShopCheckout({
     }
     setBuyNowLoaded(true);
   }, [isBuyNow]);
+
+  // If the buyer already has an unpaid order sitting from a previous visit
+  // (they left the payment screen instead of paying), offer to jump
+  // straight back to it instead of making them fill this form in again.
+  const [resumeOrderNumber, setResumeOrderNumber] = useState<string | null>(null);
+  const [resumeChecked, setResumeChecked] = useState(false);
+
+  useEffect(() => {
+    const pending = getPendingOrder(kind);
+    const mode = isBuyNow ? "buyNow" : "cart";
+    if (!pending || pending.mode !== mode) {
+      setResumeChecked(true);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetch(`${checkoutEndpoint}/${encodeURIComponent(pending.orderNumber)}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error("not found");
+        const data = await res.json();
+        const expired = data.paymentExpiresAt && new Date(data.paymentExpiresAt).getTime() <= Date.now();
+        const stillPayable = data.status === "PENDING" && !expired;
+        if (stillPayable) {
+          setResumeOrderNumber(pending.orderNumber);
+        } else {
+          clearPendingOrder(kind);
+        }
+      } catch {
+        clearPendingOrder(kind);
+      } finally {
+        setResumeChecked(true);
+      }
+    })();
+    // Only ever needs to run once per visit — deliberately not re-running
+    // when isBuyNow/kind flip within the same mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function startNewOrderInstead() {
+    clearPendingOrder(kind);
+    setResumeOrderNumber(null);
+  }
 
   const cartLines = linesFor(kind);
   const lines = isBuyNow ? (buyNowLine ? [buyNowLine] : []) : cartLines;
@@ -134,11 +183,18 @@ export default function ShopCheckout({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create order");
 
-      if (isBuyNow) {
-        clearBuyNow();
-      } else {
-        clear(kind);
-      }
+      // Cart (and buyNow selection) is intentionally left untouched here —
+      // the order still isn't paid yet. It only gets cleared once payment
+      // actually goes through (see MarketplaceCheckout's onPaid), so if the
+      // buyer navigates away or the QR expires before paying, their picks
+      // are still sitting in the cart instead of vanishing. We do remember
+      // this order number, though, so coming back here offers to resume
+      // straight to payment instead of re-asking for the form.
+      setPendingOrder(kind, {
+        orderNumber: data.orderNumber,
+        mode: isBuyNow ? "buyNow" : "cart",
+        createdAt: Date.now(),
+      });
 
       window.location.href = data.redirectUrl;
     } catch (err: any) {
@@ -155,10 +211,32 @@ export default function ShopCheckout({
       <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
         <h1 className="font-display text-2xl font-bold mb-8 sm:text-3xl">{pageTitle}</h1>
 
-        {!buyNowLoaded ? (
+        {!buyNowLoaded || !resumeChecked ? (
           <div className="flex items-center justify-center py-24 text-fox-muted">
             <Loader2 className="h-6 w-6 animate-spin mr-2" />
             Loading...
+          </div>
+        ) : resumeOrderNumber ? (
+          <div className="mx-auto flex max-w-md flex-col items-center gap-3 rounded-2xl border border-fox-primary/40 bg-fox-primary/5 px-6 py-16 text-center backdrop-blur-md">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-fox-primary to-fox-accent shadow-lg shadow-fox-primary/30">
+              <Clock className="h-6 w-6 text-black" />
+            </div>
+            <h2 className="text-lg font-semibold text-fox-text">You have a payment in progress</h2>
+            <p className="text-sm text-fox-muted">
+              Order <span className="font-mono text-fox-text">{resumeOrderNumber}</span> is still waiting to be
+              paid — pick up right where you left off instead of filling everything in again.
+            </p>
+            <Link href={paymentPageHref(resumeOrderNumber)} className="btn-primary mt-2 w-full sm:w-auto">
+              Continue to Payment
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <button
+              type="button"
+              onClick={startNewOrderInstead}
+              className="text-xs text-fox-muted hover:text-fox-text hover:underline"
+            >
+              Start a new order instead
+            </button>
           </div>
         ) : lines.length === 0 ? (
           <div className="mx-auto flex max-w-md flex-col items-center gap-3 rounded-2xl border border-fox-border/70 bg-fox-card/40 px-6 py-16 text-center backdrop-blur-md">

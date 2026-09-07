@@ -50,11 +50,16 @@ export default function MarketplaceCheckout({
   cancelHref,
   orderTrackHref,
   renderSummary,
+  onPaid,
 }: {
   apiBase: string;
   cancelHref: string;
   orderTrackHref: (orderNumber: string) => string;
   renderSummary: (order: MarketplaceOrder) => ReactNode;
+  // Called once, the first time this order is observed to have actually
+  // been paid — this is where the cart (or buyNow pick) that funded it
+  // should finally be cleared. Left undefined for flows with no cart.
+  onPaid?: () => void;
 }) {
   const params = useParams<{ orderNumber: string }>();
   const router = useRouter();
@@ -72,6 +77,7 @@ export default function MarketplaceCheckout({
   const [creatingTxn, setCreatingTxn] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const txnCreatedRef = useRef(false);
+  const paidFiredRef = useRef(false);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -175,6 +181,10 @@ export default function MarketplaceCheckout({
         pollRef.current = null;
       }
       if (PAID_STATES.has(order.status)) {
+        if (!paidFiredRef.current) {
+          paidFiredRef.current = true;
+          onPaid?.();
+        }
         const t = setTimeout(() => {
           router.push(orderTrackHref(order.orderNumber));
         }, 2000);
@@ -193,7 +203,7 @@ export default function MarketplaceCheckout({
         pollRef.current = null;
       }
     };
-  }, [order, fetchOrder, router, redirecting, creatingTxn, orderTrackHref]);
+  }, [order, fetchOrder, router, redirecting, creatingTxn, orderTrackHref, onPaid]);
 
   useEffect(() => {
     if (!order?.paymentExpiresAt) {
@@ -385,6 +395,13 @@ export default function MarketplaceCheckout({
                         Check now
                       </button>
                     </div>
+
+                    <a
+                      href={cancelHref}
+                      className="block text-center text-xs text-fox-muted hover:text-fox-text hover:underline"
+                    >
+                      Cancel and go back — your cart is saved
+                    </a>
 
                     {isSimMode && (
                       <button
