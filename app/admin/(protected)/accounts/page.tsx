@@ -482,6 +482,8 @@ export default function AccountsAdminPage() {
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
             </div>
+            {form.deliveryMode === "DIRECT" && (
+              <>
             <div>
               <label className="label">
                 Username / Email <span className="font-normal text-fox-muted/60">(login handover — admin-only until paid)</span>
@@ -513,7 +515,7 @@ export default function AccountsAdminPage() {
                 onChange={(e) => setForm({ ...form, credNotes: e.target.value })}
               />
               <p className="mt-1 text-xs text-fox-muted/70">
-                Username/Email and Password are handed to the buyer automatically — on their payment receipt and again if they revisit it from Order History — once this order is paid. Only revealed if this account&apos;s Delivery is set to &quot;Direct&quot; above; otherwise buyers are pointed to Telegram after paying.
+                Username/Email and Password are handed to the buyer automatically — on their payment receipt and again if they revisit it from Order History — once this order is paid.
               </p>
             </div>
             {form.credLegacy && (
@@ -523,6 +525,8 @@ export default function AccountsAdminPage() {
                 </label>
                 <textarea className="input font-mono text-xs" rows={2} value={form.credLegacy} readOnly />
               </div>
+            )}
+              </>
             )}
             <div className="sm:col-span-2">
               <label className="label">Image</label>

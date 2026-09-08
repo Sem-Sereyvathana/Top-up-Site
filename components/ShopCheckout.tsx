@@ -142,7 +142,7 @@ export default function ShopCheckout({
       if (!res.ok) throw new Error(data.error || "Account not found");
       setRobloxAccount(data);
     } catch (err: any) {
-      setRobloxError(err.message || "Couldn't verify that username — you can still continue.");
+      setRobloxError(err.message || "Couldn't verify that username. Double-check it and try again.");
     } finally {
       setRobloxChecking(false);
     }
@@ -151,7 +151,9 @@ export default function ShopCheckout({
   const subtotal = lines.reduce((sum, l) => sum + l.card.priceUsd * l.quantity, 0);
 
   const canSubmit =
-    lines.length > 0 && (!requireUsername || username.trim().length > 0) && !submitting;
+    lines.length > 0 &&
+    (!requireUsername || (username.trim().length > 0 && !!robloxAccount)) &&
+    !submitting;
 
   async function handleCheckout() {
     if (!canSubmit) return;
@@ -388,6 +390,13 @@ export default function ShopCheckout({
                   <div className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {error}
+                  </div>
+                )}
+
+                {requireUsername && username.trim().length > 0 && !robloxAccount && !error && (
+                  <div className="flex items-center gap-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    Check your avatar above before you can pay.
                   </div>
                 )}
 
