@@ -8,7 +8,6 @@ export default function AccountsCheckoutPage() {
       kind="accounts"
       checkoutEndpoint="/api/game-account-orders"
       cartItemIdField="gameAccountId"
-      cartListField="gameAccountIds"
       requireUsername={false}
       backHref="/accounts"
       pageTitle="Checkout — Accounts"

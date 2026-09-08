@@ -12,8 +12,16 @@ import { z } from "zod";
 // its own GameAccountOrder/GameAccountOrderItem tables — never joined
 // against GameItemOrder or the Top-up Order model.
 
+const cartItemSchema = z.object({
+  gameAccountId: z.string().min(1),
+  // Unique-login accounts are still capped at 1 below (there's only ever
+  // one login to hand over); multi-stock accounts can go higher, up to
+  // whatever's left in stock.
+  quantity: z.number().int().min(1).max(20),
+});
+
 const createSchema = z.object({
-  gameAccountIds: z.array(z.string().min(1)).min(1).max(10),
+  items: z.array(cartItemSchema).min(1).max(20),
   customerContact: z.string().max(120).optional(),
   paymentMethod: z.enum(["KHPAY"]),
 });
@@ -40,7 +48,14 @@ export async function POST(req: NextRequest) {
       );
     }
     const data = parsed.data;
-    const ids = Array.from(new Set(data.gameAccountIds));
+    // Same gameAccountId sent twice in one request (e.g. a double-click
+    // race) — merge into a single line rather than creating two order
+    // items for the same account.
+    const mergedItems = new Map<string, number>();
+    for (const it of data.items) {
+      mergedItems.set(it.gameAccountId, (mergedItems.get(it.gameAccountId) ?? 0) + it.quantity);
+    }
+    const ids = Array.from(mergedItems.keys());
 
     const maintSettings = await prisma.settings.findUnique({ where: { id: 1 } });
     if (maintSettings?.maintenanceMode) {
@@ -67,29 +82,80 @@ export async function POST(req: NextRequest) {
     });
     const byId = new Map(accounts.map((a) => [a.id, a]));
 
+    const uniqueIds: string[] = [];
+    const multiIds: string[] = [];
+
     for (const id of ids) {
       const acc = byId.get(id);
+      const qty = mergedItems.get(id)!;
       if (!acc || !acc.active) {
         return NextResponse.json({ error: "One of the selected accounts is no longer available" }, { status: 404 });
       }
-      if (acc.sold) {
-        return NextResponse.json({ error: `"${acc.title}" was just sold — remove it and try again` }, { status: 409 });
+      if (acc.stockMode === "MULTI") {
+        multiIds.push(id);
+        if (qty > acc.stock) {
+          return NextResponse.json(
+            { error: `Only ${acc.stock} left of "${acc.title}" — lower the quantity and try again` },
+            { status: 409 }
+          );
+        }
+      } else {
+        uniqueIds.push(id);
+        if (acc.sold) {
+          return NextResponse.json({ error: `"${acc.title}" was just sold — remove it and try again` }, { status: 409 });
+        }
+        if (qty > 1) {
+          return NextResponse.json({ error: `"${acc.title}" only has one login — quantity can't exceed 1` }, { status: 400 });
+        }
       }
     }
 
-    // Reject if any selected account is already held by a live order —
-    // prevents two buyers both paying for the same account.
-    const alreadyHeld = await prisma.gameAccountOrderItem.findFirst({
-      where: {
-        gameAccountId: { in: ids },
-        order: { status: { in: HOLDING_STATUSES } },
-      },
-    });
-    if (alreadyHeld) {
-      return NextResponse.json(
-        { error: "One of the selected accounts was just reserved by another buyer — remove it and try again" },
-        { status: 409 }
-      );
+    // Reject if a unique-login account is already held by a live order —
+    // prevents two buyers both paying for the same login. Multi-stock
+    // accounts don't need this per-order hold; their availability is
+    // checked against remaining stock (below) instead.
+    if (uniqueIds.length) {
+      const alreadyHeld = await prisma.gameAccountOrderItem.findFirst({
+        where: {
+          gameAccountId: { in: uniqueIds },
+          order: { status: { in: HOLDING_STATUSES } },
+        },
+      });
+      if (alreadyHeld) {
+        return NextResponse.json(
+          { error: "One of the selected accounts was just reserved by another buyer — remove it and try again" },
+          { status: 409 }
+        );
+      }
+    }
+
+    // For multi-stock accounts, `stock` only ever gets decremented once an
+    // order is actually PAID (see lib/gameAccountFulfillment.ts), so other
+    // still-pending orders can silently oversell it in the meantime. Guard
+    // against that by also subtracting whatever's currently held by live
+    // orders from the stock check.
+    if (multiIds.length) {
+      const held = await prisma.gameAccountOrderItem.groupBy({
+        by: ["gameAccountId"],
+        where: {
+          gameAccountId: { in: multiIds },
+          order: { status: { in: HOLDING_STATUSES } },
+        },
+        _sum: { quantity: true },
+      });
+      const heldById = new Map(held.map((h) => [h.gameAccountId, h._sum.quantity ?? 0]));
+      for (const id of multiIds) {
+        const acc = byId.get(id)!;
+        const requested = mergedItems.get(id)!;
+        const alreadyHeld = heldById.get(id) ?? 0;
+        if (requested + alreadyHeld > acc.stock) {
+          const remaining = Math.max(0, acc.stock - alreadyHeld);
+          return NextResponse.json(
+            { error: `Only ${remaining} left of "${acc.title}" right now — lower the quantity and try again` },
+            { status: 409 }
+          );
+        }
+      }
     }
 
     const deliveryMode = resolveDeliveryMode(ids.map((id) => byId.get(id)!.Game?.deliveryMode));
@@ -102,7 +168,9 @@ export async function POST(req: NextRequest) {
     }
 
     const subtotalUsd =
-      Math.round(ids.reduce((sum, id) => sum + byId.get(id)!.priceUsd, 0) * 100) / 100;
+      Math.round(
+        ids.reduce((sum, id) => sum + byId.get(id)!.priceUsd * mergedItems.get(id)!, 0) * 100
+      ) / 100;
 
     const settings = await prisma.settings.findUnique({ where: { id: 1 } });
     const exchangeRate = settings?.exchangeRate ?? 4100;
@@ -130,6 +198,7 @@ export async function POST(req: NextRequest) {
           create: ids.map((id) => ({
             gameAccountId: id,
             title: byId.get(id)!.title,
+            quantity: mergedItems.get(id)!,
             unitPriceUsd: byId.get(id)!.priceUsd,
           })),
         },
@@ -142,7 +211,12 @@ export async function POST(req: NextRequest) {
     const envPublic = process.env.PUBLIC_APP_URL;
     const publicUrl = (isPublicHttpUrl(envPublic) ? envPublic : baseUrl).replace(/\/$/, "");
 
-    const packageDescription = ids.map((id) => byId.get(id)!.title).join(", ");
+    const packageDescription = ids
+      .map((id) => {
+        const qty = mergedItems.get(id)!;
+        return qty > 1 ? `${byId.get(id)!.title} ×${qty}` : byId.get(id)!.title;
+      })
+      .join(", ");
 
     let khpayPageUrl: string | null = null;
     try {

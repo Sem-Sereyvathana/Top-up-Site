@@ -284,6 +284,14 @@ model GameAccount {
   priceUsd    Float
   priceKhr    Float?
   sold        Boolean  @default(false)
+  // "UNIQUE" = one-of-a-kind login handover; only ever one buyer, tracked by
+  // the `sold` flag above (unchanged behaviour). "MULTI" = stackable stock —
+  // buyers pick a quantity at checkout, tracked by the `stock` count below
+  // instead of `sold`.
+  stockMode   String   @default("UNIQUE")
+  // Remaining units available. Only meaningful when stockMode = "MULTI";
+  // UNIQUE accounts ignore this and rely on `sold` instead.
+  stock       Int      @default(1)
   active      Boolean  @default(true)
   sortOrder   Int      @default(0)
   // Admin-only login handover (username/password/notes), set when this
@@ -458,6 +466,7 @@ model GameAccountOrderItem {
   orderId       String
   gameAccountId String
   title         String
+  quantity      Int      @default(1)
   unitPriceUsd  Float
   createdAt     DateTime @default(now())
   order         GameAccountOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)

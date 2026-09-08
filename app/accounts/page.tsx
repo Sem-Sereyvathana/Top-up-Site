@@ -13,29 +13,56 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AccountsPage() {
-  const [accounts, banners] = await Promise.all([
+  const [accounts, banners, settings] = await Promise.all([
     prisma.gameAccount.findMany({
       where: { active: true },
-      include: { Game: { select: { name: true, slug: true } } },
+      select: {
+        id: true,
+        title: true,
+        rank: true,
+        imageUrl: true,
+        priceUsd: true,
+        sold: true,
+        stockMode: true,
+        stock: true,
+        Game: { select: { name: true, slug: true } },
+      },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
     }),
     prisma.heroBanner.findMany({
       where: { active: true },
       orderBy: { sortOrder: "asc" },
     }),
+    prisma.settings.findUnique({ where: { id: 1 } }),
   ]);
 
-  const cards: ShopCartCard[] = accounts.map((acc) => ({
-    id: acc.id,
-    name: acc.title,
-    subLabel: acc.rank,
-    imageUrl: acc.imageUrl,
-    priceUsd: acc.priceUsd,
-    groupKey: acc.Game?.slug ?? "__general__",
-    groupLabel: acc.Game?.name ?? "General",
-    groupSortOrder: 0,
-    soldOut: acc.sold,
-  }));
+  // Unique, one-of-a-kind listings skip the cart/checkout flow entirely —
+  // buyers are sent straight to admin on Telegram to arrange the deal.
+  const adminContactUrl = settings?.supportTelegram
+    ? `https://t.me/${settings.supportTelegram.replace(/^@/, "")}`
+    : null;
+
+  const cards: ShopCartCard[] = accounts.map((acc) => {
+    const isMulti = acc.stockMode === "MULTI";
+    return {
+      id: acc.id,
+      name: acc.title,
+      subLabel: acc.rank,
+      imageUrl: acc.imageUrl,
+      priceUsd: acc.priceUsd,
+      groupKey: acc.Game?.slug ?? "__general__",
+      groupLabel: acc.Game?.name ?? "General",
+      groupSortOrder: 0,
+      // Multi-stock accounts sell out based on remaining `stock`; unique
+      // accounts still use the existing `sold` flag.
+      soldOut: isMulti ? acc.stock <= 0 : acc.sold,
+      // Unique accounts can only ever be bought one at a time; multi-stock
+      // accounts can be bought up to however many are left.
+      maxQty: isMulti ? acc.stock : 1,
+      // Unique listings are display-only — no cart, straight to admin.
+      contactAdminUrl: !isMulti && !acc.sold ? adminContactUrl : null,
+    };
+  });
 
   return (
     <>
@@ -49,6 +76,7 @@ export default async function AccountsPage() {
           kind="accounts"
           checkoutHref="/accounts/checkout"
           allowQuantity={false}
+          detailsBaseHref="/accounts"
           emptyStateTitle="Listings coming soon"
           emptyStateBody="We're verifying accounts for sale. Check back shortly for listings across your favorite games."
           soldOutLabel="Sold"

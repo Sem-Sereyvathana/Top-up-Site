@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCurrency } from "@/lib/currency";
 import { useShopCart, ShopKind } from "@/lib/shopCart";
-import { Plus, Minus, Check, ShoppingCart, Zap } from "lucide-react";
+import { Plus, Minus, Check, ShoppingCart, MessageCircle } from "lucide-react";
 
 // Shared cart-and-browse UI for the Game Items and Accounts marketplaces.
 // Both storefronts look identical (same grid, same category pills, same
@@ -26,6 +26,22 @@ export interface ShopCartCard {
   groupImageUrl?: string | null;
   groupSortOrder: number;
   soldOut?: boolean;
+  /**
+   * Per-card cap on quantity, independent of the browser-level
+   * `allowQuantity` prop. Used by the Accounts marketplace, where a single
+   * page mixes one-per-listing accounts (maxQty omitted/1) with stackable
+   * stock accounts (maxQty = remaining stock). When omitted, the card falls
+   * back to the browser-level `allowQuantity` (capped at 20).
+   */
+  maxQty?: number;
+  /**
+   * Set only for one-of-a-kind (stockMode = "UNIQUE") accounts. When present,
+   * this card skips the cart/checkout flow entirely: the card shows a "Buy"
+   * action instead of "+ Add", and clicking it sends the buyer straight to
+   * this admin contact link (e.g. Telegram) to arrange the deal manually,
+   * rather than adding anything to the cart.
+   */
+  contactAdminUrl?: string | null;
 }
 
 interface ShopCartBrowserProps {
@@ -34,12 +50,20 @@ interface ShopCartBrowserProps {
   kind: ShopKind;
   /** Where the dedicated checkout page for this marketplace lives. */
   checkoutHref: string;
-  /** Items support buying more than one of the same card; Accounts don't. */
+  /** Default for cards that don't set their own `maxQty`. */
   allowQuantity: boolean;
   emptyStateTitle: string;
   emptyStateBody: string;
   soldOutLabel?: string;
   allProductsLabel?: string;
+  /**
+   * When set, clicking anywhere on a card's body (outside the Add/qty
+   * controls) navigates to `${detailsBaseHref}/${card.id}` — a dedicated
+   * details page — instead of toggling the cart. When omitted, falls back
+   * to the original behaviour (click-to-add for cards that don't support
+   * quantity).
+   */
+  detailsBaseHref?: string;
 }
 
 const ALL_KEY = "__all__";
@@ -62,10 +86,11 @@ export default function ShopCartBrowser({
   emptyStateBody,
   soldOutLabel = "Sold",
   allProductsLabel = "All products",
+  detailsBaseHref,
 }: ShopCartBrowserProps) {
   const { format } = useCurrency();
   const router = useRouter();
-  const { linesFor, toggleCard, changeQty, setBuyNow } = useShopCart();
+  const { linesFor, toggleCard, changeQty } = useShopCart();
   const [selectedGroup, setSelectedGroup] = useState<string>(ALL_KEY);
 
   const cartLines = linesFor(kind);
@@ -103,12 +128,6 @@ export default function ShopCartBrowser({
     selectedGroup === ALL_KEY ? groups : groups.filter((g) => g.key === selectedGroup);
 
   const subtotal = cartLines.reduce((sum, l) => sum + l.card.priceUsd * l.quantity, 0);
-
-  function buyNow(card: ShopCartCard) {
-    if (card.soldOut) return;
-    setBuyNow(card);
-    router.push(`${checkoutHref}?buyNow=1`);
-  }
 
   return (
     <div className="pb-28">
@@ -152,18 +171,38 @@ export default function ShopCartBrowser({
                 {group.cards.map((card) => {
                   const qty = cart[card.id] ?? 0;
                   const inCart = qty > 0;
+                  // Effective per-card cap: an explicit `maxQty` (e.g. an
+                  // account's remaining stock) always wins; otherwise fall
+                  // back to the browser-level default.
+                  const effectiveMax = card.maxQty ?? (allowQuantity ? 20 : 1);
+                  const cardAllowsQty = effectiveMax > 1;
+                  const goToDetails = () => {
+                    if (detailsBaseHref) router.push(`${detailsBaseHref}/${card.id}`);
+                  };
+                  const handleCardActivate = () => {
+                    if (card.soldOut) return;
+                    // Admin-contact cards are just a display — tapping the
+                    // card body still opens the details page (if any) rather
+                    // than acting on the cart.
+                    if (detailsBaseHref) {
+                      goToDetails();
+                      return;
+                    }
+                    if (card.contactAdminUrl) return;
+                    if (!cardAllowsQty) toggleCard(kind, card);
+                  };
                   return (
                     <div
                       role="button"
                       tabIndex={card.soldOut ? -1 : 0}
                       key={card.id}
                       aria-disabled={card.soldOut || undefined}
-                      onClick={() => !card.soldOut && !allowQuantity && toggleCard(kind, card)}
+                      onClick={handleCardActivate}
                       onKeyDown={(e) => {
-                        if (card.soldOut || allowQuantity) return;
+                        if (card.soldOut) return;
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          toggleCard(kind, card);
+                          handleCardActivate();
                         }
                       }}
                       className={`relative rounded-2xl border p-4 text-left backdrop-blur-md transition-transform ${
@@ -203,12 +242,22 @@ export default function ShopCartBrowser({
 
                       {!card.soldOut && (
                         <div className="mt-3 flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          {allowQuantity &&
-                            (inCart ? (
+                          {card.contactAdminUrl ? (
+                            <a
+                              href={card.contactAdminUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex w-full items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-fox-primary to-fox-accent py-1.5 text-xs font-bold text-black hover:opacity-90"
+                            >
+                              <MessageCircle className="h-3.5 w-3.5" strokeWidth={2.5} />
+                              Buy
+                            </a>
+                          ) : cardAllowsQty ? (
+                            inCart ? (
                               <div className="flex items-center justify-between rounded-lg border border-fox-primary/40 bg-fox-bg/60 px-2 py-1.5">
                                 <button
                                   type="button"
-                                  onClick={() => changeQty(kind, card.id, -1)}
+                                  onClick={() => changeQty(kind, card.id, -1, effectiveMax)}
                                   className="flex h-6 w-6 items-center justify-center rounded-md text-fox-text hover:bg-fox-card"
                                 >
                                   <Minus className="h-3.5 w-3.5" />
@@ -216,8 +265,9 @@ export default function ShopCartBrowser({
                                 <span className="text-sm font-semibold">{qty}</span>
                                 <button
                                   type="button"
-                                  onClick={() => changeQty(kind, card.id, 1)}
-                                  className="flex h-6 w-6 items-center justify-center rounded-md text-fox-text hover:bg-fox-card"
+                                  disabled={qty >= effectiveMax}
+                                  onClick={() => changeQty(kind, card.id, 1, effectiveMax)}
+                                  className="flex h-6 w-6 items-center justify-center rounded-md text-fox-text hover:bg-fox-card disabled:opacity-30 disabled:hover:bg-transparent"
                                 >
                                   <Plus className="h-3.5 w-3.5" />
                                 </button>
@@ -230,17 +280,17 @@ export default function ShopCartBrowser({
                               >
                                 + Add
                               </button>
-                            ))}
-
-                          {!inCart && (
-                            <button
-                              type="button"
-                              onClick={() => buyNow(card)}
-                              className="flex w-full items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-fox-primary to-fox-accent py-1.5 text-xs font-bold text-black hover:opacity-90"
-                            >
-                              <Zap className="h-3.5 w-3.5" strokeWidth={2.5} />
-                              Buy Now
-                            </button>
+                            )
+                          ) : (
+                            !inCart && (
+                              <button
+                                type="button"
+                                onClick={() => toggleCard(kind, card)}
+                                className="w-full rounded-lg border border-fox-primary/40 bg-fox-primary/10 py-1.5 text-xs font-semibold text-fox-primary hover:bg-fox-primary/20"
+                              >
+                                + Add
+                              </button>
+                            )
                           )}
 
                           {inCart && (

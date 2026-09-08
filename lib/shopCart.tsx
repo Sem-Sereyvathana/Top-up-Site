@@ -48,7 +48,7 @@ interface ShopCartContextValue {
   linesFor: (kind: ShopKind) => ShopCartLine[];
   countFor: (kind: ShopKind) => number;
   toggleCard: (kind: ShopKind, card: ShopCartCard) => void;
-  changeQty: (kind: ShopKind, id: string, delta: number) => void;
+  changeQty: (kind: ShopKind, id: string, delta: number, max?: number) => void;
   removeLine: (kind: ShopKind, id: string) => void;
   clear: (kind: ShopKind) => void;
   setBuyNow: (card: ShopCartCard) => void;
@@ -88,11 +88,11 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const changeQty = useCallback((kind: ShopKind, id: string, delta: number) => {
+  const changeQty = useCallback((kind: ShopKind, id: string, delta: number, max: number = 20) => {
     setState((prev) => {
       const line = prev[kind][id];
       if (!line) return prev;
-      const nextQty = Math.min(20, line.quantity + delta);
+      const nextQty = Math.min(max, line.quantity + delta);
       const map = { ...prev[kind] };
       if (nextQty <= 0) {
         delete map[id];

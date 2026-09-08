@@ -21,7 +21,6 @@ interface ShopCheckoutProps {
   kind: ShopKind;
   checkoutEndpoint: string;
   cartItemIdField: "gameItemId" | "gameAccountId";
-  cartListField: "items" | "gameAccountIds";
   requireUsername: boolean;
   usernameLabel?: string;
   usernamePlaceholder?: string;
@@ -43,7 +42,6 @@ export default function ShopCheckout({
   kind,
   checkoutEndpoint,
   cartItemIdField,
-  cartListField,
   requireUsername,
   usernameLabel = "In-game Username",
   usernamePlaceholder = "Your username in this game",
@@ -166,14 +164,14 @@ export default function ShopCheckout({
       if (collectContact) payload.customerContact = contact.trim() || undefined;
       if (requireUsername) payload.buyerUsername = username.trim();
 
-      if (cartListField === "items") {
-        payload.items = lines.map((l) => ({
-          [cartItemIdField]: l.card.id,
-          quantity: l.quantity,
-        }));
-      } else {
-        payload.gameAccountIds = lines.map((l) => l.card.id);
-      }
+      // Both marketplaces (Game Items and Accounts) now check out the same
+      // way — quantity per line — so both send `items`. Accounts still
+      // enforces quantity 1 for unique-login accounts server-side, and up
+      // to remaining stock for multi-stock ones.
+      payload.items = lines.map((l) => ({
+        [cartItemIdField]: l.card.id,
+        quantity: l.quantity,
+      }));
 
       const res = await fetch(checkoutEndpoint, {
         method: "POST",

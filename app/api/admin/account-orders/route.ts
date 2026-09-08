@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const [orders, total] = await Promise.all([
     prisma.gameAccountOrder.findMany({
       where,
-      include: { items: { select: { title: true } } },
+      include: { items: { select: { title: true, quantity: true } } },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,

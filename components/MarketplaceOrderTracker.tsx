@@ -63,6 +63,8 @@ export default function MarketplaceOrderTracker({
   renderPostPaidExtra,
   buildTelegramMessage,
   autoRedirectManualPaid = false,
+  hideTimeline = false,
+  policyContent,
 }: {
   apiBase: string;
   renderDetails: (order: MarketplaceOrderInfo) => ReactNode;
@@ -76,6 +78,11 @@ export default function MarketplaceOrderTracker({
   // (with buildTelegramMessage pre-filled) the moment a MANUAL order is
   // seen as PAID, instead of just showing a button the buyer has to tap.
   autoRedirectManualPaid?: boolean;
+  // When true, skips the Order Created / Payment Received / Delivered
+  // step tracker entirely (still shows the failed-state block if the
+  // order failed) and shows `policyContent` in its place instead.
+  hideTimeline?: boolean;
+  policyContent?: ReactNode;
 }) {
   const searchParams = useSearchParams();
   const [order, setOrder] = useState<MarketplaceOrderInfo | null>(null);
@@ -212,7 +219,13 @@ export default function MarketplaceOrderTracker({
               )}
             </div>
 
-            {!isFailed && (
+            {!isFailed && hideTimeline && policyContent && (
+              <div className="px-5 sm:px-6 py-5 border-b border-fox-border text-sm text-fox-muted space-y-2">
+                {policyContent}
+              </div>
+            )}
+
+            {!isFailed && !hideTimeline && (
               <div className="px-5 sm:px-6 py-6 border-b border-fox-border">
                 <div className="flex items-center justify-between">
                   {TIMELINE_STEPS.map((step, i) => {

@@ -13,6 +13,8 @@ const updateSchema = z.object({
   imageUrl: z.string().nullable().optional(),
   priceUsd: z.number().positive().optional(),
   sold: z.boolean().optional(),
+  stockMode: z.enum(["UNIQUE", "MULTI"]).optional(),
+  stock: z.number().int().min(0).optional(),
   active: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   credentials: z.string().optional().nullable(),

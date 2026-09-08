@@ -21,7 +21,7 @@ interface OrderRow {
   amountUsd: number;
   status: string;
   createdAt: string;
-  items: { title: string }[];
+  items: { title: string; quantity: number }[];
 }
 
 export default function AdminAccountOrdersPage() {
@@ -174,7 +174,7 @@ export default function AdminAccountOrdersPage() {
                     <td className="px-5 py-3 font-mono text-fox-primary">{o.orderNumber}</td>
                     <td className="px-5 py-3 text-fox-muted text-xs">
                       {o.items.map((it, i) => (
-                        <div key={i}>{it.title}</div>
+                        <div key={i}>{it.quantity > 1 ? `${it.title} ×${it.quantity}` : it.title}</div>
                       ))}
                     </td>
                     <td className="px-5 py-3 text-xs text-fox-muted">{o.customerContact || "—"}</td>

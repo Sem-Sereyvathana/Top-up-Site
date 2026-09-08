@@ -13,6 +13,8 @@ const accountSchema = z.object({
   imageUrl: z.string().optional().nullable(),
   priceUsd: z.number().positive(),
   sold: z.boolean().default(false),
+  stockMode: z.enum(["UNIQUE", "MULTI"]).default("UNIQUE"),
+  stock: z.number().int().min(0).default(1),
   active: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
   // Admin-only login handover, only ever sent back to a buyer once their

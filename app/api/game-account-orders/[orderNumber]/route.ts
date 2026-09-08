@@ -21,6 +21,7 @@ export async function GET(
       items: {
         select: {
           title: true,
+          quantity: true,
           unitPriceUsd: true,
           gameAccount: { select: { credentials: true } },
         },
@@ -44,6 +45,7 @@ export async function GET(
     status: order.status,
     items: order.items.map((it) => ({
       title: it.title,
+      quantity: it.quantity,
       unitPriceUsd: it.unitPriceUsd,
       credentials: canReveal ? it.gameAccount.credentials : null,
     })),

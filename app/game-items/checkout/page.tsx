@@ -8,7 +8,6 @@ export default function GameItemsCheckoutPage() {
       kind="items"
       checkoutEndpoint="/api/game-item-orders"
       cartItemIdField="gameItemId"
-      cartListField="items"
       requireUsername
       usernameLabel="In-game Username"
       usernamePlaceholder="Your username in this game"

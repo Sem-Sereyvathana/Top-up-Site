@@ -31,7 +31,7 @@ export async function GET() {
       where: { userId: session.userId },
       orderBy: { createdAt: "desc" },
       take: 100,
-      include: { items: { select: { title: true } } },
+      include: { items: { select: { title: true, quantity: true } } },
     }),
   ]);
 
@@ -62,7 +62,7 @@ export async function GET() {
       type: "GAME_ACCOUNT" as const,
       orderNumber: o.orderNumber,
       status: o.status,
-      title: o.items.map((it) => it.title).join(", "),
+      title: o.items.map((it) => `${it.title}${it.quantity > 1 ? ` ×${it.quantity}` : ""}`).join(", "),
       subtitle: "Account",
       imageUrl: null as string | null,
       amountUsd: o.amountUsd,
