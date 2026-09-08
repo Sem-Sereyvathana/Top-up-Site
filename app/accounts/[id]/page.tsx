@@ -29,6 +29,7 @@ async function getAccount(id: string) {
       stock: true,
       active: true,
       Game: { select: { name: true, slug: true } },
+      Category: { select: { name: true, slug: true } },
     },
   });
 }
@@ -64,8 +65,8 @@ export default async function AccountDetailsPage({ params }: { params: { id: str
     subLabel: account.rank,
     imageUrl: account.imageUrl,
     priceUsd: account.priceUsd,
-    groupKey: account.Game?.slug ?? "__general__",
-    groupLabel: account.Game?.name ?? "General",
+    groupKey: account.Category ? `cat-${account.Category.slug}` : (account.Game?.slug ?? "__general__"),
+    groupLabel: account.Category?.name ?? account.Game?.name ?? "General",
     groupSortOrder: 0,
     soldOut,
     maxQty: isMulti ? account.stock : 1,
@@ -94,7 +95,7 @@ export default async function AccountDetailsPage({ params }: { params: { id: str
 
           <div className="flex flex-col">
             <p className="text-xs uppercase tracking-wide text-fox-muted">
-              {account.Game?.name || "General"}
+              {account.Category?.name || account.Game?.name || "General"}
             </p>
             <h1 className="font-display mt-1 text-2xl font-bold sm:text-3xl">{account.title}</h1>
 

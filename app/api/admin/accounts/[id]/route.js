@@ -7,6 +7,7 @@ import { writeAudit } from "@/lib/audit";
 
 const updateSchema = z.object({
   gameId: z.string().min(1).nullable().optional(),
+  categoryId: z.string().min(1).nullable().optional(),
   title: z.string().min(1).optional(),
   rank: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
@@ -17,6 +18,7 @@ const updateSchema = z.object({
   stock: z.number().int().min(0).optional(),
   active: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
+  deliveryMode: z.enum(["DIRECT", "MANUAL"]).optional(),
   credentials: z.string().optional().nullable(),
 });
 

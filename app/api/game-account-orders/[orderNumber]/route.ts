@@ -11,6 +11,24 @@ const patchSchema = z.object({
 
 const REVEAL_STATUSES = new Set(["PAID", "DELIVERED"]);
 
+// Nothing flips a PENDING order to FAILED once its payment window passes
+// unless KHPay sends an expiry webhook for it — so a buyer re-opening an
+// old, abandoned order here would otherwise see it sit as "PENDING"
+// forever. Lazily close it out here too, same as the order-creation route,
+// so the account it was holding is freed up for a new order.
+async function expireIfStale(orderId: string, paymentExpiresAt: Date | null, createdAt: Date) {
+  const now = new Date();
+  const isStale = paymentExpiresAt
+    ? paymentExpiresAt < now
+    : now.getTime() - createdAt.getTime() > 30 * 60 * 1000;
+  if (!isStale) return false;
+  await prisma.gameAccountOrder.updateMany({
+    where: { id: orderId, status: "PENDING" },
+    data: { status: "FAILED", failureReason: "Payment window expired" },
+  });
+  return true;
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: { orderNumber: string } }
@@ -31,6 +49,11 @@ export async function GET(
 
   if (!order) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+
+  if (order.status === "PENDING") {
+    const expired = await expireIfStale(order.id, order.paymentExpiresAt, order.createdAt);
+    if (expired) order.status = "FAILED";
   }
 
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });

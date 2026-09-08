@@ -26,6 +26,7 @@ export default async function AccountsPage() {
         stockMode: true,
         stock: true,
         Game: { select: { name: true, slug: true } },
+        Category: { select: { name: true, slug: true } },
       },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
     }),
@@ -50,8 +51,8 @@ export default async function AccountsPage() {
       subLabel: acc.rank,
       imageUrl: acc.imageUrl,
       priceUsd: acc.priceUsd,
-      groupKey: acc.Game?.slug ?? "__general__",
-      groupLabel: acc.Game?.name ?? "General",
+      groupKey: acc.Category ? `cat-${acc.Category.slug}` : (acc.Game?.slug ?? "__general__"),
+      groupLabel: acc.Category?.name ?? acc.Game?.name ?? "General",
       groupSortOrder: 0,
       // Multi-stock accounts sell out based on remaining `stock`; unique
       // accounts still use the existing `sold` flag.

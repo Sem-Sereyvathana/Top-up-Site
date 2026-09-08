@@ -31,6 +31,32 @@ const createSchema = z.object({
 // delivered/sold elsewhere.
 const HOLDING_STATUSES = ["PENDING", "PAID", "DELIVERED"];
 
+// A PENDING order is only supposed to hold an account until its payment
+// window runs out — but nothing ever flips it to FAILED on its own unless
+// KHPay happens to send a "payment.expired"/"payment.failed" webhook for it.
+// A buyer who closes the tab, or a payment link that's never actually
+// opened, leaves the order sitting PENDING forever, which permanently locks
+// the account (and any of its stock) out of every future order. Since there's
+// no cron here, do it lazily: right before checking what's held, sweep any
+// PENDING account orders whose payment window has already passed (or, for
+// the rare order with no paymentExpiresAt, that are simply old) into FAILED
+// so they stop holding anything.
+const STALE_PENDING_FALLBACK_MS = 30 * 60 * 1000; // 30 minutes
+
+async function expireStaleAccountOrders() {
+  const now = new Date();
+  await prisma.gameAccountOrder.updateMany({
+    where: {
+      status: "PENDING",
+      OR: [
+        { paymentExpiresAt: { lt: now } },
+        { paymentExpiresAt: null, createdAt: { lt: new Date(now.getTime() - STALE_PENDING_FALLBACK_MS) } },
+      ],
+    },
+    data: { status: "FAILED", failureReason: "Payment window expired" },
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const isPublicHttpUrl = (value?: string | null): value is string => {
@@ -76,9 +102,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    await expireStaleAccountOrders();
+
     const accounts = await prisma.gameAccount.findMany({
       where: { id: { in: ids } },
-      include: { Game: { select: { deliveryMode: true } } },
     });
     const byId = new Map(accounts.map((a) => [a.id, a]));
 
@@ -158,7 +185,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const deliveryMode = resolveDeliveryMode(ids.map((id) => byId.get(id)!.Game?.deliveryMode));
+    const deliveryMode = resolveDeliveryMode(ids.map((id) => byId.get(id)!.deliveryMode));
 
     if (deliveryMode === "MANUAL" && !data.customerContact?.trim()) {
       return NextResponse.json(

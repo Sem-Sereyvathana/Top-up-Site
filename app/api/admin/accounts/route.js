@@ -7,6 +7,7 @@ import { writeAudit } from "@/lib/audit";
 
 const accountSchema = z.object({
   gameId: z.string().min(1).optional().nullable(),
+  categoryId: z.string().min(1).optional().nullable(),
   title: z.string().min(1),
   rank: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
@@ -17,8 +18,9 @@ const accountSchema = z.object({
   stock: z.number().int().min(0).default(1),
   active: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
+  deliveryMode: z.enum(["DIRECT", "MANUAL"]).default("MANUAL"),
   // Admin-only login handover, only ever sent back to a buyer once their
-  // order is PAID and the account's game has deliveryMode = "DIRECT".
+  // order is PAID and this account's deliveryMode = "DIRECT".
   credentials: z.string().optional().nullable(),
 });
 
@@ -31,7 +33,10 @@ export async function GET(req) {
   const gameId = req.nextUrl.searchParams.get("gameId");
   const accounts = await prisma.gameAccount.findMany({
     where: gameId ? { gameId } : undefined,
-    include: { Game: { select: { name: true, slug: true } } },
+    include: {
+      Game: { select: { name: true, slug: true } },
+      Category: { select: { name: true, slug: true } },
+    },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
   });
   return NextResponse.json(accounts);

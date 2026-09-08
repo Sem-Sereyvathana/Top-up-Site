@@ -277,6 +277,11 @@ model BlockedIdentity {
 model GameAccount {
   id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
   gameId      String?
+  // Optional label from the admin's own list (GameAccountCategory) — lets
+  // an account be grouped/labelled without needing a full entry on the
+  // Top-up `Game` list. Independent of gameId; an account can set either,
+  // both, or neither (falls back to "General").
+  categoryId  String?
   title       String
   rank        String?
   description String?
@@ -294,16 +299,41 @@ model GameAccount {
   stock       Int      @default(1)
   active      Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // "DIRECT" = admin can hand over this account's login straight away (no
+  // chat needed first); "MANUAL" = buyer is pointed to Telegram to arrange
+  // handoff after paying. Set per account (like GameItem.deliveryMode),
+  // not read from the linked Game anymore — see backfill script in
+  // prisma/scripts/backfill-account-deliverymode.ts for the one-off copy
+  // from each account's previous Game.deliveryMode onto this column.
+  deliveryMode String  @default("MANUAL")
   // Admin-only login handover (username/password/notes), set when this
-  // account's game has deliveryMode = "DIRECT". Never returned by any public
+  // account's deliveryMode = "DIRECT". Never returned by any public
   // API until the buyer's order is PAID/DELIVERED.
   credentials String?
   createdAt   DateTime @default(now()) @db.Timestamp(6)
   updatedAt   DateTime @default(now()) @db.Timestamp(6)
   Game        Game?    @relation(fields: [gameId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Category    GameAccountCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   orderItems  GameAccountOrderItem[]
 
   @@index([gameId])
+  @@index([categoryId])
+}
+
+// Admin's own labels for the Accounts marketplace — intentionally separate
+// from `Game` (which powers Top-up and requires a lot of fields: imageUrl,
+// currencyName, a unique slug, etc. that don't make sense for "just a
+// label"). Purely a grouping/display concept, same relationship GameItem
+// has with GameItemCategory. Delivery mode lives on GameAccount itself.
+model GameAccountCategory {
+  id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name        String
+  slug        String   @unique
+  imageUrl    String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now()) @db.Timestamp(6)
+  updatedAt   DateTime @default(now()) @db.Timestamp(6)
+  GameAccount GameAccount[]
 }
 
 model GameItem {

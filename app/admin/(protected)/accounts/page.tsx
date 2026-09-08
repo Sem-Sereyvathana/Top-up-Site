@@ -3,14 +3,17 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Save, X, Image as ImageIcon } from "lucide-react";
 
-interface Game {
+interface Category {
   id: string;
   name: string;
+  imageUrl: string | null;
+  sortOrder: number;
 }
 
 interface GameAccount {
   id: string;
   gameId: string | null;
+  categoryId: string | null;
   title: string;
   rank: string | null;
   description: string | null;
@@ -21,12 +24,14 @@ interface GameAccount {
   stock: number;
   active: boolean;
   sortOrder: number;
+  deliveryMode: "DIRECT" | "MANUAL";
   credentials: string | null;
   Game?: { name: string; slug: string } | null;
+  Category?: { name: string; slug: string } | null;
 }
 
 const empty = {
-  gameId: "",
+  categoryId: "",
   title: "",
   rank: "",
   description: "",
@@ -37,11 +42,14 @@ const empty = {
   stock: 1,
   active: true,
   sortOrder: 0,
+  deliveryMode: "MANUAL" as "DIRECT" | "MANUAL",
   credUsername: "",
   credPassword: "",
   credNotes: "",
   credLegacy: "",
 };
+
+const emptyCategory = { name: "", imageUrl: "" };
 
 // The Login handover is stored on the account as one `credentials` string
 // (no schema change needed), but the admin form always writes it in this
@@ -76,7 +84,7 @@ function buildCredentials(form: { credUsername: string; credPassword: string; cr
 }
 
 export default function AccountsAdminPage() {
-  const [games, setGames] = useState<Game[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<GameAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<GameAccount | null>(null);
@@ -86,13 +94,20 @@ export default function AccountsAdminPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Inline category manager — same pattern as the Game Items page: these
+  // labels are the admin's own, independent of the Top-up "Games" list.
+  const [catForm, setCatForm] = useState(emptyCategory);
+  const [catUploading, setCatUploading] = useState(false);
+  const [catSaving, setCatSaving] = useState(false);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+
   async function loadAll() {
     setLoading(true);
-    const [gRes, aRes] = await Promise.all([
-      fetch("/api/admin/games").then((r) => r.json()),
+    const [cRes, aRes] = await Promise.all([
+      fetch("/api/admin/game-account-categories").then((r) => r.json()),
       fetch("/api/admin/accounts").then((r) => r.json()),
     ]);
-    setGames(gRes);
+    setCategories(cRes);
     setAccounts(aRes);
     setLoading(false);
   }
@@ -114,7 +129,7 @@ export default function AccountsAdminPage() {
     setError(null);
     const cred = parseCredentials(acc.credentials);
     setForm({
-      gameId: acc.gameId || "",
+      categoryId: acc.categoryId || "",
       title: acc.title,
       rank: acc.rank || "",
       description: acc.description || "",
@@ -125,6 +140,7 @@ export default function AccountsAdminPage() {
       stock: acc.stock,
       active: acc.active,
       sortOrder: acc.sortOrder,
+      deliveryMode: acc.deliveryMode,
       credUsername: cred.username,
       credPassword: cred.password,
       credNotes: cred.notes,
@@ -151,12 +167,72 @@ export default function AccountsAdminPage() {
     setUploading(false);
   }
 
+  async function uploadCatImage(file: File) {
+    setCatUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+    if (res.ok) {
+      const data = await res.json();
+      setCatForm((f) => ({ ...f, imageUrl: data.url }));
+    }
+    setCatUploading(false);
+  }
+
+  function openEditCategory(cat: Category) {
+    setEditingCatId(cat.id);
+    setCatForm({ name: cat.name, imageUrl: cat.imageUrl || "" });
+  }
+
+  function closeCategoryForm() {
+    setEditingCatId(null);
+    setCatForm(emptyCategory);
+  }
+
+  async function saveCategory(e: React.FormEvent) {
+    e.preventDefault();
+    if (!catForm.name.trim()) return;
+    setCatSaving(true);
+    const payload = { name: catForm.name, imageUrl: catForm.imageUrl || null };
+    const url = editingCatId
+      ? `/api/admin/game-account-categories/${editingCatId}`
+      : "/api/admin/game-account-categories";
+    const method = editingCatId ? "PATCH" : "POST";
+    await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setCatSaving(false);
+    closeCategoryForm();
+    await loadAll();
+  }
+
+  async function deleteCategory(cat: Category) {
+    if (
+      !confirm(
+        `Delete label "${cat.name}"? Accounts using it will become uncategorized (General), not deleted.`
+      )
+    )
+      return;
+    await fetch(`/api/admin/game-account-categories/${cat.id}`, { method: "DELETE" });
+    await loadAll();
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
     setError(null);
+    if (!form.title.trim()) {
+      setError("Title is required.");
+      return;
+    }
+    if (!form.priceUsd || Number(form.priceUsd) <= 0) {
+      setError("Price (USD) must be greater than 0.");
+      return;
+    }
+    setSaving(true);
     const payload = {
-      gameId: form.gameId || null,
+      categoryId: form.categoryId || null,
       title: form.title,
       rank: form.rank || null,
       description: form.description || null,
@@ -167,6 +243,7 @@ export default function AccountsAdminPage() {
       stock: form.stockMode === "MULTI" ? Math.max(0, Number(form.stock)) : 1,
       active: form.active,
       sortOrder: Number(form.sortOrder),
+      deliveryMode: form.deliveryMode,
       credentials: buildCredentials(form),
     };
     const url = editing ? `/api/admin/accounts/${editing.id}` : "/api/admin/accounts";
@@ -225,6 +302,86 @@ export default function AccountsAdminPage() {
         </button>
       </div>
 
+      {/* Inline label manager — these labels are the admin's own, independent
+          of the Top-up "Games" list, so accounts aren't limited to picking
+          from games that already have a full Top-up entry. Same pattern as
+          the Categories manager on the Game Items page. */}
+      <div className="card p-5 mb-8">
+        <h2 className="font-semibold mb-1">Labels</h2>
+        <p className="text-fox-muted text-xs mb-4">
+          Your own game/type labels (e.g. Free Fire, Valorant) — used to group accounts below.
+        </p>
+
+        {categories.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {categories.map((cat) => (
+              <div
+                key={cat.id}
+                className="flex items-center gap-2 rounded-lg border border-fox-border bg-fox-surface px-3 py-1.5"
+              >
+                {cat.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={cat.imageUrl} alt="" className="h-5 w-5 rounded object-cover" />
+                ) : (
+                  <div className="h-5 w-5 rounded bg-fox-bg/60" />
+                )}
+                <span className="text-sm">{cat.name}</span>
+                <button
+                  type="button"
+                  onClick={() => openEditCategory(cat)}
+                  className="text-fox-accent text-xs hover:underline"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteCategory(cat)}
+                  className="text-red-400 text-xs hover:underline"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={saveCategory} className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[160px]">
+            <label className="label">{editingCatId ? "Edit label name" : "New label name"}</label>
+            <input
+              className="input"
+              placeholder="e.g. Free Fire"
+              value={catForm.name}
+              onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="btn-ghost cursor-pointer">
+              <ImageIcon className="h-4 w-4" />
+              {catUploading ? "Uploading..." : "Icon"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && uploadCatImage(e.target.files[0])}
+              />
+            </label>
+          </div>
+          {catForm.imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={catForm.imageUrl} alt="" className="h-9 w-9 rounded-lg border border-fox-border object-cover" />
+          )}
+          <button type="submit" disabled={catSaving || !catForm.name.trim()} className="btn-primary">
+            <Save className="h-4 w-4" /> {catSaving ? "Saving..." : editingCatId ? "Save" : "Add label"}
+          </button>
+          {editingCatId && (
+            <button type="button" onClick={closeCategoryForm} className="btn-ghost">
+              <X className="h-4 w-4" /> Cancel
+            </button>
+          )}
+        </form>
+      </div>
+
       {showForm && (
         <form onSubmit={save} className="card p-5 mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -236,15 +393,15 @@ export default function AccountsAdminPage() {
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="label">Game</label>
+              <label className="label">Label</label>
               <select
                 className="input"
-                value={form.gameId}
-                onChange={(e) => setForm({ ...form, gameId: e.target.value })}
+                value={form.categoryId}
+                onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
               >
-                <option value="">— General (no specific game) —</option>
-                {games.map((g) => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
+                <option value="">— General (no label) —</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
@@ -287,6 +444,17 @@ export default function AccountsAdminPage() {
               >
                 <option value="UNIQUE">Unique login (one buyer only)</option>
                 <option value="MULTI">Multiple stock (buyers pick a quantity)</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Delivery</label>
+              <select
+                className="input"
+                value={form.deliveryMode}
+                onChange={(e) => setForm({ ...form, deliveryMode: e.target.value as "DIRECT" | "MANUAL" })}
+              >
+                <option value="DIRECT">Direct (auto-revealed to buyer once paid)</option>
+                <option value="MANUAL">Manual (buyer messages Telegram)</option>
               </select>
             </div>
             {form.stockMode === "MULTI" && (
@@ -345,7 +513,7 @@ export default function AccountsAdminPage() {
                 onChange={(e) => setForm({ ...form, credNotes: e.target.value })}
               />
               <p className="mt-1 text-xs text-fox-muted/70">
-                Username/Email and Password are handed to the buyer automatically — on their payment receipt and again if they revisit it from Order History — once this order is paid. Only revealed if this account&apos;s game has delivery set to &quot;Direct&quot; on the Games page; otherwise buyers are pointed to Telegram after paying.
+                Username/Email and Password are handed to the buyer automatically — on their payment receipt and again if they revisit it from Order History — once this order is paid. Only revealed if this account&apos;s Delivery is set to &quot;Direct&quot; above; otherwise buyers are pointed to Telegram after paying.
               </p>
             </div>
             {form.credLegacy && (
@@ -420,7 +588,7 @@ export default function AccountsAdminPage() {
           )}
 
           <div className="mt-5 flex gap-2">
-            <button type="submit" disabled={saving || !form.title || form.priceUsd <= 0} className="btn-primary">
+            <button type="submit" disabled={saving} className="btn-primary">
               <Save className="h-4 w-4" /> {saving ? "Saving..." : editing ? "Save changes" : "Create account"}
             </button>
           </div>
@@ -462,7 +630,7 @@ export default function AccountsAdminPage() {
                         <span className="font-medium">{acc.title}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-fox-muted">{acc.Game?.name || "General"}</td>
+                    <td className="px-5 py-3 text-fox-muted">{acc.Category?.name || acc.Game?.name || "General"}</td>
                     <td className="px-5 py-3 text-xs">{acc.rank || "—"}</td>
                     <td className="px-5 py-3 text-right font-mono text-fox-primary">${acc.priceUsd.toFixed(2)}</td>
                     <td className="px-5 py-3 text-center">
