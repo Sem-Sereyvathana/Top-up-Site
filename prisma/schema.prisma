@@ -289,6 +289,13 @@ model GameAccount {
   priceUsd    Float
   priceKhr    Float?
   sold        Boolean  @default(false)
+  // Set only when an admin deletes an account that already has order
+  // history (can't hard-delete without breaking past orders' FK — see
+  // DELETE handler in app/api/admin/accounts/[id]/route.js). Archived
+  // accounts are hidden from every admin list; their order-history rows
+  // still work fine since those store their own title/price snapshot and
+  // only need this row to keep existing, not to be visible anywhere.
+  archived    Boolean  @default(false)
   // "UNIQUE" = one-of-a-kind login handover; only ever one buyer, tracked by
   // the `sold` flag above (unchanged behaviour). "MULTI" = stackable stock —
   // buyers pick a quantity at checkout, tracked by the `stock` count below
@@ -315,6 +322,7 @@ model GameAccount {
   Game        Game?    @relation(fields: [gameId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   Category    GameAccountCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   orderItems  GameAccountOrderItem[]
+  stockItems  GameAccountStockItem[]
 
   @@index([gameId])
   @@index([categoryId])
@@ -325,6 +333,33 @@ model GameAccount {
 // currencyName, a unique slug, etc. that don't make sense for "just a
 // label"). Purely a grouping/display concept, same relationship GameItem
 // has with GameItemCategory. Delivery mode lives on GameAccount itself.
+// One row = one real login for a "Multiple stock" + Direct-delivery
+// GameAccount. Replaces the old approach of sharing a single
+// GameAccount.credentials string across every unit of stock (which meant
+// every buyer of a multi-stock listing received the exact same login).
+// `stock` on GameAccount is kept as a live cache of the AVAILABLE count
+// here so every existing storefront/reservation check that reads
+// GameAccount.stock keeps working unchanged.
+model GameAccountStockItem {
+  id            String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  gameAccountId String
+  username      String
+  password      String
+  notes         String?
+  // "AVAILABLE" = unsold, waiting to be handed to a buyer. "ASSIGNED" =
+  // handed to a specific paid order line (orderItemId set) and never
+  // reused.
+  status        String    @default("AVAILABLE")
+  orderItemId   String?
+  assignedAt    DateTime?
+  createdAt     DateTime  @default(now()) @db.Timestamp(6)
+  gameAccount   GameAccount           @relation(fields: [gameAccountId], references: [id], onDelete: Cascade)
+  orderItem     GameAccountOrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+
+  @@index([gameAccountId, status])
+  @@index([orderItemId])
+}
+
 model GameAccountCategory {
   id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
   name        String
@@ -501,6 +536,7 @@ model GameAccountOrderItem {
   createdAt     DateTime @default(now())
   order         GameAccountOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   gameAccount   GameAccount      @relation(fields: [gameAccountId], references: [id])
+  stockItems    GameAccountStockItem[]
 
   @@index([orderId])
   @@index([gameAccountId])

@@ -3,21 +3,34 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ShoppingCart, X } from "lucide-react";
-import { useShopCart } from "@/lib/shopCart";
+import { useShopCart, ShopKind } from "@/lib/shopCart";
 import { useCurrency } from "@/lib/currency";
 
-// Cart is scoped to the Game Items marketplace only — Accounts are unique,
-// one-off listings (no quantity, no real "cart" concept), so they're bought
-// straight from /accounts and never show up in this navbar widget.
+// Shared navbar cart widget for both marketplaces — Game Items and
+// Accounts each have their own cart (see lib/shopCart.tsx's per-kind
+// storage), so this takes `kind` to know which one to show. Accounts now
+// supports real quantities (multi-stock listings) same as Game Items, so
+// it gets the same cart widget instead of being bought straight off the
+// grid.
 
-export default function CartButton({ className = "" }: { className?: string }) {
+export default function CartButton({
+  kind,
+  title,
+  checkoutHref,
+  className = "",
+}: {
+  kind: ShopKind;
+  title: string;
+  checkoutHref: string;
+  className?: string;
+}) {
   const { linesFor, countFor, removeLine } = useShopCart();
   const { format } = useCurrency();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const itemLines = linesFor("items");
-  const totalCount = countFor("items");
+  const itemLines = linesFor(kind);
+  const totalCount = countFor(kind);
   const subtotal = itemLines.reduce((sum, l) => sum + l.card.priceUsd * l.quantity, 0);
 
   useEffect(() => {
@@ -50,7 +63,7 @@ export default function CartButton({ className = "" }: { className?: string }) {
         <div className="absolute right-0 top-full z-50 mt-2 w-80 max-w-[90vw] rounded-2xl border border-fox-border bg-fox-surface/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-xl">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="font-display text-sm font-bold uppercase tracking-wider text-fox-muted">
-              Game Items Cart
+              {title}
             </h3>
             <button
               type="button"
@@ -79,7 +92,7 @@ export default function CartButton({ className = "" }: { className?: string }) {
                       </span>
                       <button
                         type="button"
-                        onClick={() => removeLine("items", l.card.id)}
+                        onClick={() => removeLine(kind, l.card.id)}
                         className="text-xs text-red-400 hover:underline"
                       >
                         Remove
@@ -95,7 +108,7 @@ export default function CartButton({ className = "" }: { className?: string }) {
               </div>
 
               <Link
-                href="/game-items/checkout"
+                href={checkoutHref}
                 onClick={() => setOpen(false)}
                 className="btn-primary mt-3 w-full !py-2 text-sm"
               >

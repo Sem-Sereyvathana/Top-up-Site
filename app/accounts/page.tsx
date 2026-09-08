@@ -13,9 +13,21 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AccountsPage() {
-  const [accounts, banners, settings] = await Promise.all([
+  const [accounts, banners] = await Promise.all([
     prisma.gameAccount.findMany({
-      where: { active: true },
+      // Sold-out listings are excluded outright rather than shown greyed
+      // out with a "Sold" badge — a buyer can't buy them anyway, and
+      // leaving them visible just invites a race with whoever's actually
+      // paying for it (see the 409 "just reserved by another buyer" case).
+      // UNIQUE accounts are sold-out once `sold` flips true; MULTI accounts
+      // are sold-out once their pooled `stock` hits zero.
+      where: {
+        active: true,
+        OR: [
+          { stockMode: "UNIQUE", sold: false },
+          { stockMode: "MULTI", stock: { gt: 0 } },
+        ],
+      },
       select: {
         id: true,
         title: true,
@@ -34,14 +46,7 @@ export default async function AccountsPage() {
       where: { active: true },
       orderBy: { sortOrder: "asc" },
     }),
-    prisma.settings.findUnique({ where: { id: 1 } }),
   ]);
-
-  // Unique, one-of-a-kind listings skip the cart/checkout flow entirely —
-  // buyers are sent straight to admin on Telegram to arrange the deal.
-  const adminContactUrl = settings?.supportTelegram
-    ? `https://t.me/${settings.supportTelegram.replace(/^@/, "")}`
-    : null;
 
   const cards: ShopCartCard[] = accounts.map((acc) => {
     const isMulti = acc.stockMode === "MULTI";
@@ -54,14 +59,19 @@ export default async function AccountsPage() {
       groupKey: acc.Category ? `cat-${acc.Category.slug}` : (acc.Game?.slug ?? "__general__"),
       groupLabel: acc.Category?.name ?? acc.Game?.name ?? "General",
       groupSortOrder: 0,
-      // Multi-stock accounts sell out based on remaining `stock`; unique
-      // accounts still use the existing `sold` flag.
+      // Already excluded from the query above — kept here as a defensive
+      // fallback only (e.g. it sells out in the instant between the query
+      // running and the page rendering).
       soldOut: isMulti ? acc.stock <= 0 : acc.sold,
       // Unique accounts can only ever be bought one at a time; multi-stock
       // accounts can be bought up to however many are left.
       maxQty: isMulti ? acc.stock : 1,
-      // Unique listings are display-only — no cart, straight to admin.
-      contactAdminUrl: !isMulti && !acc.sold ? adminContactUrl : null,
+      // Every account — unique or multi-stock, DIRECT or MANUAL delivery —
+      // goes through the normal cart/checkout/payment flow now. Manual
+      // handover accounts only get sent to admin's Telegram *after* the
+      // order is actually paid (see MarketplaceOrderTracker's
+      // autoRedirectManualPaid), so admin never gets messages from people
+      // who never paid.
     };
   });
 

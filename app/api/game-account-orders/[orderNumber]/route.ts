@@ -11,6 +11,28 @@ const patchSchema = z.object({
 
 const REVEAL_STATUSES = new Set(["PAID", "DELIVERED"]);
 
+// MULTI accounts hand over one real login per unit purchased (see
+// lib/gameAccountFulfillment.ts), formatted in the same
+// "Username/Email: ...\nPassword: ...\nNotes: ..." shape the single-login
+// (UNIQUE) case already uses, so the receipt UI's parser keeps working
+// unchanged. Multiple units are joined with a separator the UI splits on.
+function formatCredentials(it: {
+  gameAccount: { credentials: string | null; stockMode: string };
+  stockItems: { username: string; password: string; notes: string | null }[];
+}) {
+  if (it.gameAccount.stockMode === "MULTI") {
+    if (it.stockItems.length === 0) return null;
+    return it.stockItems
+      .map((s) => {
+        const lines = [`Username/Email: ${s.username}`, `Password: ${s.password}`];
+        if (s.notes) lines.push(`Notes: ${s.notes}`);
+        return lines.join("\n");
+      })
+      .join("\n---\n");
+  }
+  return it.gameAccount.credentials;
+}
+
 // Nothing flips a PENDING order to FAILED once its payment window passes
 // unless KHPay sends an expiry webhook for it — so a buyer re-opening an
 // old, abandoned order here would otherwise see it sit as "PENDING"
@@ -41,7 +63,11 @@ export async function GET(
           title: true,
           quantity: true,
           unitPriceUsd: true,
-          gameAccount: { select: { credentials: true } },
+          gameAccount: { select: { credentials: true, stockMode: true } },
+          // For MULTI accounts each unit sold is its own real login,
+          // assigned to this exact order line once payment cleared — see
+          // lib/gameAccountFulfillment.ts.
+          stockItems: { select: { username: true, password: true, notes: true } },
         },
       },
     },
@@ -70,7 +96,7 @@ export async function GET(
       title: it.title,
       quantity: it.quantity,
       unitPriceUsd: it.unitPriceUsd,
-      credentials: canReveal ? it.gameAccount.credentials : null,
+      credentials: canReveal ? formatCredentials(it) : null,
     })),
     deliveryMode: order.deliveryMode,
     amountUsd: order.amountUsd,

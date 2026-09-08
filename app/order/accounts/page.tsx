@@ -42,23 +42,46 @@ function CredentialRow({ label, value, field, copiedField, onCopy }: { label: st
   );
 }
 
-function CredentialsBox({ title, credentials }: { title: string; credentials: string }) {
-  const [copiedField, setCopiedField] = useState<string | null>(null);
+// A multi-stock account's line can hand over more than one distinct login
+// (one per unit purchased — see lib/gameAccountFulfillment.ts), joined by
+// this separator so the receipt still comes back as a single string.
+function splitCredentialBlocks(credentials: string): string[] {
+  return credentials.split(/\n-{3,}\n/);
+}
+
+function SingleCredential({
+  label,
+  credentials,
+  copiedPrefix,
+  copiedField,
+  onCopy,
+}: {
+  label: string | null;
+  credentials: string;
+  copiedPrefix: string;
+  copiedField: string | null;
+  onCopy: (field: string, value: string) => void;
+}) {
   const parsed = parseCredentials(credentials);
-
-  async function copy(field: string, value: string) {
-    await navigator.clipboard.writeText(value);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 1500);
-  }
-
   return (
-    <div className="rounded-lg border border-green-400/40 bg-green-400/10 p-4 text-sm text-green-200">
-      <p className="mb-2 font-semibold text-green-300">Your account login — {title}</p>
+    <div className="space-y-2">
+      {label && <p className="text-xs font-semibold text-green-300/90">{label}</p>}
       {parsed ? (
         <div className="space-y-2">
-          <CredentialRow label="Username / Email" value={parsed.username} field="username" copiedField={copiedField} onCopy={copy} />
-          <CredentialRow label="Password" value={parsed.password} field="password" copiedField={copiedField} onCopy={copy} />
+          <CredentialRow
+            label="Username / Email"
+            value={parsed.username}
+            field={`${copiedPrefix}-username`}
+            copiedField={copiedField}
+            onCopy={onCopy}
+          />
+          <CredentialRow
+            label="Password"
+            value={parsed.password}
+            field={`${copiedPrefix}-password`}
+            copiedField={copiedField}
+            onCopy={onCopy}
+          />
           {parsed.notes && (
             <div className="rounded-md bg-black/20 px-3 py-2">
               <p className="text-[10px] uppercase tracking-wide text-green-400/70">Notes</p>
@@ -69,11 +92,44 @@ function CredentialsBox({ title, credentials }: { title: string; credentials: st
       ) : (
         <div className="flex items-start justify-between gap-3">
           <pre className="whitespace-pre-wrap font-mono text-xs text-green-100">{credentials}</pre>
-          <button type="button" onClick={() => copy("raw", credentials)} className="shrink-0 text-green-300 hover:text-green-100">
-            {copiedField === "raw" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          <button
+            type="button"
+            onClick={() => onCopy(`${copiedPrefix}-raw`, credentials)}
+            className="shrink-0 text-green-300 hover:text-green-100"
+          >
+            {copiedField === `${copiedPrefix}-raw` ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function CredentialsBox({ title, credentials }: { title: string; credentials: string }) {
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const blocks = splitCredentialBlocks(credentials);
+
+  async function copy(field: string, value: string) {
+    await navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 1500);
+  }
+
+  return (
+    <div className="rounded-lg border border-green-400/40 bg-green-400/10 p-4 text-sm text-green-200">
+      <p className="mb-2 font-semibold text-green-300">Your account login — {title}</p>
+      <div className="space-y-4">
+        {blocks.map((block, i) => (
+          <SingleCredential
+            key={i}
+            label={blocks.length > 1 ? `Account ${i + 1} of ${blocks.length}` : null}
+            credentials={block}
+            copiedPrefix={`b${i}`}
+            copiedField={copiedField}
+            onCopy={copy}
+          />
+        ))}
+      </div>
     </div>
   );
 }

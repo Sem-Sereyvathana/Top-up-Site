@@ -44,20 +44,11 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 }
 
 export default async function AccountDetailsPage({ params }: { params: { id: string } }) {
-  const [account, settings] = await Promise.all([
-    getAccount(params.id),
-    prisma.settings.findUnique({ where: { id: 1 } }),
-  ]);
+  const account = await getAccount(params.id);
   if (!account || !account.active) notFound();
 
   const isMulti = account.stockMode === "MULTI";
   const soldOut = isMulti ? account.stock <= 0 : account.sold;
-
-  // Unique, one-of-a-kind listings skip the cart/checkout flow entirely —
-  // buyers are sent straight to admin on Telegram to arrange the deal.
-  const adminContactUrl = settings?.supportTelegram
-    ? `https://t.me/${settings.supportTelegram.replace(/^@/, "")}`
-    : null;
 
   const card: ShopCartCard = {
     id: account.id,
@@ -69,8 +60,9 @@ export default async function AccountDetailsPage({ params }: { params: { id: str
     groupLabel: account.Category?.name ?? account.Game?.name ?? "General",
     groupSortOrder: 0,
     soldOut,
+    // Every account goes through the normal cart/checkout/payment flow
+    // now — unique accounts are simply capped at quantity 1.
     maxQty: isMulti ? account.stock : 1,
-    contactAdminUrl: !isMulti && !soldOut ? adminContactUrl : null,
   };
 
   return (

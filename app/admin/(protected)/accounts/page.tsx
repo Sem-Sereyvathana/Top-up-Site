@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Trash2, Save, X, Image as ImageIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Plus, Trash2, Save, X, Image as ImageIcon, Upload, ChevronDown, ChevronUp } from "lucide-react";
+import { parseAccountStockText } from "@/lib/accountStockParser";
 
 interface Category {
   id: string;
@@ -30,6 +31,15 @@ interface GameAccount {
   Category?: { name: string; slug: string } | null;
 }
 
+interface StockItem {
+  id: string;
+  username: string;
+  password: string;
+  notes: string | null;
+  status: "AVAILABLE" | "ASSIGNED";
+  createdAt: string;
+}
+
 const empty = {
   categoryId: "",
   title: "",
@@ -47,6 +57,11 @@ const empty = {
   credPassword: "",
   credNotes: "",
   credLegacy: "",
+  // Pasted/uploaded here while creating a brand-new Multiple-stock + Direct
+  // account; added as real stock right after the account itself is
+  // created (see save()). Ignored once an account already exists — from
+  // then on, Auto Top Up posts straight to the stock pool instead.
+  stockText: "",
 };
 
 const emptyCategory = { name: "", imageUrl: "" };
@@ -93,6 +108,12 @@ export default function AccountsAdminPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Sold unique-login accounts are done being sold — keeping them mixed
+  // into the main table just floods it as more sell. They're tucked into
+  // a collapsed section below instead (still editable/deletable from
+  // there); their order-history rows keep working either way since those
+  // store their own title/price snapshot.
+  const [showSold, setShowSold] = useState(false);
 
   // Inline category manager — same pattern as the Game Items page: these
   // labels are the admin's own, independent of the Top-up "Games" list.
@@ -100,6 +121,16 @@ export default function AccountsAdminPage() {
   const [catUploading, setCatUploading] = useState(false);
   const [catSaving, setCatSaving] = useState(false);
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
+
+  // Auto Top Up — the credential pool for "Multiple stock" + Direct
+  // accounts (see GameAccountStockItem). Loaded whenever a pooled account
+  // is opened for editing.
+  const [topUpOpen, setTopUpOpen] = useState(false);
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [topUpBusy, setTopUpBusy] = useState(false);
+  const [topUpError, setTopUpError] = useState<string | null>(null);
+  const stockFileRef = useRef<HTMLInputElement>(null);
 
   async function loadAll() {
     setLoading(true);
@@ -112,21 +143,37 @@ export default function AccountsAdminPage() {
     setLoading(false);
   }
 
+  async function loadStock(accountId: string) {
+    setStockLoading(true);
+    const res = await fetch(`/api/admin/accounts/${accountId}/stock`);
+    const data = await res.json().catch(() => ({ items: [] }));
+    setStockItems(data.items || []);
+    setStockLoading(false);
+  }
+
   useEffect(() => {
     loadAll();
   }, []);
+
+  function isPooled(f: { stockMode: string; deliveryMode: string }) {
+    return f.stockMode === "MULTI" && f.deliveryMode === "DIRECT";
+  }
 
   function openNew() {
     setCreating(true);
     setEditing(null);
     setError(null);
     setForm(empty);
+    setTopUpOpen(false);
+    setStockItems([]);
+    setTopUpError(null);
   }
 
-  function openEdit(acc: GameAccount) {
+  function openEdit(acc: GameAccount, expandTopUp = false) {
     setCreating(false);
     setEditing(acc);
     setError(null);
+    setTopUpError(null);
     const cred = parseCredentials(acc.credentials);
     setForm({
       categoryId: acc.categoryId || "",
@@ -145,7 +192,22 @@ export default function AccountsAdminPage() {
       credPassword: cred.password,
       credNotes: cred.notes,
       credLegacy: cred.legacy,
+      stockText: "",
     });
+    if (isPooled(acc)) {
+      setTopUpOpen(expandTopUp);
+      loadStock(acc.id);
+    } else {
+      setTopUpOpen(false);
+      setStockItems([]);
+    }
+  }
+
+  // Entry point for the "Auto Top Up" button on each row — opens that
+  // account straight into its stock pool panel instead of the plain edit
+  // view, so adding more accounts is a one-click trip from the table.
+  function openTopUp(acc: GameAccount) {
+    openEdit(acc, true);
   }
 
   function closeForm() {
@@ -153,6 +215,67 @@ export default function AccountsAdminPage() {
     setEditing(null);
     setForm(empty);
     setError(null);
+    setTopUpOpen(false);
+    setStockItems([]);
+    setTopUpError(null);
+  }
+
+  function readFileAsText(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
+  }
+
+  async function handleStockFile(file: File) {
+    const text = await readFileAsText(file).catch(() => "");
+    if (!text.trim()) return;
+    setForm((f) => ({ ...f, stockText: f.stockText ? `${f.stockText}\n${text}` : text }));
+  }
+
+  // Immediately posts whatever's pasted/uploaded into the pool for an
+  // account that already exists — used from the edit view. For a
+  // brand-new account there's no id yet, so that text rides along with
+  // the "Create account" submit instead (see save()).
+  async function addStockNow() {
+    if (!editing) return;
+    const preview = parseAccountStockText(form.stockText);
+    if (preview.length === 0) {
+      setTopUpError("Paste or upload some accounts first — one per line, e.g. alice@gmail.com:hunter2.");
+      return;
+    }
+    setTopUpBusy(true);
+    setTopUpError(null);
+    const res = await fetch(`/api/admin/accounts/${editing.id}/stock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: form.stockText }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setTopUpError(data.error || "Failed to add stock.");
+      setTopUpBusy(false);
+      return;
+    }
+    setForm((f) => ({ ...f, stockText: "" }));
+    await loadStock(editing.id);
+    await loadAll();
+    setTopUpBusy(false);
+  }
+
+  async function deleteStockItem(stockId: string) {
+    if (!editing) return;
+    if (!confirm("Remove this account from stock? It hasn't been sold yet.")) return;
+    const res = await fetch(`/api/admin/accounts/${editing.id}/stock/${stockId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Failed to remove.");
+      return;
+    }
+    await loadStock(editing.id);
+    await loadAll();
   }
 
   async function upload(file: File) {
@@ -231,7 +354,7 @@ export default function AccountsAdminPage() {
       return;
     }
     setSaving(true);
-    const payload = {
+    const payload: any = {
       categoryId: form.categoryId || null,
       title: form.title,
       rank: form.rank || null,
@@ -244,8 +367,16 @@ export default function AccountsAdminPage() {
       active: form.active,
       sortOrder: Number(form.sortOrder),
       deliveryMode: form.deliveryMode,
-      credentials: buildCredentials(form),
+      // UNIQUE accounts still carry their single login on `credentials`;
+      // MULTI + DIRECT accounts are stocked entirely through the Auto Top
+      // Up pool instead, so there's nothing meaningful to save here.
+      credentials: form.stockMode === "UNIQUE" ? buildCredentials(form) : null,
     };
+    if (!editing && isPooled(form) && form.stockText.trim()) {
+      // Brand-new pooled account — whatever was pasted/uploaded into Auto
+      // Top Up before saving rides along and becomes its starting stock.
+      payload.stockText = form.stockText;
+    }
     const url = editing ? `/api/admin/accounts/${editing.id}` : "/api/admin/accounts";
     const method = editing ? "PATCH" : "POST";
     const res = await fetch(url, {
@@ -284,11 +415,18 @@ export default function AccountsAdminPage() {
 
   async function remove(acc: GameAccount) {
     if (!confirm(`Delete "${acc.title}"?`)) return;
-    await fetch(`/api/admin/accounts/${acc.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/admin/accounts/${acc.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Couldn't delete this account.");
+      return;
+    }
     await loadAll();
   }
 
   const showForm = creating || editing;
+  const soldAccounts = accounts.filter((a) => a.stockMode === "UNIQUE" && a.sold);
+  const liveAccounts = accounts.filter((a) => !(a.stockMode === "UNIQUE" && a.sold));
 
   return (
     <div className="p-4 sm:p-8">
@@ -460,17 +598,32 @@ export default function AccountsAdminPage() {
             {form.stockMode === "MULTI" && (
               <div>
                 <label className="label">Stock quantity</label>
-                <input
-                  className="input"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={form.stock}
-                  onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })}
-                />
-                <p className="mt-1 text-xs text-fox-muted/70">
-                  How many a buyer can purchase in total — buyers can pick any amount up to what&apos;s left. Goes to 0 automatically as orders are paid.
-                </p>
+                {isPooled(form) ? (
+                  <>
+                    <div className="input flex items-center justify-between bg-fox-bg/40 text-fox-muted cursor-not-allowed">
+                      <span>
+                        {editing ? (stockLoading ? "Loading…" : `${form.stock} available`) : "0 — add via Auto Top Up below"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-fox-muted/70">
+                      Managed automatically from real stocked accounts — use Auto Top Up below to add or remove units instead of typing a number here.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      className="input"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={form.stock}
+                      onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })}
+                    />
+                    <p className="mt-1 text-xs text-fox-muted/70">
+                      How many a buyer can purchase in total — buyers can pick any amount up to what&apos;s left. Goes to 0 automatically as orders are paid.
+                    </p>
+                  </>
+                )}
               </div>
             )}
             <div className="sm:col-span-2">
@@ -482,7 +635,7 @@ export default function AccountsAdminPage() {
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
             </div>
-            {form.deliveryMode === "DIRECT" && (
+            {form.deliveryMode === "DIRECT" && form.stockMode === "UNIQUE" && (
               <>
             <div>
               <label className="label">
@@ -527,6 +680,114 @@ export default function AccountsAdminPage() {
               </div>
             )}
               </>
+            )}
+            {isPooled(form) && (
+              <div className="sm:col-span-2 rounded-lg border border-fox-border bg-fox-bg/30 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-sm">Stock pool — Auto Top Up</p>
+                    <p className="text-xs text-fox-muted/70">
+                      Each buyer gets their own real login instead of everyone sharing one. Paste a list or drop a file — one account per line.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTopUpOpen((v) => !v)}
+                    className="btn-ghost shrink-0"
+                  >
+                    <Upload className="h-4 w-4" /> Auto Top Up
+                    {topUpOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </button>
+                </div>
+
+                {topUpOpen && (
+                  <div className="mt-4 space-y-3">
+                    <textarea
+                      className="input font-mono text-xs"
+                      rows={5}
+                      placeholder={"alice@gmail.com:hunter2\nbob@gmail.com:p@ssw0rd\ncarol@gmail.com,anotherPass123"}
+                      value={form.stockText}
+                      onChange={(e) => setForm({ ...form, stockText: e.target.value })}
+                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="btn-ghost cursor-pointer">
+                        <Upload className="h-4 w-4" /> Upload .txt / .csv
+                        <input
+                          ref={stockFileRef}
+                          type="file"
+                          accept=".txt,.csv,text/plain,text/csv"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleStockFile(f);
+                            if (stockFileRef.current) stockFileRef.current.value = "";
+                          }}
+                        />
+                      </label>
+                      <span className="text-xs text-fox-muted">
+                        {parseAccountStockText(form.stockText).length} account(s) detected
+                      </span>
+                      {editing ? (
+                        <button
+                          type="button"
+                          onClick={addStockNow}
+                          disabled={topUpBusy || parseAccountStockText(form.stockText).length === 0}
+                          className="btn-primary ml-auto"
+                        >
+                          <Plus className="h-4 w-4" /> {topUpBusy ? "Adding..." : "Add to stock"}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-fox-muted/70 ml-auto">
+                          Added automatically once you create this account below.
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-fox-muted/60">
+                      One account per line: <code>user:pass</code>, <code>user,pass</code>, or <code>user|pass</code> —
+                      or paste blocks in the same Username/Email + Password + Notes format used above.
+                    </p>
+                    {topUpError && (
+                      <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+                        {topUpError}
+                      </div>
+                    )}
+
+                    {editing && (
+                      <div className="mt-2">
+                        <p className="text-xs font-semibold text-fox-muted mb-2">
+                          Currently in stock {stockLoading ? "(loading…)" : `(${stockItems.filter((s) => s.status === "AVAILABLE").length} available)`}
+                        </p>
+                        {stockItems.filter((s) => s.status === "AVAILABLE").length === 0 ? (
+                          <p className="text-xs text-fox-muted/60">No unsold accounts yet — add some above.</p>
+                        ) : (
+                          <div className="max-h-48 overflow-y-auto rounded-lg border border-fox-border divide-y divide-fox-border">
+                            {stockItems
+                              .filter((s) => s.status === "AVAILABLE")
+                              .map((s) => (
+                                <div key={s.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs font-mono">
+                                  <span className="truncate">{s.username} : {s.password}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteStockItem(s.id)}
+                                    className="shrink-0 text-red-400 hover:text-red-300"
+                                    title="Remove from stock"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                        {stockItems.some((s) => s.status === "ASSIGNED") && (
+                          <p className="mt-2 text-xs text-fox-muted/60">
+                            {stockItems.filter((s) => s.status === "ASSIGNED").length} already sold/delivered (kept for order history, not shown here).
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
             <div className="sm:col-span-2">
               <label className="label">Image</label>
@@ -601,9 +862,13 @@ export default function AccountsAdminPage() {
 
       {loading ? (
         <div className="text-fox-muted text-sm">Loading...</div>
-      ) : accounts.length === 0 ? (
+      ) : liveAccounts.length === 0 && soldAccounts.length === 0 ? (
         <div className="card p-10 text-center text-fox-muted text-sm">
           No accounts yet — click &quot;Add Account&quot; to create one.
+        </div>
+      ) : liveAccounts.length === 0 ? (
+        <div className="card p-10 text-center text-fox-muted text-sm">
+          Everything you&apos;ve listed has sold — click &quot;Add Account&quot; to list more.
         </div>
       ) : (
         <div className="card overflow-hidden">
@@ -621,7 +886,7 @@ export default function AccountsAdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-fox-border">
-                {accounts.map((acc) => (
+                {liveAccounts.map((acc) => (
                   <tr key={acc.id} className="hover:bg-fox-surface/50">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
@@ -658,6 +923,11 @@ export default function AccountsAdminPage() {
                       </button>
                     </td>
                     <td className="px-5 py-3 text-right space-x-3">
+                      {isPooled(acc) && (
+                        <button onClick={() => openTopUp(acc)} className="text-fox-accent text-xs hover:underline inline-flex items-center gap-1">
+                          <Upload className="h-3 w-3" /> Auto Top Up
+                        </button>
+                      )}
                       <button onClick={() => openEdit(acc)} className="text-fox-accent text-xs hover:underline">Edit</button>
                       <button onClick={() => remove(acc)} className="text-red-400 text-xs hover:underline inline-flex items-center gap-1">
                         <Trash2 className="h-3 w-3" /> Delete
@@ -668,6 +938,60 @@ export default function AccountsAdminPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {soldAccounts.length > 0 && (
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={() => setShowSold((v) => !v)}
+            className="flex items-center gap-1.5 text-sm text-fox-muted hover:text-fox-text"
+          >
+            {showSold ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            Sold ({soldAccounts.length}) — kept for order history, hidden from the shop
+          </button>
+          {showSold && (
+            <div className="card overflow-hidden mt-3">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-fox-surface text-fox-muted text-xs uppercase tracking-wider">
+                    <tr>
+                      <th className="text-left px-5 py-3">Account</th>
+                      <th className="text-left px-5 py-3">Game</th>
+                      <th className="text-right px-5 py-3">Price USD</th>
+                      <th className="text-right px-5 py-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-fox-border">
+                    {soldAccounts.map((acc) => (
+                      <tr key={acc.id} className="hover:bg-fox-surface/50">
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-3">
+                            {acc.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={acc.imageUrl} alt="" className="h-10 w-14 rounded-lg object-cover border border-fox-border opacity-60" />
+                            ) : (
+                              <div className="h-10 w-14 rounded-lg bg-fox-bg/60 border border-fox-border" />
+                            )}
+                            <span className="font-medium text-fox-muted">{acc.title}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3 text-fox-muted">{acc.Category?.name || acc.Game?.name || "General"}</td>
+                        <td className="px-5 py-3 text-right font-mono text-fox-muted">${acc.priceUsd.toFixed(2)}</td>
+                        <td className="px-5 py-3 text-right space-x-3">
+                          <button onClick={() => openEdit(acc)} className="text-fox-accent text-xs hover:underline">View</button>
+                          <button onClick={() => remove(acc)} className="text-red-400 text-xs hover:underline inline-flex items-center gap-1">
+                            <Trash2 className="h-3 w-3" /> Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

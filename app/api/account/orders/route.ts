@@ -56,7 +56,7 @@ export async function GET() {
       imageUrl: null as string | null,
       amountUsd: o.amountUsd,
       createdAt: o.createdAt,
-      viewHref: `/order/items?number=${o.orderNumber}`,
+      viewHref: `/order/items?number=${o.orderNumber}&from=history`,
     })),
     ...gameAccountOrders.map((o) => ({
       type: "GAME_ACCOUNT" as const,
@@ -67,7 +67,7 @@ export async function GET() {
       imageUrl: null as string | null,
       amountUsd: o.amountUsd,
       createdAt: o.createdAt,
-      viewHref: `/order/accounts?number=${o.orderNumber}`,
+      viewHref: `/order/accounts?number=${o.orderNumber}&from=history`,
     })),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 

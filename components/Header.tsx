@@ -99,7 +99,12 @@ export default function Header() {
 
         <div className="flex items-center gap-2">
           <CurrencyToggle className="hidden sm:inline-flex" />
-          {pathname?.startsWith("/game-items") && <CartButton />}
+          {pathname?.startsWith("/game-items") && (
+            <CartButton kind="items" title="Game Items Cart" checkoutHref="/game-items/checkout" />
+          )}
+          {pathname?.startsWith("/accounts") && (
+            <CartButton kind="accounts" title="Accounts Cart" checkoutHref="/accounts/checkout" />
+          )}
           <AccountMenu className="hidden sm:block" />
 
           {/* Mobile burger */}
@@ -122,10 +127,10 @@ export default function Header() {
       {/* Mobile nav panel */}
       <div
         className={`md:hidden overflow-hidden border-t border-fox-border/60 bg-fox-bg/95 backdrop-blur-xl transition-[max-height,opacity] duration-300 ease-out ${
-          mobileOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
+          mobileOpen ? "max-h-[calc(100vh-4.5rem)] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
-        <nav className="flex flex-col p-4 gap-1">
+        <nav className="flex flex-col p-4 gap-1 overflow-y-auto max-h-[calc(100vh-4.5rem)]">
           {fullNav.map((item) => (
             <Link
               key={item.href}
@@ -141,7 +146,7 @@ export default function Header() {
             <CurrencyToggle />
           </div>
           <div className="mt-2">
-            <AccountMenu />
+            <AccountMenu inline onNavigate={() => setMobileOpen(false)} />
           </div>
         </nav>
       </div>

@@ -5,14 +5,14 @@ import { useRouter } from "next/navigation";
 import { useCurrency } from "@/lib/currency";
 import { useShopCart } from "@/lib/shopCart";
 import type { ShopCartCard } from "@/components/ShopCartBrowser";
-import { Plus, Minus, ShoppingCart, Check, MessageCircle } from "lucide-react";
+import { Plus, Minus, ShoppingCart, MessageCircle } from "lucide-react";
 
 // Mirrors the Add/quantity controls on the Accounts grid (ShopCartBrowser)
 // but for a single card on its dedicated details page.
 export default function AccountAddToCart({ card }: { card: ShopCartCard }) {
   const { format } = useCurrency();
   const router = useRouter();
-  const { linesFor, toggleCard, changeQty } = useShopCart();
+  const { linesFor, toggleCard, changeQty, removeLine } = useShopCart();
 
   const qty = useMemo(() => {
     const line = linesFor("accounts").find((l) => l.card.id === card.id);
@@ -79,9 +79,13 @@ export default function AccountAddToCart({ card }: { card: ShopCartCard }) {
           </button>
         )
       ) : inCart ? (
-        <div className="flex items-center justify-center gap-2 rounded-xl border border-fox-primary/40 bg-fox-primary/10 px-4 py-3 text-sm font-semibold text-fox-primary">
-          <Check className="h-4 w-4" strokeWidth={3} /> In your cart
-        </div>
+        <button
+          type="button"
+          onClick={() => removeLine("accounts", card.id)}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-400 hover:bg-red-500/20"
+        >
+          Remove from cart
+        </button>
       ) : (
         <button
           type="button"

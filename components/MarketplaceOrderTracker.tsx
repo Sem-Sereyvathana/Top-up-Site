@@ -85,6 +85,14 @@ export default function MarketplaceOrderTracker({
   policyContent?: ReactNode;
 }) {
   const searchParams = useSearchParams();
+  // History's "View" links land on this same page/component (see viewHref
+  // in app/api/account/orders/route.ts) with `&from=history` appended.
+  // Auto-redirecting to Telegram is only wanted right after checkout —
+  // someone just Browse-ing their past orders shouldn't get yanked away
+  // without asking. The manual "Open Telegram" button below still works
+  // either way.
+  const fromHistory = searchParams?.get("from") === "history";
+  const effectiveAutoRedirect = autoRedirectManualPaid && !fromHistory;
   const [order, setOrder] = useState<MarketplaceOrderInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -159,11 +167,11 @@ export default function MarketplaceOrderTracker({
     : null;
 
   useEffect(() => {
-    if (!autoRedirectManualPaid || !needsManualTelegram || !telegramUrl) return;
+    if (!effectiveAutoRedirect || !needsManualTelegram || !telegramUrl) return;
     if (telegramRedirectedRef.current) return;
     telegramRedirectedRef.current = true;
     window.location.href = telegramUrl;
-  }, [autoRedirectManualPaid, needsManualTelegram, telegramUrl]);
+  }, [effectiveAutoRedirect, needsManualTelegram, telegramUrl]);
 
   return (
     <>
@@ -325,7 +333,7 @@ export default function MarketplaceOrderTracker({
 
             {needsManualTelegram && telegramUrl && (
               <div className="mx-5 sm:mx-6 mb-5 sm:mb-6">
-                {autoRedirectManualPaid && (
+                {effectiveAutoRedirect && (
                   <p className="mb-2 text-center text-xs text-fox-muted">
                     Redirecting you to Telegram to confirm your order…
                   </p>
@@ -337,7 +345,7 @@ export default function MarketplaceOrderTracker({
                   className="flex items-center justify-center gap-2 w-full rounded-xl border border-[#229ED9]/40 bg-[#229ED9]/10 hover:bg-[#229ED9]/20 text-[#229ED9] py-3 text-sm font-medium transition-colors"
                 >
                   <Send className="h-4 w-4" strokeWidth={2} />
-                  {autoRedirectManualPaid
+                  {effectiveAutoRedirect
                     ? "Open Telegram manually"
                     : `Message @${order.supportTelegram!.replace(/^@/, "")} to arrange delivery`}
                 </a>

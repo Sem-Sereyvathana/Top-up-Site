@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCurrency } from "@/lib/currency";
 import { useShopCart, ShopKind } from "@/lib/shopCart";
@@ -90,10 +90,27 @@ export default function ShopCartBrowser({
 }: ShopCartBrowserProps) {
   const { format } = useCurrency();
   const router = useRouter();
-  const { linesFor, toggleCard, changeQty } = useShopCart();
+  const { linesFor, toggleCard, changeQty, removeLine } = useShopCart();
   const [selectedGroup, setSelectedGroup] = useState<string>(ALL_KEY);
 
   const cartLines = linesFor(kind);
+
+  // Listings that sold out (or were deactivated) since being added to the
+  // cart are excluded from `cards` by the server query now, rather than
+  // shown greyed-out — but a cart line added *before* that happened would
+  // otherwise sit there as a phantom entry (still counted in the header
+  // badge, still sent to checkout, where it'd fail with a 409). Drop any
+  // cart line whose card isn't in the current listing so the cart always
+  // matches what's actually still buyable.
+  useEffect(() => {
+    const availableIds = new Set(cards.map((c) => c.id));
+    for (const line of cartLines) {
+      if (!availableIds.has(line.card.id)) removeLine(kind, line.card.id);
+    }
+    // Only re-run when the listing itself changes — cartLines intentionally
+    // excluded so removing a line here doesn't immediately re-trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards, kind]);
   const cart = useMemo(() => {
     const map: Record<string, number> = {};
     for (const line of cartLines) map[line.card.id] = line.quantity;
@@ -282,7 +299,15 @@ export default function ShopCartBrowser({
                               </button>
                             )
                           ) : (
-                            !inCart && (
+                            inCart ? (
+                              <button
+                                type="button"
+                                onClick={() => removeLine(kind, card.id)}
+                                className="w-full rounded-lg border border-red-500/40 bg-red-500/10 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/20"
+                              >
+                                Remove
+                              </button>
+                            ) : (
                               <button
                                 type="button"
                                 onClick={() => toggleCard(kind, card)}

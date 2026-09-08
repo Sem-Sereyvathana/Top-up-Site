@@ -185,14 +185,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Contact info is no longer collected at checkout for MANUAL orders —
+    // the buyer is sent straight to admin's Telegram (with the order number
+    // pre-filled) right after payment instead, same as Game Items. See
+    // MarketplaceOrderTracker's autoRedirectManualPaid.
     const deliveryMode = resolveDeliveryMode(ids.map((id) => byId.get(id)!.deliveryMode));
-
-    if (deliveryMode === "MANUAL" && !data.customerContact?.trim()) {
-      return NextResponse.json(
-        { error: "Please leave a Telegram, phone, or email so we can reach you to arrange handover." },
-        { status: 400 }
-      );
-    }
 
     const subtotalUsd =
       Math.round(

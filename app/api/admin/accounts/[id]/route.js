@@ -28,9 +28,25 @@ export async function PATCH(req, { params }) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid" }, { status: 400 });
   }
+  const data = { ...parsed.data };
+
+  const existing = await prisma.gameAccount.findUnique({
+    where: { id: params.id },
+    select: { stockMode: true, deliveryMode: true },
+  });
+  const nextStockMode = data.stockMode ?? existing?.stockMode;
+  const nextDeliveryMode = data.deliveryMode ?? existing?.deliveryMode;
+  if (nextStockMode === "MULTI" && nextDeliveryMode === "DIRECT") {
+    // Stock for these accounts only ever changes via the Auto Top Up pool
+    // (add/remove stock units) — never a typed-in number, so ignore any
+    // stray value here rather than let it drift from the real count.
+    delete data.stock;
+    delete data.credentials;
+  }
+
   const account = await prisma.gameAccount.update({
     where: { id: params.id },
-    data: parsed.data,
+    data,
   });
   await writeAudit({ action: "game-account.update", targetType: "gameAccount", targetId: params.id, details: parsed.data });
   // Now behind admin auth (see route.js in the parent folder) — safe to
@@ -39,7 +55,31 @@ export async function PATCH(req, { params }) {
 }
 
 export async function DELETE(_req, { params }) {
-  await prisma.gameAccount.delete({ where: { id: params.id } });
+  try {
+    await prisma.gameAccount.delete({ where: { id: params.id } });
+  } catch (err) {
+    // P2025 = record already gone (e.g. double-click delete) — treat as
+    // success since the end state is what the admin wanted anyway.
+    if (err?.code === "P2025") {
+      return NextResponse.json({ ok: true });
+    }
+    // P2003 = foreign key constraint failed — this account has order
+    // history (GameAccountOrderItem rows reference it), so hard-deleting
+    // would orphan those rows (or just throw, as it did here). Order
+    // records need to keep pointing at a real account row, but the admin
+    // still wants it gone from view — so archive it instead: hidden from
+    // every admin list from now on, while the row (and the order history
+    // that points at it) stays intact.
+    if (err?.code === "P2003") {
+      await prisma.gameAccount.update({
+        where: { id: params.id },
+        data: { archived: true, active: false },
+      });
+      await writeAudit({ action: "game-account.archive", targetType: "gameAccount", targetId: params.id });
+      return NextResponse.json({ ok: true, archived: true });
+    }
+    throw err;
+  }
   await writeAudit({ action: "game-account.delete", targetType: "gameAccount", targetId: params.id });
   return NextResponse.json({ ok: true });
 }

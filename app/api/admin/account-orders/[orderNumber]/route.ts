@@ -17,7 +17,16 @@ export async function GET(
 ) {
   const order = await prisma.gameAccountOrder.findUnique({
     where: { orderNumber: params.orderNumber },
-    include: { items: { include: { gameAccount: { select: { credentials: true, title: true } } } } },
+    include: {
+      items: {
+        include: {
+          gameAccount: { select: { credentials: true, title: true, stockMode: true } },
+          // Which real login(s) this line actually got handed, for MULTI
+          // accounts — see lib/gameAccountFulfillment.ts.
+          stockItems: { select: { username: true, password: true, notes: true } },
+        },
+      },
+    },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(order);

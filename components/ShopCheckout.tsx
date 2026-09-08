@@ -31,10 +31,12 @@ interface ShopCheckoutProps {
   // there's already an unpaid order sitting from a previous visit.
   paymentPageHref: (orderNumber: string) => string;
   // Whether to show the "Telegram / phone / email" field in the Payment
-  // step. Defaults to true (Accounts marketplace still needs it — admin
-  // reaches out to the buyer directly). Game Items no longer needs it: a
-  // MANUAL order sends the buyer straight to admin's Telegram, with the
-  // order details pre-filled, right after payment is confirmed.
+  // step. Both marketplaces pass false: neither needs it anymore. A MANUAL
+  // order (Accounts or Game Items) sends the buyer straight to admin's
+  // Telegram, with the order number and items pre-filled, right after
+  // payment is confirmed — see MarketplaceOrderTracker's
+  // autoRedirectManualPaid. Kept as a prop (rather than deleted outright)
+  // in case a future marketplace still wants to collect it upfront.
   collectContact?: boolean;
 }
 
