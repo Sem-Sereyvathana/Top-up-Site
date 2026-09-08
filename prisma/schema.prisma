@@ -4,8 +4,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Supabase's pooled connection (port 6543, via PgBouncer) can't run schema
+  // changes reliably, so `prisma db push`/migrations use this direct one
+  // (port 5432) instead. Everyday app queries still use DATABASE_URL above.
+  directUrl = env("DIRECT_URL")
 }
 
 model Game {

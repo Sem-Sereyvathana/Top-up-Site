@@ -1,8 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { put } from "@vercel/blob";
 import crypto from "crypto";
 
 export const runtime = "nodejs";
@@ -47,17 +46,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate a safe random filename â€” ignore the client-supplied name
+    // Generate a safe random filename — ignore the client-supplied name
     // entirely to prevent path traversal and collisions.
     const name = `${Date.now()}-${crypto.randomBytes(8).toString("hex")}.${ext}`;
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
-    await mkdir(uploadsDir, { recursive: true });
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(uploadsDir, name), buffer);
+    // Vercel's serverless functions have a read-only filesystem (aside from
+    // /tmp, which is ephemeral and never publicly served), so files can't be
+    // saved to disk the way they could in a normal always-on server. Vercel
+    // Blob stores the file remotely instead and hands back a permanent
+    // public URL — see BLOB_READ_WRITE_TOKEN in .env.example.
+    const blob = await put(name, file, {
+      access: "public",
+      contentType: file.type,
+    });
 
     return NextResponse.json({
-      url: `/uploads/${name}`,
+      url: blob.url,
       size: file.size,
       type: file.type,
     });
@@ -66,3 +70,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 }
+
