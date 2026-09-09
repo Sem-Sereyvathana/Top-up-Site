@@ -31,9 +31,9 @@ export default async function HomePage() {
       {/* 1. Running Marquee Welcome Banner */}
       <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 py-2.5 text-white font-bold text-xs sm:text-sm tracking-wide shadow-md">
         <div className="flex w-max animate-marquee space-x-8 whitespace-nowrap">
-          <span>🎉 WELCOME TO SHARUTOPUP — CAMBODIA&apos;S FASTEST &amp; MOST SECURE GAME TOP-UP STORE! ⚡ 24/7 INSTANT DELIVERY </span>
-          <span>🎉 WELCOME TO SHARUTOPUP — CAMBODIA&apos;S FASTEST &amp; MOST SECURE GAME TOP-UP STORE! ⚡ 24/7 INSTANT DELIVERY </span>
-          <span>🎉 WELCOME TO SHARUTOPUP — CAMBODIA&apos;S FASTEST &amp; MOST SECURE GAME TOP-UP STORE! ⚡ 24/7 INSTANT DELIVERY </span>
+          <span>🎉 WELCOME TO SHARUSTORE — CAMBODIA&apos;S FASTEST &amp; MOST SECURE GAME TOP-UP STORE! ⚡ 24/7 INSTANT DELIVERY </span>
+          <span>🎉 WELCOME TO SHARUSTORE — CAMBODIA&apos;S FASTEST &amp; MOST SECURE GAME TOP-UP STORE! ⚡ 24/7 INSTANT DELIVERY </span>
+          <span>🎉 WELCOME TO SHARUSTORE — CAMBODIA&apos;S FASTEST &amp; MOST SECURE GAME TOP-UP STORE! ⚡ 24/7 INSTANT DELIVERY </span>
         </div>
       </div>
 

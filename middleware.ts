@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { checkRateLimit } from "@/lib/rateLimit";
 
-const SESSION_COOKIE = "rithtopup_admin";
+const SESSION_COOKIE = "sharustore_admin";
 
 function getSecret() {
   const secret = process.env.JWT_SECRET;
@@ -10,8 +11,31 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
+function clientIp(req: NextRequest): string {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // Rate limit admin login + TOTP verification — 10 attempts per 10
+  // minutes per IP. These two POST endpoints are exempted from the
+  // session check below (they're how a session gets created in the first
+  // place), so without this they'd have zero protection against
+  // brute-forcing across many different admin emails, on top of the
+  // per-account lockout already in lib/auth.ts.
+  if (
+    req.method === "POST" &&
+    (pathname === "/api/admin/auth" || pathname === "/api/admin/auth/totp")
+  ) {
+    const ip = clientIp(req);
+    if (!checkRateLimit(`admin-auth:${ip}`, 10, 10 * 60 * 1000)) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please wait a few minutes and try again." },
+        { status: 429 }
+      );
+    }
+  }
 
   // Always let the login page and the login/logout API through.
   if (pathname === "/admin/login" || pathname.startsWith("/api/admin/auth")) {

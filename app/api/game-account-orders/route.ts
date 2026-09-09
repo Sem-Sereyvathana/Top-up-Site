@@ -251,7 +251,7 @@ export async function POST(req: NextRequest) {
         returnUrl: `${publicUrl}/order/accounts?number=${order.orderNumber}`,
         cancelUrl: `${publicUrl}/accounts`,
         callbackUrl: `${publicUrl}/api/payment/webhook/khpay`,
-        note: `SHARUTOPUP · Accounts · ${packageDescription}`,
+        note: `SHARUSTORE · Accounts · ${packageDescription}`,
         metadata: {
           order_number: order.orderNumber,
           kind: "game_account",

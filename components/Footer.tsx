@@ -27,7 +27,7 @@ export default function Footer() {
               Support
             </h4>
             <ul className="space-y-2">
-              <li>Telegram: @sharutopup</li>
+              <li>Telegram: @sharustore</li>
               <li>24/7 Service</li>
             </ul>
           </div>
@@ -36,7 +36,7 @@ export default function Footer() {
 
         {/* Bottom Bar */}
         <div className="mt-8 pt-6 border-t border-fox-border/40 flex flex-col sm:flex-row justify-between items-center gap-4 text-[11px] text-fox-muted">
-          <p>© {new Date().getFullYear()} SHARUTOPUP. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} SHARUSTORE. All rights reserved.</p>
           <p>Not affiliated with Moonton, Garena, Tencent or HoYoverse.</p>
         </div>
       </div>

@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import ShopCartBrowser, { ShopCartCard } from "@/components/ShopCartBrowser";
 
 export const metadata: Metadata = {
-  title: "Game Items — SHARUTOPUP",
+  title: "Game Items — SHARUSTORE",
   description: "Buy in-game items, skins, and bundles — instant delivery.",
 };
 

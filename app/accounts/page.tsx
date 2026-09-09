@@ -6,7 +6,7 @@ import HeroCarousel from "@/components/HeroCarousel";
 import ShopCartBrowser, { ShopCartCard } from "@/components/ShopCartBrowser";
 
 export const metadata: Metadata = {
-  title: "Accounts — SHARUTOPUP",
+  title: "Accounts — SHARUSTORE",
   description: "Buy verified game accounts — instant handover, secure payment.",
 };
 

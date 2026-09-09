@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import TwoFactorSettings from "@/components/admin/TwoFactorSettings";
 
 export default function AdminSettingsPage() {
   const [form, setForm] = useState<any>(null);
@@ -194,6 +195,8 @@ export default function AdminSettingsPage() {
           {saved && <span className="text-sm text-green-400">✓ Saved</span>}
         </div>
       </form>
+
+      <TwoFactorSettings />
     </div>
   );
 }

@@ -144,7 +144,7 @@ export default function MarketplaceCheckout({
           body: JSON.stringify({
             amount: order.amountUsd.toFixed(2),
             currency: "USD",
-            note: `SHARUTOPUP Order ${order.orderNumber}`,
+            note: `SHARUSTORE Order ${order.orderNumber}`,
             success_url: `${origin}${orderTrackHref(order.orderNumber)}`,
             cancel_url: `${origin}${cancelHref}`,
           }),

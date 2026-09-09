@@ -1,0 +1,476 @@
+diff --git a/app/accounts/[id]/page.tsx b/app/accounts/[id]/page.tsx
+index bd95131..e3199af 100644
+--- a/app/accounts/[id]/page.tsx
++++ b/app/accounts/[id]/page.tsx
+@@ -36,9 +36,9 @@ async function getAccount(id: string) {
+ 
+ export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+   const account = await getAccount(params.id);
+-  if (!account) return { title: "Account — SHARUTOPUP" };
++  if (!account) return { title: "Account — SHARUSTORE" };
+   return {
+-    title: `${account.title} — SHARUTOPUP`,
++    title: `${account.title} — SHARUSTORE`,
+     description: account.description || `Buy ${account.title} — verified account, secure payment.`,
+   };
+ }
+diff --git a/app/accounts/page.tsx b/app/accounts/page.tsx
+index da6a217..f0f5e92 100644
+--- a/app/accounts/page.tsx
++++ b/app/accounts/page.tsx
+@@ -6,7 +6,7 @@ import HeroCarousel from "@/components/HeroCarousel";
+ import ShopCartBrowser, { ShopCartCard } from "@/components/ShopCartBrowser";
+ 
+ export const metadata: Metadata = {
+-  title: "Accounts — SHARUTOPUP",
++  title: "Accounts — SHARUSTORE",
+   description: "Buy verified game accounts — instant handover, secure payment.",
+ };
+ 
+diff --git a/app/admin/(protected)/settings/page.tsx b/app/admin/(protected)/settings/page.tsx
+index 5cc6c4e..6bd4fc6 100644
+--- a/app/admin/(protected)/settings/page.tsx
++++ b/app/admin/(protected)/settings/page.tsx
+@@ -1,6 +1,7 @@
+ "use client";
+ 
+ import { useEffect, useState } from "react";
++import TwoFactorSettings from "@/components/admin/TwoFactorSettings";
+ 
+ export default function AdminSettingsPage() {
+   const [form, setForm] = useState<any>(null);
+@@ -194,6 +195,8 @@ export default function AdminSettingsPage() {
+           {saved && <span className="text-sm text-green-400">✓ Saved</span>}
+         </div>
+       </form>
++
++      <TwoFactorSettings />
+     </div>
+   );
+ }
+diff --git a/app/admin/login/page.tsx b/app/admin/login/page.tsx
+index 89fb3e8..017c460 100644
+--- a/app/admin/login/page.tsx
++++ b/app/admin/login/page.tsx
+@@ -11,6 +11,11 @@ export default function AdminLoginPage() {
+   const [error, setError] = useState<string | null>(null);
+   const [loading, setLoading] = useState(false);
+ 
++  // Set once the password step succeeds for an account with app
++  // authentication enabled — switches the form to the code-entry step.
++  const [pendingToken, setPendingToken] = useState<string | null>(null);
++  const [code, setCode] = useState("");
++
+   async function handleLogin(e: React.FormEvent) {
+     e.preventDefault();
+     setError(null);
+@@ -23,6 +28,33 @@ export default function AdminLoginPage() {
+       });
+       const data = await res.json();
+       if (!res.ok) throw new Error(data.error || "Login failed");
++
++      if (data.requiresTotp) {
++        setPendingToken(data.pendingToken);
++        setLoading(false);
++        return;
++      }
++
++      router.push("/admin");
++      router.refresh();
++    } catch (err: any) {
++      setError(err.message);
++      setLoading(false);
++    }
++  }
++
++  async function handleVerifyCode(e: React.FormEvent) {
++    e.preventDefault();
++    setError(null);
++    setLoading(true);
++    try {
++      const res = await fetch("/api/admin/auth/totp", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({ pendingToken, code }),
++      });
++      const data = await res.json();
++      if (!res.ok) throw new Error(data.error || "Invalid code");
+       router.push("/admin");
+       router.refresh();
+     } catch (err: any) {
+@@ -46,42 +78,91 @@ export default function AdminLoginPage() {
+         </Link>
+ 
+         <div className="card p-8">
+-          <h1 className="font-display text-2xl font-bold mb-2">Admin Login</h1>
+-          <p className="text-sm text-fox-muted mb-6">Sign in to manage orders and products.</p>
+-
+-          <form onSubmit={handleLogin} className="space-y-4">
+-            <div>
+-              <label className="label">Email</label>
+-              <input
+-                type="email"
+-                className="input"
+-                value={email}
+-                onChange={(e) => setEmail(e.target.value)}
+-                required
+-                autoFocus
+-              />
+-            </div>
+-            <div>
+-              <label className="label">Password</label>
+-              <input
+-                type="password"
+-                className="input"
+-                value={password}
+-                onChange={(e) => setPassword(e.target.value)}
+-                required
+-              />
+-            </div>
+-
+-            {error && (
+-              <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+-                {error}
+-              </div>
+-            )}
+-
+-            <button type="submit" disabled={loading} className="btn-primary w-full">
+-              {loading ? "Signing in..." : "Sign In"}
+-            </button>
+-          </form>
++          {!pendingToken ? (
++            <>
++              <h1 className="font-display text-2xl font-bold mb-2">Admin Login</h1>
++              <p className="text-sm text-fox-muted mb-6">Sign in to manage orders and products.</p>
++
++              <form onSubmit={handleLogin} className="space-y-4">
++                <div>
++                  <label className="label">Email</label>
++                  <input
++                    type="email"
++                    className="input"
++                    value={email}
++                    onChange={(e) => setEmail(e.target.value)}
++                    required
++                    autoFocus
++                  />
++                </div>
++                <div>
++                  <label className="label">Password</label>
++                  <input
++                    type="password"
++                    className="input"
++                    value={password}
++                    onChange={(e) => setPassword(e.target.value)}
++                    required
++                  />
++                </div>
++
++                {error && (
++                  <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
++                    {error}
++                  </div>
++                )}
++
++                <button type="submit" disabled={loading} className="btn-primary w-full">
++                  {loading ? "Signing in..." : "Sign In"}
++                </button>
++              </form>
++            </>
++          ) : (
++            <>
++              <h1 className="font-display text-2xl font-bold mb-2">Enter your code</h1>
++              <p className="text-sm text-fox-muted mb-6">
++                Open your authenticator app and enter the 6-digit code. Lost your device? Enter a backup code instead.
++              </p>
++
++              <form onSubmit={handleVerifyCode} className="space-y-4">
++                <div>
++                  <label className="label">Code</label>
++                  <input
++                    type="text"
++                    inputMode="numeric"
++                    autoComplete="one-time-code"
++                    className="input tracking-[0.3em] text-center text-lg font-mono"
++                    value={code}
++                    onChange={(e) => setCode(e.target.value)}
++                    placeholder="000000"
++                    autoFocus
++                    required
++                  />
++                </div>
++
++                {error && (
++                  <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
++                    {error}
++                  </div>
++                )}
++
++                <button type="submit" disabled={loading} className="btn-primary w-full">
++                  {loading ? "Verifying..." : "Verify"}
++                </button>
++                <button
++                  type="button"
++                  onClick={() => {
++                    setPendingToken(null);
++                    setCode("");
++                    setError(null);
++                  }}
++                  className="w-full text-center text-xs text-fox-muted hover:text-fox-text"
++                >
++                  ← Back to sign in
++                </button>
++              </form>
++            </>
++          )}
+ 
+           <p className="text-xs text-fox-muted text-center mt-6">
+             Authorized personnel only.
+diff --git a/app/api/admin/auth/route.ts b/app/api/admin/auth/route.ts
+index 2b51ae2..215de40 100644
+--- a/app/api/admin/auth/route.ts
++++ b/app/api/admin/auth/route.ts
+@@ -1,13 +1,8 @@
+-﻿import { NextRequest, NextResponse } from "next/server";
++import { NextRequest, NextResponse } from "next/server";
+ export const dynamic = "force-dynamic";
+ 
+ import { z } from "zod";
+-import {
+-  verifyAdminCredentials,
+-  createSession,
+-  setSessionCookie,
+-  clearSessionCookie,
+-} from "@/lib/auth";
++import { attemptAdminLogin, setSessionCookie, clearSessionCookie } from "@/lib/auth";
+ 
+ const loginSchema = z.object({
+   email: z.string().email(),
+@@ -22,15 +17,20 @@ export async function POST(req: NextRequest) {
+       return NextResponse.json({ error: "Invalid credentials" }, { status: 400 });
+     }
+ 
+-    const admin = await verifyAdminCredentials(parsed.data.email, parsed.data.password);
+-    if (!admin) {
+-      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
++    const result = await attemptAdminLogin(parsed.data.email, parsed.data.password);
++    if (!result.ok) {
++      return NextResponse.json({ error: result.error }, { status: 401 });
+     }
+ 
+-    const token = await createSession(admin);
+-    await setSessionCookie(token);
++    if (result.requiresTotp) {
++      // Password was correct, but this admin has app authentication
++      // enabled — the client must submit the 6-digit code to
++      // /api/admin/auth/totp before a real session is created.
++      return NextResponse.json({ ok: true, requiresTotp: true, pendingToken: result.pendingToken });
++    }
+ 
+-    return NextResponse.json({ ok: true, email: admin.email });
++    await setSessionCookie(result.token);
++    return NextResponse.json({ ok: true, requiresTotp: false, email: result.email });
+   } catch (err) {
+     const message = err instanceof Error ? err.message : "Server error";
+     console.error("[admin/auth] login failed:", message);
+diff --git a/lib/auth.ts b/lib/auth.ts
+index 67ff424..7ee7278 100644
+--- a/lib/auth.ts
++++ b/lib/auth.ts
+@@ -1,11 +1,25 @@
+ import { SignJWT, jwtVerify } from "jose";
+ import { cookies } from "next/headers";
+ import bcrypt from "bcryptjs";
++import { authenticator } from "otplib";
+ import { prisma } from "./prisma";
+ 
+ const SESSION_COOKIE = "rithtopup_admin";
+ const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days
+ 
++// Failed-attempt lockout — applies to both the password step and the TOTP
++// code step below, keyed off the same Admin row either way, so someone who
++// already has the password still can't brute-force the 6-digit code.
++const MAX_LOGIN_ATTEMPTS = 5;
++const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
++
++// Short-lived token issued after a correct password when the account has
++// app authentication enabled — proves the password step passed without
++// creating a real session yet. Verified in a separate namespace (`type`
++// claim) from a real session token so one can never be mistaken for the
++// other. Never written to the session cookie.
++const TOTP_PENDING_TTL = 5 * 60; // 5 minutes
++
+ function getSecret() {
+   const secret = process.env.JWT_SECRET;
+   if (!secret || secret.length < 32) {
+@@ -21,7 +35,7 @@ export interface AdminSession {
+ }
+ 
+ export async function createSession(payload: AdminSession): Promise<string> {
+-  return await new SignJWT({ ...payload })
++  return await new SignJWT({ ...payload, type: "session" })
+     .setProtectedHeader({ alg: "HS256" })
+     .setIssuedAt()
+     .setExpirationTime(`${SESSION_TTL}s`)
+@@ -67,7 +81,136 @@ export async function requireAdmin(): Promise<AdminSession> {
+   return admin;
+ }
+ 
++// ---- Lockout helpers ----------------------------------------------------
++
++function remainingLockMs(admin: { lockedUntil: Date | null }): number {
++  if (!admin.lockedUntil) return 0;
++  const ms = admin.lockedUntil.getTime() - Date.now();
++  return ms > 0 ? ms : 0;
++}
++
++async function recordFailedAttempt(adminId: string, currentAttempts: number) {
++  const attempts = currentAttempts + 1;
++  const lockedUntil = attempts >= MAX_LOGIN_ATTEMPTS ? new Date(Date.now() + LOCKOUT_MS) : null;
++  await prisma.admin.update({
++    where: { id: adminId },
++    data: {
++      failedLoginAttempts: attempts >= MAX_LOGIN_ATTEMPTS ? 0 : attempts,
++      lockedUntil,
++    },
++  });
++  return lockedUntil;
++}
++
++async function resetFailedAttempts(adminId: string) {
++  await prisma.admin.update({
++    where: { id: adminId },
++    data: { failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
++  });
++}
++
++function lockMessage(ms: number) {
++  const mins = Math.ceil(ms / 60000);
++  return `Too many failed attempts. Try again in ${mins} minute${mins === 1 ? "" : "s"}.`;
++}
++
++// ---- Login step 1: email + password -------------------------------------
++
++export type LoginResult =
++  | { ok: false; error: string }
++  | { ok: true; requiresTotp: true; pendingToken: string }
++  | { ok: true; requiresTotp: false; token: string; email: string };
++
++export async function attemptAdminLogin(email: string, password: string): Promise<LoginResult> {
++  const admin = await prisma.admin.findUnique({ where: { email } });
++  // Same generic error whether the email doesn't exist or the password is
++  // wrong, so a caller can't use this to enumerate valid admin emails.
++  const genericError = "Invalid email or password";
++  if (!admin || !admin.active) return { ok: false, error: genericError };
++
++  const lockedMs = remainingLockMs(admin);
++  if (lockedMs > 0) return { ok: false, error: lockMessage(lockedMs) };
++
++  const ok = await bcrypt.compare(password, admin.passwordHash);
++  if (!ok) {
++    const lockedUntil = await recordFailedAttempt(admin.id, admin.failedLoginAttempts);
++    if (lockedUntil) return { ok: false, error: lockMessage(LOCKOUT_MS) };
++    return { ok: false, error: genericError };
++  }
++
++  if (admin.totpEnabled) {
++    const pendingToken = await new SignJWT({ adminId: admin.id, type: "totp_pending" })
++      .setProtectedHeader({ alg: "HS256" })
++      .setIssuedAt()
++      .setExpirationTime(`${TOTP_PENDING_TTL}s`)
++      .sign(getSecret());
++    return { ok: true, requiresTotp: true, pendingToken };
++  }
++
++  await resetFailedAttempts(admin.id);
++  const token = await createSession({ adminId: admin.id, email: admin.email, role: admin.role });
++  return { ok: true, requiresTotp: false, token, email: admin.email };
++}
++
++// ---- Login step 2: TOTP code (only when app authentication is on) ------
++
++export type TotpVerifyResult =
++  | { ok: false; error: string }
++  | { ok: true; token: string; email: string };
++
++export async function completeTotpLogin(pendingToken: string, code: string): Promise<TotpVerifyResult> {
++  let adminId: string;
++  try {
++    const { payload } = await jwtVerify(pendingToken, getSecret());
++    if (payload.type !== "totp_pending") throw new Error("wrong token type");
++    adminId = payload.adminId as string;
++  } catch {
++    return { ok: false, error: "Session expired — please sign in again." };
++  }
++
++  const admin = await prisma.admin.findUnique({ where: { id: adminId } });
++  if (!admin || !admin.active || !admin.totpEnabled || !admin.totpSecret) {
++    return { ok: false, error: "Session expired — please sign in again." };
++  }
++
++  const lockedMs = remainingLockMs(admin);
++  if (lockedMs > 0) return { ok: false, error: lockMessage(lockedMs) };
++
++  const cleanCode = code.trim().replace(/\s+/g, "");
++  let matched = authenticator.check(cleanCode, admin.totpSecret);
++
++  // Fall back to backup codes (single-use, bcrypt-hashed) if the 6-digit
++  // code doesn't match — lets the admin in if they've lost their device.
++  let matchedBackupHash: string | null = null;
++  if (!matched && cleanCode.length >= 8) {
++    for (const hash of admin.totpBackupCodes) {
++      if (await bcrypt.compare(cleanCode, hash)) {
++        matchedBackupHash = hash;
++        matched = true;
++        break;
++      }
++    }
++  }
++
++  if (!matched) {
++    const lockedUntil = await recordFailedAttempt(admin.id, admin.failedLoginAttempts);
++    if (lockedUntil) return { ok: false, error: lockMessage(LOCKOUT_MS) };
++    return { ok: false, error: "Invalid code" };
++  }
++
++  const data: any = { failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() };
++  if (matchedBackupHash) {
++    data.totpBackupCodes = admin.totpBackupCodes.filter((h) => h !== matchedBackupHash);
++  }
++  await prisma.admin.update({ where: { id: admin.id }, data });
++
++  const token = await createSession({ adminId: admin.id, email: admin.email, role: admin.role });
++  return { ok: true, token, email: admin.email };
++}
++
+ export async function verifyAdminCredentials(email: string, password: string) {
++  // Kept for compatibility with any other caller — no lockout/TOTP
++  // awareness. The login route below uses attemptAdminLogin instead.
+   const admin = await prisma.admin.findUnique({ where: { email } });
+   if (!admin || !admin.active) return null;
+   const ok = await bcrypt.compare(password, admin.passwordHash);
+diff --git a/package.json b/package.json
+index 339b49e..ea1f51f 100644
+--- a/package.json
++++ b/package.json
+@@ -11,17 +11,18 @@
+     "db:seed": "tsx prisma/seed.ts",
+     "db:backfill-item-categories": "tsx prisma/scripts/backfill-item-categories.ts",
+     "db:backfill-account-deliverymode": "tsx prisma/scripts/backfill-account-deliverymode.ts",
+-    "db:backfill-account-stock-pool": "tsx prisma/scripts/backfill-account-stock-pool.ts",
+     "db:studio": "prisma studio"
+   },
+   "dependencies": {
+     "@prisma/client": "^5.22.0",
+-    "@vercel/blob": "^0.27.0",
++    "@types/qrcode": "^1.5.6",
+     "bcryptjs": "^2.4.3",
+     "jose": "^5.9.6",
+     "lucide-react": "^1.8.0",
+     "next": "14.2.18",
++    "otplib": "^13.5.0",
+     "pdfkit": "^0.15.2",
++    "qrcode": "^1.5.4",
+     "react": "^18.3.1",
+     "react-dom": "^18.3.1",
+     "zod": "^3.23.8"

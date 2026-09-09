@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("⚡ Seeding RITHTOPUP database...");
+  console.log("⚡ Seeding SHARUSTORE database...");
 
   // --- Settings singleton ---
   await prisma.settings.upsert({
@@ -12,15 +12,15 @@ async function main() {
     update: {},
     create: {
       id: 1,
-      siteName: "RITHTOPUP",
+      siteName: "SHARUSTORE",
       exchangeRate: 4100,
-      supportTelegram: "@rithtopup",
-      supportEmail: "support@rithtopup.com",
+      supportTelegram: "@sharustore",
+      supportEmail: "support@sharustore.com",
     },
   });
 
   // --- Admin user ---
-  const adminEmail = process.env.ADMIN_EMAIL || "admin@rithtopup.com";
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@sharustore.com";
   const adminPassword = process.env.ADMIN_PASSWORD || "ChangeMeNow123!";
   const passwordHash = await bcrypt.hash(adminPassword, 10);
   await prisma.admin.upsert({
@@ -42,8 +42,8 @@ async function main() {
       name: "Mobile Legends: Bang Bang",
       publisher: "Moonton",
       description: "Top up Diamonds instantly for Mobile Legends",
-      imageUrl: "https://cdn.rithtopup.com/games/mlbb.jpg",
-      bannerUrl: "https://cdn.rithtopup.com/banners/mlbb.jpg",
+      imageUrl: "https://cdn.sharustore.com/games/mlbb.jpg",
+      bannerUrl: "https://cdn.sharustore.com/banners/mlbb.jpg",
       currencyName: "Diamonds",
       uidLabel: "User ID (Zone ID)",
       uidExample: "12345678",
@@ -75,8 +75,8 @@ async function main() {
       name: "Garena Free Fire",
       publisher: "Garena",
       description: "Top up Diamonds for Free Fire MAX and Free Fire",
-      imageUrl: "https://cdn.rithtopup.com/games/freefire.jpg",
-      bannerUrl: "https://cdn.rithtopup.com/banners/freefire.jpg",
+      imageUrl: "https://cdn.sharustore.com/games/freefire.jpg",
+      bannerUrl: "https://cdn.sharustore.com/banners/freefire.jpg",
       currencyName: "Diamonds",
       uidLabel: "Player ID",
       uidExample: "1234567890",
@@ -98,8 +98,8 @@ async function main() {
       name: "PUBG Mobile",
       publisher: "Tencent",
       description: "Top up UC for PUBG Mobile Global and KR",
-      imageUrl: "https://cdn.rithtopup.com/games/pubgm.jpg",
-      bannerUrl: "https://cdn.rithtopup.com/banners/pubgm.jpg",
+      imageUrl: "https://cdn.sharustore.com/games/pubgm.jpg",
+      bannerUrl: "https://cdn.sharustore.com/banners/pubgm.jpg",
       currencyName: "UC",
       uidLabel: "Player ID",
       uidExample: "5123456789",
@@ -119,7 +119,7 @@ async function main() {
       name: "Genshin Impact",
       publisher: "HoYoverse",
       description: "Top up Genesis Crystals for Genshin Impact",
-      imageUrl: "https://cdn.rithtopup.com/games/genshin.jpg",
+      imageUrl: "https://cdn.sharustore.com/games/genshin.jpg",
       currencyName: "Genesis Crystals",
       uidLabel: "UID",
       uidExample: "812345678",
@@ -142,7 +142,7 @@ async function main() {
       name: "Honkai: Star Rail",
       publisher: "HoYoverse",
       description: "Top up Oneiric Shards for Honkai: Star Rail",
-      imageUrl: "https://cdn.rithtopup.com/games/hsr.jpg",
+      imageUrl: "https://cdn.sharustore.com/games/hsr.jpg",
       currencyName: "Oneiric Shards",
       uidLabel: "UID",
       uidExample: "812345678",
@@ -161,7 +161,7 @@ async function main() {
       name: "Call of Duty: Mobile",
       publisher: "Activision",
       description: "Top up CP for Call of Duty Mobile",
-      imageUrl: "https://cdn.rithtopup.com/games/codm.jpg",
+      imageUrl: "https://cdn.sharustore.com/games/codm.jpg",
       currencyName: "CP",
       uidLabel: "Player ID",
       uidExample: "1234567890",

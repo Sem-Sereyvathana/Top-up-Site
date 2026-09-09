@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
         returnUrl: `${publicUrl}/order/items?number=${order.orderNumber}`,
         cancelUrl: `${publicUrl}/game-items`,
         callbackUrl: `${publicUrl}/api/payment/webhook/khpay`,
-        note: `SHARUTOPUP · Game Items · ${packageDescription}`,
+        note: `SHARUSTORE · Game Items · ${packageDescription}`,
         metadata: {
           order_number: order.orderNumber,
           kind: "game_item",

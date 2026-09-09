@@ -73,7 +73,7 @@ function renderPdf(order: {
       .font("Helvetica")
       .fontSize(9)
       .text("Instant game top-up · Cambodia", marginX, 76);
-    doc.fillColor("#94a3b8").fontSize(8).text("support: @rithtopup on Telegram", marginX, 90);
+    doc.fillColor("#94a3b8").fontSize(8).text("support: @sharustore on Telegram", marginX, 90);
 
     // INVOICE title right
     doc
@@ -356,7 +356,7 @@ function renderPdf(order: {
       .fillColor(BRAND.primary)
       .font("Helvetica-Bold")
       .fontSize(9)
-      .text("Telegram: @rithtopup", marginX, footerY + 78);
+      .text("Telegram: @sharustore", marginX, footerY + 78);
     doc
       .fillColor("#94a3b8")
       .font("Helvetica")

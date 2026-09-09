@@ -138,7 +138,7 @@ export default function CheckoutPage() {
           body: JSON.stringify({
             amount: order.amountUsd.toFixed(2),
             currency: "USD",
-            note: `RITHTOPUP Order ${order.orderNumber}`,
+            note: `SHARUSTORE Order ${order.orderNumber}`,
             success_url: `${origin}/order?number=${order.orderNumber}`,
             cancel_url: `${origin}/games/${order.gameSlug}`,
           }),

@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   const simulatedPage = (trackerPath: string) => `<!doctype html>
 <html>
 <head>
-<title>Payment Simulated â€” RITHTOPUP</title>
+<title>Payment Simulated â€” SHARUSTORE</title>
 <meta http-equiv="refresh" content="3;url=${baseUrl}${trackerPath}">
 <style>
   body { font-family: system-ui; background: #0A0A0F; color: #F5F5F7; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }

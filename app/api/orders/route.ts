@@ -355,7 +355,7 @@ export async function POST(req: NextRequest) {
         returnUrl: `${publicUrl}/order?number=${order.orderNumber}`,
         cancelUrl: `${publicUrl}/games/${game.slug}`,
         callbackUrl: `${publicUrl}/api/payment/webhook/khpay`,
-        note: `RITHTOPUP · ${game.name} · ${packageDescription}`,
+        note: `SHARUSTORE · ${game.name} · ${packageDescription}`,
         customerEmail: data.customerEmail,
         metadata: {
           game_slug: game.slug,

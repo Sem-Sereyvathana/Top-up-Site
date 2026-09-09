@@ -11,6 +11,11 @@ export default function AdminLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Set once the password step succeeds for an account with app
+  // authentication enabled — switches the form to the code-entry step.
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -23,6 +28,33 @@ export default function AdminLoginPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");
+
+      if (data.requiresTotp) {
+        setPendingToken(data.pendingToken);
+        setLoading(false);
+        return;
+      }
+
+      router.push("/admin");
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/auth/totp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pendingToken, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Invalid code");
       router.push("/admin");
       router.refresh();
     } catch (err: any) {
@@ -46,42 +78,91 @@ export default function AdminLoginPage() {
         </Link>
 
         <div className="card p-8">
-          <h1 className="font-display text-2xl font-bold mb-2">Admin Login</h1>
-          <p className="text-sm text-fox-muted mb-6">Sign in to manage orders and products.</p>
+          {!pendingToken ? (
+            <>
+              <h1 className="font-display text-2xl font-bold mb-2">Admin Login</h1>
+              <p className="text-sm text-fox-muted mb-6">Sign in to manage orders and products.</p>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="label">Email</label>
-              <input
-                type="email"
-                className="input"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
-              />
-            </div>
-            <div>
-              <label className="label">Password</label>
-              <input
-                type="password"
-                className="input"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="label">Email</label>
+                  <input
+                    type="email"
+                    className="input"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="label">Password</label>
+                  <input
+                    type="password"
+                    className="input"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
 
-            {error && (
-              <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
-                {error}
-              </div>
-            )}
+                {error && (
+                  <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+                    {error}
+                  </div>
+                )}
 
-            <button type="submit" disabled={loading} className="btn-primary w-full">
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
-          </form>
+                <button type="submit" disabled={loading} className="btn-primary w-full">
+                  {loading ? "Signing in..." : "Sign In"}
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <h1 className="font-display text-2xl font-bold mb-2">Enter your code</h1>
+              <p className="text-sm text-fox-muted mb-6">
+                Open your authenticator app and enter the 6-digit code. Lost your device? Enter a backup code instead.
+              </p>
+
+              <form onSubmit={handleVerifyCode} className="space-y-4">
+                <div>
+                  <label className="label">Code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    className="input tracking-[0.3em] text-center text-lg font-mono"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder="000000"
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                {error && (
+                  <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+                    {error}
+                  </div>
+                )}
+
+                <button type="submit" disabled={loading} className="btn-primary w-full">
+                  {loading ? "Verifying..." : "Verify"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingToken(null);
+                    setCode("");
+                    setError(null);
+                  }}
+                  className="w-full text-center text-xs text-fox-muted hover:text-fox-text"
+                >
+                  ← Back to sign in
+                </button>
+              </form>
+            </>
+          )}
 
           <p className="text-xs text-fox-muted text-center mt-6">
             Authorized personnel only.

@@ -36,9 +36,9 @@ async function getAccount(id: string) {
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const account = await getAccount(params.id);
-  if (!account) return { title: "Account — SHARUTOPUP" };
+  if (!account) return { title: "Account — SHARUSTORE" };
   return {
-    title: `${account.title} — SHARUTOPUP`,
+    title: `${account.title} — SHARUSTORE`,
     description: account.description || `Buy ${account.title} — verified account, secure payment.`,
   };
 }

@@ -181,14 +181,27 @@ model PromoCode {
 }
 
 model Admin {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String
-  name         String?
-  role         String    @default("ADMIN")
-  active       Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  lastLoginAt  DateTime?
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  passwordHash        String
+  name                String?
+  role                String    @default("ADMIN")
+  active              Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  lastLoginAt         DateTime?
+
+  // Failed-attempt lockout (per account, keyed by email — see lib/auth.ts).
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  // TOTP app authentication (Google Authenticator / Authy / etc). `totpSecret`
+  // is only set once enrollment is completed; `totpEnabled` gates whether
+  // login actually requires a code, so scanning the QR doesn't lock anyone
+  // out mid-setup. `totpBackupCodes` are bcrypt-hashed single-use recovery
+  // codes shown once at enrollment, for when the admin loses their device.
+  totpSecret          String?
+  totpEnabled         Boolean   @default(false)
+  totpBackupCodes     String[]  @default([])
 }
 
 model Settings {
@@ -222,17 +235,6 @@ model HeroBanner {
   imageUrl  String
   linkUrl   String?
   ctaLabel  String?
-  active    Boolean  @default(true)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Faq {
-  id        String   @id @default(cuid())
-  question  String
-  answer    String
-  category  String   @default("general")
   active    Boolean  @default(true)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())

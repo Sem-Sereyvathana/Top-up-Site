@@ -10,6 +10,7 @@ import {
 } from "@/lib/userAuth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 const loginSchema = z.object({
   identifier: z.string().min(3).max(120),
@@ -17,6 +18,16 @@ const loginSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // 10 attempts per 10 minutes per IP — slows brute-forcing without
+  // blocking a normal user who mistypes their password a couple times.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!checkRateLimit(`login:${ip}`, 10, 10 * 60 * 1000)) {
+    return NextResponse.json(
+      { error: "Too many attempts. Please wait a few minutes and try again." },
+      { status: 429 }
+    );
+  }
+
   const body = await req.json().catch(() => ({}));
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) {
