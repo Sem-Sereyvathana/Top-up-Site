@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 const patchSchema = z.object({
   transactionId: z.string().optional(),
@@ -10,9 +11,16 @@ const patchSchema = z.object({
 });
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { orderNumber: string } }
 ) {
+  // Same reasoning as app/api/orders/[orderNumber]/route.ts — generous
+  // limit to allow for legitimate checkout polling, no credentials
+  // returned by this route so a looser cap is fine here.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!(await checkRateLimit(`order-lookup:item:${ip}`, 200, 10 * 60 * 1000))) {
+    return NextResponse.json({ error: "Too many requests. Please wait a bit and try again." }, { status: 429 });
+  }
   const order = await prisma.gameItemOrder.findUnique({
     where: { orderNumber: params.orderNumber.toUpperCase() },
     include: {
@@ -43,7 +51,6 @@ export async function GET(
     paidAt: order.paidAt,
     deliveredAt: order.deliveredAt,
     supportTelegram: settings?.supportTelegram ?? null,
-    khpayKey: order.status === "PENDING" ? (process.env.KHPAY_API_KEY || null) : null,
   });
 }
 

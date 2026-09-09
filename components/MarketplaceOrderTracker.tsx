@@ -197,7 +197,7 @@ export default function MarketplaceOrderTracker({
         {!loading && !order && !error && (
           <div className="card p-8 mb-8 text-center">
             <p className="text-sm text-fox-muted mb-4">
-              We couldn't find an order number in this link. You can view all your past orders in History.
+              We couldn&apos;t find an order number in this link. You can view all your past orders in History.
             </p>
             <Link href="/history" className="btn-primary inline-flex items-center gap-2">
               <History className="h-4 w-4" strokeWidth={2} />

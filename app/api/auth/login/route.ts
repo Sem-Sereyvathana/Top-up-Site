@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   // 10 attempts per 10 minutes per IP — slows brute-forcing without
   // blocking a normal user who mistypes their password a couple times.
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!checkRateLimit(`login:${ip}`, 10, 10 * 60 * 1000)) {
+  if (!(await checkRateLimit(`login:${ip}`, 10, 10 * 60 * 1000))) {
     return NextResponse.json(
       { error: "Too many attempts. Please wait a few minutes and try again." },
       { status: 429 }

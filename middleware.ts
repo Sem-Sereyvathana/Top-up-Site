@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
-import { checkRateLimit } from "@/lib/rateLimit";
 
 const SESSION_COOKIE = "sharustore_admin";
 
@@ -11,31 +10,18 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
-function clientIp(req: NextRequest): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-}
-
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Rate limit admin login + TOTP verification — 10 attempts per 10
-  // minutes per IP. These two POST endpoints are exempted from the
-  // session check below (they're how a session gets created in the first
-  // place), so without this they'd have zero protection against
-  // brute-forcing across many different admin emails, on top of the
-  // per-account lockout already in lib/auth.ts.
-  if (
-    req.method === "POST" &&
-    (pathname === "/api/admin/auth" || pathname === "/api/admin/auth/totp")
-  ) {
-    const ip = clientIp(req);
-    if (!checkRateLimit(`admin-auth:${ip}`, 10, 10 * 60 * 1000)) {
-      return NextResponse.json(
-        { error: "Too many attempts. Please wait a few minutes and try again." },
-        { status: 429 }
-      );
-    }
-  }
+  // Admin login + TOTP rate limiting used to live here, but middleware
+  // runs on the Edge runtime, which can't use Prisma — so it was backed by
+  // an in-memory Map that didn't actually work across Vercel's separate
+  // serverless instances. It now lives in the route handlers themselves
+  // (app/api/admin/auth/route.ts and app/api/admin/auth/totp/route.ts),
+  // which already run in the Node runtime and already use Prisma, so the
+  // persistent DB-backed limiter in lib/rateLimit.ts can be used there
+  // directly. Nothing else changes here — those two paths are still
+  // exempted from the session check below, same as before.
 
   // Always let the login page and the login/logout API through.
   if (pathname === "/admin/login" || pathname.startsWith("/api/admin/auth")) {

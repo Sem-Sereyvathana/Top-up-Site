@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { z } from "zod";
 import { completeTotpLogin, setSessionCookie } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 const schema = z.object({
   pendingToken: z.string().min(1),
@@ -15,6 +16,17 @@ const schema = z.object({
 // (or an 8+ character backup code).
 export async function POST(req: NextRequest) {
   try {
+    // Same 10-per-10-minutes-per-IP limit as the password step — see the
+    // comment in app/api/admin/auth/route.ts for why this lives here
+    // instead of middleware.ts.
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    if (!(await checkRateLimit(`admin-auth:${ip}`, 10, 10 * 60 * 1000))) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please wait a few minutes and try again." },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const parsed = schema.safeParse(body);
     if (!parsed.success) {

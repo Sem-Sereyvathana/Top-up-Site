@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   // 5 new accounts per hour per IP — enough for a real household, tight
   // enough to make mass fake-account creation impractical.
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000)) {
+  if (!(await checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000))) {
     return NextResponse.json(
       { error: "Too many accounts created from this connection. Please try again later." },
       { status: 429 }

@@ -131,7 +131,7 @@ export default function HistoryPage() {
               <PackageOpen className="h-5 w-5" strokeWidth={2} />
             </div>
             <h2 className="font-semibold text-lg mb-1">No orders yet</h2>
-            <p className="text-sm text-fox-muted mb-5">Once you make a purchase, it'll show up here.</p>
+            <p className="text-sm text-fox-muted mb-5">Once you make a purchase, it&apos;ll show up here.</p>
             <Link href="/game-items" className="btn-primary">Browse Game Items</Link>
           </div>
         ) : (

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   // â”€â”€ rate limit: 10 req / min per IP â”€â”€
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!checkRateLimit(`uid-lookup:${ip}`, 10, 60_000)) {
+  if (!(await checkRateLimit(`uid-lookup:${ip}`, 10, 60_000))) {
     return NextResponse.json(
       { nickname: null, verified: false, error: "Too many requests â€” try again shortly" },
       { status: 429 },

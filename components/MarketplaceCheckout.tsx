@@ -37,7 +37,6 @@ interface MarketplaceOrder {
   paymentExpiresAt: string | null;
   createdAt: string;
   paidAt: string | null;
-  khpayKey: string | null;
   [key: string]: unknown;
 }
 
@@ -125,49 +124,28 @@ export default function MarketplaceCheckout({
     if (order.qrString) return;
     if (order.paymentRef?.startsWith("SIM-")) return;
 
-    const khpayKey = order.khpayKey;
-    if (!khpayKey) return;
-
+    // Retry transaction creation server-side instead of calling khpay.site
+    // directly from the browser with a raw API key — see the top-up
+    // checkout page (app/checkout/[orderNumber]/page.tsx) for the same fix.
     txnCreatedRef.current = true;
     setCreatingTxn(true);
 
     (async () => {
       try {
-        const origin = window.location.origin;
-        const res = await fetch("https://khpay.site/api/v1/qr/generate", {
+        const res = await fetch(`${apiBase}/${encodeURIComponent(order.orderNumber)}/retry-payment`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${khpayKey}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            amount: order.amountUsd.toFixed(2),
-            currency: "USD",
-            note: `SHARUSTORE Order ${order.orderNumber}`,
-            success_url: `${origin}${orderTrackHref(order.orderNumber)}`,
-            cancel_url: `${origin}${cancelHref}`,
-          }),
         });
+        const json = await res.json().catch(() => ({}));
 
-        const json = await res.json();
-        if (json.success && json.data?.payment_url) {
-          await fetch(`${apiBase}/${encodeURIComponent(order.orderNumber)}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              transactionId: json.data.transaction_id,
-              paymentUrl: json.data.payment_url,
-            }),
-          });
+        if (res.ok && json.paymentUrl) {
           setRedirecting(true);
-          window.location.href = json.data.payment_url;
+          window.location.href = json.paymentUrl;
         } else {
-          console.error("[khpay] Client-side create failed:", json);
+          console.error("[khpay] Retry failed:", json);
           setCreatingTxn(false);
         }
       } catch (err) {
-        console.error("[khpay] Client-side create error:", err);
+        console.error("[khpay] Retry error:", err);
         setCreatingTxn(false);
       }
     })();

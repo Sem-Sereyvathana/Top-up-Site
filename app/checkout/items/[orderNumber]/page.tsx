@@ -33,7 +33,7 @@ export default function ItemsCheckoutPage() {
           </div>
           {order.deliveryMode === "MANUAL" && (
             <div className="mt-1 rounded-lg border border-yellow-400/30 bg-yellow-400/5 p-3 text-xs text-yellow-200">
-              This order needs a quick chat to arrange delivery — once paid, you'll be taken straight to our Telegram with your order details ready to send.
+              This order needs a quick chat to arrange delivery — once paid, you&apos;ll be taken straight to our Telegram with your order details ready to send.
             </div>
           )}
         </>

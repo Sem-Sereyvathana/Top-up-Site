@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 const patchSchema = z.object({
   transactionId: z.string().optional(),
@@ -52,9 +53,18 @@ async function expireIfStale(orderId: string, paymentExpiresAt: Date | null, cre
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { orderNumber: string } }
 ) {
+  // This route can hand back plaintext account credentials once an order
+  // is PAID/DELIVERED, keyed only by the order number in the URL — so
+  // unlike most public lookups, this one needs a tight limit to make
+  // guessing/brute-forcing order numbers impractical.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!(await checkRateLimit(`order-lookup:account:${ip}`, 20, 10 * 60 * 1000))) {
+    return NextResponse.json({ error: "Too many requests. Please wait a bit and try again." }, { status: 429 });
+  }
+
   const order = await prisma.gameAccountOrder.findUnique({
     where: { orderNumber: params.orderNumber.toUpperCase() },
     include: {
@@ -110,7 +120,6 @@ export async function GET(
     paidAt: order.paidAt,
     deliveredAt: order.deliveredAt,
     supportTelegram: settings?.supportTelegram ?? null,
-    khpayKey: order.status === "PENDING" ? (process.env.KHPAY_API_KEY || null) : null,
   });
 }
 

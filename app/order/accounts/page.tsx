@@ -191,7 +191,7 @@ export default function AccountsOrderTrackerPage() {
               ))}
           {order.deliveryMode === "DIRECT" && order.items.every((it: any) => !it.credentials) && order.status === "PAID" && (
             <div className="rounded-lg border border-blue-400/40 bg-blue-400/10 p-4 text-sm text-blue-300">
-              Payment received — we're preparing your login details now.
+              Payment received — we&apos;re preparing your login details now.
             </div>
           )}
         </>

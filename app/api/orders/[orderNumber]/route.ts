@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 // Customer-facing order status endpoint — polled by the checkout page while
 // a payment is pending. (Invoice PDF generation lives separately at
@@ -15,9 +16,18 @@ const patchSchema = z.object({
 });
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { orderNumber: string } }
 ) {
+  // Generous limit — the checkout page legitimately polls this every 3s
+  // while a payment is pending, so this needs headroom for normal use.
+  // It doesn't return credentials (unlike the account-orders route), so a
+  // looser limit here is fine; it still rules out large-scale enumeration.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!(await checkRateLimit(`order-lookup:topup:${ip}`, 200, 10 * 60 * 1000))) {
+    return NextResponse.json({ error: "Too many requests. Please wait a bit and try again." }, { status: 429 });
+  }
+
   const order = await prisma.order.findUnique({
     where: { orderNumber: params.orderNumber.toUpperCase() },
     include: {
@@ -52,7 +62,6 @@ export async function GET(
     // Only handed to the client so it can fall back to creating the KHPay
     // transaction itself when our server-side call gets blocked — never
     // used for anything other than this specific PENDING-order flow.
-    khpayKey: order.status === "PENDING" ? (process.env.KHPAY_API_KEY || null) : null,
   });
 }
 

@@ -3,14 +3,30 @@ export const dynamic = "force-dynamic";
 
 import { z } from "zod";
 import { attemptAdminLogin, setSessionCookie, clearSessionCookie } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
 
+// Step 1 of admin login: email + password. If the account has app
+// authentication (TOTP) enabled, this returns a pendingToken instead of a
+// session — the client must then call POST /api/admin/auth/totp with the
+// 6-digit code to finish logging in.
 export async function POST(req: NextRequest) {
   try {
+    // 10 attempts per 10 minutes per IP — kept here (rather than in
+    // middleware.ts) so it stays right next to the login logic it
+    // protects. The TOTP step below uses the same limit/window.
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    if (!(await checkRateLimit(`admin-auth:${ip}`, 10, 10 * 60 * 1000))) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please wait a few minutes and try again." },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const parsed = loginSchema.safeParse(body);
     if (!parsed.success) {

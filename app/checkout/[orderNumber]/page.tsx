@@ -36,7 +36,6 @@ interface OrderPayment {
   paymentExpiresAt: string | null;
   createdAt: string;
   paidAt: string | null;
-  khpayKey: string | null;
 }
 
 const TERMINAL = new Set(["DELIVERED", "FAILED", "REFUNDED", "CANCELLED"]);
@@ -103,8 +102,12 @@ export default function CheckoutPage() {
     }
   }, [order, redirecting]);
 
-  // ─── Client-side KHPay transaction creation ───
-  // When server-side failed (Cloudflare), create transaction from the browser
+  // ─── Retry transaction creation server-side ───
+  // When the server-side call at order-creation time failed (e.g. blocked
+  // by Cloudflare), ask our own server to try again. This used to fetch the
+  // raw KHPay API key from the order-status endpoint and call khpay.site
+  // directly from the browser — which meant the payment gateway secret key
+  // was sent to every visitor. Now the key never leaves the server.
   useEffect(() => {
     if (
       !order ||
@@ -114,57 +117,30 @@ export default function CheckoutPage() {
       txnCreatedRef.current
     ) return;
 
-    // Already has a KHPay URL or QR — no need to create client-side
+    // Already has a KHPay URL or QR — no need to retry.
     if (order.paymentUrl && KHPAY_URL_RE.test(order.paymentUrl)) return;
     if (order.qrString) return;
     if (order.paymentRef?.startsWith("SIM-")) return;
-
-    const khpayKey = order.khpayKey;
-    if (!khpayKey) return;
 
     txnCreatedRef.current = true;
     setCreatingTxn(true);
 
     (async () => {
       try {
-        const origin = window.location.origin;
-        const res = await fetch("https://khpay.site/api/v1/qr/generate", {
+        const res = await fetch(`/api/orders/${encodeURIComponent(order.orderNumber)}/retry-payment`, {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${khpayKey}`,
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-          },
-          body: JSON.stringify({
-            amount: order.amountUsd.toFixed(2),
-            currency: "USD",
-            note: `SHARUSTORE Order ${order.orderNumber}`,
-            success_url: `${origin}/order?number=${order.orderNumber}`,
-            cancel_url: `${origin}/games/${order.gameSlug}`,
-          }),
         });
+        const json = await res.json().catch(() => ({}));
 
-        const json = await res.json();
-        if (json.success && json.data?.payment_url) {
-          // Save transaction info to our order
-          await fetch(`/api/orders/${encodeURIComponent(order.orderNumber)}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              transactionId: json.data.transaction_id,
-              paymentUrl: json.data.payment_url,
-            }),
-          });
-
-          // Redirect to KHPay hosted payment page
+        if (res.ok && json.paymentUrl) {
           setRedirecting(true);
-          window.location.href = json.data.payment_url;
+          window.location.href = json.paymentUrl;
         } else {
-          console.error("[khpay] Client-side create failed:", json);
+          console.error("[khpay] Retry failed:", json);
           setCreatingTxn(false);
         }
       } catch (err) {
-        console.error("[khpay] Client-side create error:", err);
+        console.error("[khpay] Retry error:", err);
         setCreatingTxn(false);
       }
     })();

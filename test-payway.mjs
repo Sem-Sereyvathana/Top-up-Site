@@ -1,10 +1,22 @@
 // One-off script to confirm your PayWay sandbox credentials actually work.
-// Run locally with:  node test-payway.mjs
+// Run locally with:
+//   PAYWAY_MERCHANT_ID=xxx PAYWAY_API_KEY=xxx node test-payway.mjs
+// (or `node --env-file=.env test-payway.mjs` on Node 20.6+)
+//
+// Previously had real credentials hardcoded here, which meant they were
+// committed to git history — rotate that old key in your PayWay dashboard
+// even though this script is now fixed, since the old value is still
+// readable in past commits.
 import crypto from "crypto";
 
-const MERCHANT_ID = "ec478264";
-const API_KEY = "8e6379c3f31adb94c8282e0c332fc4b1e79d7a08";
-const BASE = "https://checkout-sandbox.payway.com.kh";
+const MERCHANT_ID = process.env.PAYWAY_MERCHANT_ID;
+const API_KEY = process.env.PAYWAY_API_KEY;
+const BASE = process.env.PAYWAY_BASE_URL || "https://checkout-sandbox.payway.com.kh";
+
+if (!MERCHANT_ID || !API_KEY) {
+  console.error("Set PAYWAY_MERCHANT_ID and PAYWAY_API_KEY env vars before running this script.");
+  process.exit(1);
+}
 
 function reqTime() {
   const d = new Date();

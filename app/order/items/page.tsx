@@ -37,7 +37,7 @@ export default function ItemsOrderTrackerPage() {
       renderPostPaidExtra={(order: any) =>
         order.status === "PAID" && order.deliveryMode === "DIRECT" ? (
           <div className="rounded-lg border border-blue-400/40 bg-blue-400/10 p-4 text-sm text-blue-300 flex items-center gap-2">
-            Payment received — we'll deliver these into your account shortly.
+            Payment received — we&apos;ll deliver these into your account shortly.
           </div>
         ) : null
       }

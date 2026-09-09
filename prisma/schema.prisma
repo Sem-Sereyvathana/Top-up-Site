@@ -180,6 +180,20 @@ model PromoCode {
   orders        Order[]
 }
 
+// Backs lib/rateLimit.ts. A row per (key, window-start) — atomic increment
+// via upsert, so it works correctly even when the app is running as many
+// separate serverless instances at once (which is why the old in-memory
+// Map version didn't actually work in production on Vercel: each instance
+// had its own counter, so the "10 attempts" limit was really "10 attempts
+// per instance", not per IP overall).
+model RateLimitBucket {
+  key         String   @id
+  count       Int      @default(1)
+  windowStart DateTime
+
+  @@index([windowStart])
+}
+
 model Admin {
   id                  String    @id @default(cuid())
   email               String    @unique
