@@ -23,7 +23,13 @@ declare global {
 // Telegram controls) and, once the user approves the login inside it,
 // sends the signed payload to our own /api/auth/telegram route to verify
 // it and create a session.
-export default function TelegramLoginButton({ next = "/account" }: { next?: string }) {
+export default function TelegramLoginButton({
+  next = "/account",
+  size = "large",
+}: {
+  next?: string;
+  size?: "small" | "medium" | "large";
+}) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const reactId = useId().replace(/[:]/g, "");
@@ -59,7 +65,7 @@ export default function TelegramLoginButton({ next = "/account" }: { next?: stri
     script.src = "https://telegram.org/js/telegram-widget.js?22";
     script.async = true;
     script.setAttribute("data-telegram-login", botUsername.replace(/^@/, ""));
-    script.setAttribute("data-size", "large");
+    script.setAttribute("data-size", size);
     script.setAttribute("data-radius", "10");
     script.setAttribute("data-onauth", `${callbackName}(user)`);
     script.setAttribute("data-request-access", "write");
@@ -70,7 +76,7 @@ export default function TelegramLoginButton({ next = "/account" }: { next?: stri
       delete window[callbackName];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [botUsername]);
+  }, [botUsername, size]);
 
   if (!botUsername) {
     // Not configured yet (TELEGRAM_BOT_TOKEN / NEXT_PUBLIC_TELEGRAM_BOT_USERNAME

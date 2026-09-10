@@ -108,13 +108,12 @@ export default function HistoryPage() {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-fox-border bg-fox-card text-fox-primary">
               <LogIn className="h-5 w-5" strokeWidth={2} />
             </div>
-            <h2 className="font-semibold text-lg mb-1">Sign in to view your history</h2>
+            <h2 className="font-semibold text-lg mb-1">Connect Telegram to view your history</h2>
             <p className="text-sm text-fox-muted mb-5">
               Your order history is tied to your account so we can keep it safe and up to date.
             </p>
-            <div className="flex items-center justify-center gap-3">
-              <Link href="/login" className="btn-primary">Sign in</Link>
-              <Link href="/register" className="btn-ghost">Create account</Link>
+            <div className="flex items-center justify-center">
+              <Link href="/login" className="btn-primary">Connect Telegram</Link>
             </div>
           </div>
         ) : error ? (

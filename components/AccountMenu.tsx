@@ -4,18 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import TelegramLoginButton from "@/components/TelegramLoginButton";
 import { User, Coins, LogOut, ChevronDown } from "lucide-react";
 
-// Shown in the Header. Guests see Sign in / Create account links; logged-in
-// users see a dropdown with their points balance and account/logout.
+// Shown in the Header. Guests see the "Login with Telegram" widget directly
+// (no email/password sign in or sign up) — one tap in Telegram creates the
+// account on first use. Logged-in users see a dropdown with their points
+// balance and account/logout.
 //
 // `inline`: used for the mobile hamburger panel. That panel animates open
 // via `max-h-* overflow-hidden` (see Header.tsx), which clips any popover
 // that tries to render below its trigger — so the normal floating dropdown
 // below is invisible there, making "My account"/"Sign out" unreachable on
 // mobile. When `inline` is set, a logged-in user gets those two links laid
-// out directly in the flow instead of behind a popover. Guests are
-// unaffected either way — their Sign in/Sign up links were never a popover.
+// out directly in the flow instead of behind a popover, and a guest gets a
+// slightly larger Telegram widget sized for the panel.
 export default function AccountMenu({
   className = "",
   inline = false,
@@ -53,21 +56,8 @@ export default function AccountMenu({
 
   if (!user) {
     return (
-      <div className={`flex items-center gap-2 ${className}`}>
-        <Link
-          href="/login"
-          onClick={onNavigate}
-          className="rounded-lg px-3 py-2 text-sm font-medium text-fox-text/80 hover:text-fox-primary transition-colors"
-        >
-          Sign in
-        </Link>
-        <Link
-          href="/register"
-          onClick={onNavigate}
-          className="rounded-lg border border-fox-border bg-fox-card/80 px-3 py-2 text-sm font-medium text-fox-text hover:border-fox-primary/60 hover:text-fox-primary transition-all"
-        >
-          Sign up
-        </Link>
+      <div className={`flex items-center ${className}`}>
+        <TelegramLoginButton size={inline ? "medium" : "small"} />
       </div>
     );
   }
