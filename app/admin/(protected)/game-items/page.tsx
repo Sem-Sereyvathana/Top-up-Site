@@ -19,6 +19,7 @@ interface GameItem {
   priceUsd: number;
   badge: string | null;
   active: boolean;
+  soldOut: boolean;
   sortOrder: number;
   deliveryMode: "DIRECT" | "MANUAL";
   Category?: { name: string; slug: string } | null;
@@ -32,6 +33,7 @@ const empty = {
   priceUsd: 0,
   badge: "",
   active: true,
+  soldOut: false,
   sortOrder: 0,
   deliveryMode: "DIRECT" as "DIRECT" | "MANUAL",
 };
@@ -89,6 +91,7 @@ export default function GameItemsAdminPage() {
       priceUsd: item.priceUsd,
       badge: item.badge || "",
       active: item.active,
+      soldOut: item.soldOut,
       sortOrder: item.sortOrder,
       deliveryMode: item.deliveryMode,
     });
@@ -177,6 +180,7 @@ export default function GameItemsAdminPage() {
       priceUsd: Number(form.priceUsd),
       badge: form.badge || null,
       active: form.active,
+      soldOut: form.soldOut,
       sortOrder: Number(form.sortOrder),
       deliveryMode: form.deliveryMode,
     };
@@ -203,6 +207,15 @@ export default function GameItemsAdminPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !item.active }),
+    });
+    await loadAll();
+  }
+
+  async function toggleSoldOut(item: GameItem) {
+    await fetch(`/api/admin/game-items/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ soldOut: !item.soldOut }),
     });
     await loadAll();
   }
@@ -413,7 +426,7 @@ export default function GameItemsAdminPage() {
                 <option value="MANUAL">Manual (buyer messages Telegram)</option>
               </select>
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end gap-5">
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -421,6 +434,14 @@ export default function GameItemsAdminPage() {
                   onChange={(e) => setForm({ ...form, active: e.target.checked })}
                 />
                 <span className="text-sm">Active</span>
+              </label>
+              <label className="flex items-center gap-2" title="Keeps the item visible on the storefront, greyed out with a Sold Out badge, instead of removing it. Use Active instead to pull the listing entirely.">
+                <input
+                  type="checkbox"
+                  checked={form.soldOut}
+                  onChange={(e) => setForm({ ...form, soldOut: e.target.checked })}
+                />
+                <span className="text-sm">Sold Out</span>
               </label>
             </div>
           </div>
@@ -457,6 +478,7 @@ export default function GameItemsAdminPage() {
                   <th className="text-left px-5 py-3">Badge</th>
                   <th className="text-left px-5 py-3">Delivery</th>
                   <th className="text-center px-5 py-3">Active</th>
+                  <th className="text-center px-5 py-3">Sold Out</th>
                   <th className="text-right px-5 py-3">Actions</th>
                 </tr>
               </thead>
@@ -493,6 +515,13 @@ export default function GameItemsAdminPage() {
                       <button onClick={() => toggleActive(item)}>
                         <span className={`inline-block h-5 w-9 rounded-full relative transition-colors ${item.active ? "bg-green-500" : "bg-fox-border"}`}>
                           <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${item.active ? "translate-x-4" : "translate-x-0.5"}`} />
+                        </span>
+                      </button>
+                    </td>
+                    <td className="px-5 py-3 text-center">
+                      <button onClick={() => toggleSoldOut(item)} title="Show greyed out with a Sold Out badge on the storefront, instead of hiding it">
+                        <span className={`inline-block h-5 w-9 rounded-full relative transition-colors ${item.soldOut ? "bg-red-500" : "bg-fox-border"}`}>
+                          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${item.soldOut ? "translate-x-4" : "translate-x-0.5"}`} />
                         </span>
                       </button>
                     </td>

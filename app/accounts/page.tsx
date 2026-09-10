@@ -21,13 +21,7 @@ export default async function AccountsPage() {
       // paying for it (see the 409 "just reserved by another buyer" case).
       // UNIQUE accounts are sold-out once `sold` flips true; MULTI accounts
       // are sold-out once their pooled `stock` hits zero.
-      where: {
-        active: true,
-        OR: [
-          { stockMode: "UNIQUE", sold: false },
-          { stockMode: "MULTI", stock: { gt: 0 } },
-        ],
-      },
+      where: { active: true },
       select: {
         id: true,
         title: true,
@@ -59,9 +53,9 @@ export default async function AccountsPage() {
       groupKey: acc.Category ? `cat-${acc.Category.slug}` : (acc.Game?.slug ?? "__general__"),
       groupLabel: acc.Category?.name ?? acc.Game?.name ?? "General",
       groupSortOrder: 0,
-      // Already excluded from the query above — kept here as a defensive
-      // fallback only (e.g. it sells out in the instant between the query
-      // running and the page rendering).
+      // Sold-out listings stay visible (greyed out with a "Sold" badge)
+      // instead of disappearing — admin still has `active` to pull a
+      // listing entirely if it isn't selling well.
       soldOut: isMulti ? acc.stock <= 0 : acc.sold,
       // Unique accounts can only ever be bought one at a time; multi-stock
       // accounts can be bought up to however many are left.

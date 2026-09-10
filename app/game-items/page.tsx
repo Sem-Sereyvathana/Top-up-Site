@@ -32,6 +32,9 @@ export default async function GameItemsPage() {
     groupLabel: item.Category?.name ?? "General",
     groupImageUrl: item.Category?.imageUrl ?? null,
     groupSortOrder: item.Category?.sortOrder ?? Number.MAX_SAFE_INTEGER,
+    // Sold-out items stay visible (greyed out, Add disabled) instead of
+    // disappearing — admin still has `active` to pull a listing entirely.
+    soldOut: item.soldOut,
   }));
 
   return (
@@ -45,6 +48,7 @@ export default async function GameItemsPage() {
           allowQuantity
           emptyStateTitle="Items coming soon"
           emptyStateBody="We're stocking the shelves. Check back shortly for skins, bundles, and rare in-game items."
+          soldOutLabel="Sold Out"
         />
       </main>
       <Footer />

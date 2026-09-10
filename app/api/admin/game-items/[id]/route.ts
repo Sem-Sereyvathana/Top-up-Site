@@ -13,6 +13,7 @@ const updateSchema = z.object({
   priceUsd: z.number().positive().optional(),
   badge: z.string().nullable().optional(),
   active: z.boolean().optional(),
+  soldOut: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   deliveryMode: z.enum(["DIRECT", "MANUAL"]).optional(),
 });

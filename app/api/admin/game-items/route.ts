@@ -13,6 +13,7 @@ const gameItemSchema = z.object({
   priceUsd: z.number().positive(),
   badge: z.string().optional().nullable(),
   active: z.boolean().default(true),
+  soldOut: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
   deliveryMode: z.enum(["DIRECT", "MANUAL"]).default("DIRECT"),
 });

@@ -402,6 +402,12 @@ model GameItem {
   priceKhr    Float?
   badge       String?
   active      Boolean           @default(true)
+  // Manually toggled by admin when this item is out of stock. Unlike
+  // `active` (which fully removes the item from the storefront — used when
+  // admin wants to pull a listing that isn't selling well), `soldOut` keeps
+  // the card visible but greyed out with a "Sold Out" badge and disables
+  // the Add-to-cart action. See app/game-items/page.tsx / ShopCartBrowser.
+  soldOut     Boolean           @default(false)
   sortOrder   Int               @default(0)
   // "DIRECT" = admin delivers this item straight into the buyer's game
   // account using the Username they typed at checkout; "MANUAL" = buyer is
