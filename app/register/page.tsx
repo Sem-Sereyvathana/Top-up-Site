@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import TelegramLoginButton from "@/components/TelegramLoginButton";
 import { UserPlus, ArrowRight } from "lucide-react";
 
 export default function RegisterPage() {
@@ -101,6 +102,14 @@ export default function RegisterPage() {
               {!submitting && <ArrowRight className="h-4 w-4" strokeWidth={2.5} />}
             </button>
           </form>
+
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/10" />
+            <span className="text-xs uppercase tracking-wide text-fox-muted">or</span>
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <TelegramLoginButton next="/account" />
 
           <p className="mt-6 text-center text-sm text-fox-muted">
             Already have an account?{" "}

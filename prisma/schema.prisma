@@ -47,7 +47,10 @@ model User {
   id           String         @id @default(cuid())
   email        String?        @unique
   phone        String?        @unique
-  passwordHash String
+  passwordHash String?
+  telegramId       String?    @unique
+  telegramUsername String?
+  avatarUrl        String?
   name         String?
   points       Int            @default(0)
   active       Boolean        @default(true)

@@ -46,7 +46,10 @@ export async function POST(req: NextRequest) {
   const invalid = () =>
     NextResponse.json({ error: "Incorrect email/phone or password" }, { status: 401 });
 
-  if (!user || !user.active) return invalid();
+  // Telegram-only accounts have no passwordHash — there's nothing to check
+  // a password against, so treat them the same as "wrong password" rather
+  // than crashing bcrypt.compare with a null hash.
+  if (!user || !user.active || !user.passwordHash) return invalid();
 
   const ok = await verifyPassword(parsed.data.password, user.passwordHash);
   if (!ok) return invalid();
