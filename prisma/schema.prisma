@@ -221,6 +221,7 @@ model Admin {
 model Settings {
   id                 Int      @id @default(1)
   siteName           String   @default("RITHTOPUP")
+  logoUrl            String?
   exchangeRate       Float    @default(4100)
   supportTelegram    String?  @default("@rithtopup")
   supportEmail       String?  @default("support@rithtopup.com")

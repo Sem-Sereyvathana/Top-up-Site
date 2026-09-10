@@ -6,6 +6,7 @@ import { z } from "zod";
 
 const settingsSchema = z.object({
   siteName: z.string().min(1).optional(),
+  logoUrl: z.string().nullable().optional(),
   exchangeRate: z.number().positive().optional(),
   supportTelegram: z.string().optional(),
   supportEmail: z.string().optional(),

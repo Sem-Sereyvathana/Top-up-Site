@@ -7,12 +7,25 @@ export default function AdminSettingsPage() {
   const [form, setForm] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/settings")
       .then((r) => r.json())
       .then(setForm);
   }, []);
+
+  async function uploadLogo(file: File) {
+    setLogoUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+    if (res.ok) {
+      const data = await res.json();
+      setForm((f: any) => ({ ...f, logoUrl: data.url }));
+    }
+    setLogoUploading(false);
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -23,6 +36,7 @@ export default function AdminSettingsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         siteName: form.siteName,
+        logoUrl: form.logoUrl || null,
         exchangeRate: Number(form.exchangeRate),
         supportTelegram: form.supportTelegram,
         supportEmail: form.supportEmail,
@@ -53,6 +67,38 @@ export default function AdminSettingsPage() {
         <div>
           <label className="label">Site Name</label>
           <input className="input" value={form.siteName || ""} onChange={(e) => setForm({ ...form, siteName: e.target.value })} />
+        </div>
+
+        <div>
+          <label className="label">Site Logo</label>
+          <div className="flex items-center gap-4">
+            {form.logoUrl ? (
+              <img src={form.logoUrl} alt="Logo" className="h-12 w-12 rounded-lg object-contain bg-fox-surface border border-fox-border" />
+            ) : (
+              <div className="h-12 w-12 rounded-lg border border-dashed border-fox-border flex items-center justify-center text-[10px] text-fox-muted text-center">
+                No logo
+              </div>
+            )}
+            <label className="btn-ghost cursor-pointer">
+              {logoUploading ? "Uploading..." : form.logoUrl ? "Replace" : "Upload"}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && uploadLogo(e.target.files[0])}
+              />
+            </label>
+            {form.logoUrl && (
+              <button
+                type="button"
+                className="text-xs text-fox-muted hover:text-red-400"
+                onClick={() => setForm({ ...form, logoUrl: null })}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-fox-muted mt-1">Shown in the header in place of the default icon. Leave empty to use the default.</p>
         </div>
 
         <div>
