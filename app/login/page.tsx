@@ -9,6 +9,7 @@ import { Send } from "lucide-react";
 export default function LoginPage() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/account";
+  const error = searchParams.get("error");
 
   return (
     <>
@@ -23,6 +24,12 @@ export default function LoginPage() {
             Connect your Telegram account to track orders and earn loyalty points.
             First time here? Connecting creates your account automatically.
           </p>
+
+          {error && (
+            <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+              {error}
+            </div>
+          )}
 
           <div className="flex justify-center">
             <TelegramLoginButton next={next} size="large" />

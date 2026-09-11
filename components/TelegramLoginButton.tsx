@@ -1,28 +1,22 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Send } from "lucide-react";
 
-interface TelegramUser {
-  id: number;
-  first_name: string;
-  last_name?: string;
-  username?: string;
-  photo_url?: string;
-  auth_date: number;
-  hash: string;
-}
-
-declare global {
-  interface Window {
-    [key: string]: any;
-  }
-}
-
-// Renders Telegram's official "Login with Telegram" widget (an iframe
-// Telegram controls) and, once the user approves the login inside it,
-// sends the signed payload to our own /api/auth/telegram route to verify
-// it and create a session.
+// Sends the user to Telegram's own redirect-based OAuth page
+// (oauth.telegram.org) instead of embedding Telegram's JS widget in an
+// iframe. The old iframe widget relies on cross-site cookies/storage that
+// Chrome blocks for some users (their "Signature mismatch" / silently
+// broken widget symptom) — a plain top-level redirect avoids that
+// entirely and works the same way in every browser.
+//
+// Flow:
+//   1. User clicks the button -> full-page navigation to oauth.telegram.org
+//   2. Telegram shows its own login/approve screen
+//   3. Telegram redirects back to /api/auth/telegram/callback with the
+//      signed auth payload as query params
+//   4. That route verifies the signature (same HMAC check as before) and
+//      creates the session, then redirects to `next`
 export default function TelegramLoginButton({
   next = "/account",
   size = "large",
@@ -30,70 +24,43 @@ export default function TelegramLoginButton({
   next?: string;
   size?: "small" | "medium" | "large";
 }) {
-  const router = useRouter();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const reactId = useId().replace(/[:]/g, "");
-  const callbackName = `onTelegramAuth_${reactId}`;
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
+  const botId = process.env.NEXT_PUBLIC_TELEGRAM_BOT_ID;
 
-  useEffect(() => {
-    if (!botUsername || !containerRef.current) return;
-
-    window[callbackName] = async (tgUser: TelegramUser) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/auth/telegram", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(tgUser),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Telegram login failed");
-        router.push(next);
-        router.refresh();
-      } catch (err: any) {
-        setError(err.message);
-        setLoading(false);
-      }
-    };
-
-    const script = document.createElement("script");
-    script.src = "https://telegram.org/js/telegram-widget.js?22";
-    script.async = true;
-    script.setAttribute("data-telegram-login", botUsername.replace(/^@/, ""));
-    script.setAttribute("data-size", size);
-    script.setAttribute("data-radius", "10");
-    script.setAttribute("data-onauth", `${callbackName}(user)`);
-    script.setAttribute("data-request-access", "write");
-
-    containerRef.current.appendChild(script);
-
-    return () => {
-      delete window[callbackName];
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [botUsername, size]);
-
-  if (!botUsername) {
-    // Not configured yet (TELEGRAM_BOT_TOKEN / NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
-    // missing from .env) — quietly hide the widget rather than showing a
-    // broken button.
+  if (!botId) {
+    // Not configured yet (NEXT_PUBLIC_TELEGRAM_BOT_ID missing from .env) —
+    // quietly hide the button rather than showing a broken one.
     return null;
   }
 
+  const sizeClasses: Record<string, string> = {
+    small: "px-4 py-2 text-sm",
+    medium: "px-5 py-2.5 text-sm",
+    large: "px-6 py-3 text-base",
+  };
+
+  function handleClick() {
+    setLoading(true);
+    const origin = window.location.origin;
+    const returnTo = `${origin}/api/auth/telegram/callback?next=${encodeURIComponent(next)}`;
+    const authUrl =
+      `https://oauth.telegram.org/auth?bot_id=${encodeURIComponent(botId!)}` +
+      `&origin=${encodeURIComponent(origin)}` +
+      `&embed=0&request_access=write` +
+      `&return_to=${encodeURIComponent(returnTo)}`;
+    window.location.href = authUrl;
+  }
+
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div ref={containerRef} className={loading ? "pointer-events-none opacity-50" : ""} />
-      {loading && <p className="text-xs text-fox-muted">Signing in...</p>}
-      {error && (
-        <div className="w-full rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
-          {error}
-        </div>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={loading}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg bg-[#2AABEE] font-medium text-white transition hover:bg-[#229ED9] disabled:opacity-60 ${sizeClasses[size]}`}
+    >
+      <Send className="h-4 w-4" strokeWidth={2.5} />
+      {loading ? "Redirecting..." : "Log in with Telegram"}
+    </button>
   );
 }
