@@ -184,7 +184,7 @@ export default function RobuxOrdersPage() {
                 orders.map((o) => (
                   <tr key={o.id} className={`hover:bg-fox-surface/50 ${o.status === "PAID" ? "bg-fox-primary/5" : ""}`}>
                     <td className="px-5 py-3">
-                      <Link href={`/admin/orders/${o.orderNumber}`} className="font-mono text-fox-primary hover:underline">
+                      <Link href={`/admin/orders/${o.orderNumber}?from=robux`} className="font-mono text-fox-primary hover:underline">
                         {o.orderNumber}
                       </Link>
                     </td>
@@ -218,7 +218,7 @@ export default function RobuxOrdersPage() {
                           </button>
                         )}
                         <Link
-                          href={`/admin/orders/${o.orderNumber}`}
+                          href={`/admin/orders/${o.orderNumber}?from=robux`}
                           className="rounded-lg border border-fox-border px-3 py-1.5 text-xs font-semibold text-fox-muted transition-colors hover:text-fox-text"
                         >
                           Open

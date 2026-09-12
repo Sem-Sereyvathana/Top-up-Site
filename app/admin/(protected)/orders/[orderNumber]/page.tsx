@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 const STATUSES = ["PENDING", "PAID", "PROCESSING", "DELIVERED", "FAILED", "REFUNDED", "CANCELLED"];
@@ -24,6 +24,15 @@ function packageSummary(order: any): { label: string; totalRobux: number | null 
 export default function AdminOrderDetailPage() {
   const params = useParams() as { orderNumber: string };
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Robux Orders is the only queue that reuses this shared detail page
+  // (see app/admin/(protected)/robux-orders/page.tsx) — its links append
+  // ?from=robux so "Back to orders" returns admins to the queue they were
+  // actually working from, instead of always dropping them on the general
+  // Orders list.
+  const backHref = searchParams.get("from") === "robux" ? "/admin/robux-orders" : "/admin/orders";
+  const backLabel = searchParams.get("from") === "robux" ? "← Back to Robux orders" : "← Back to orders";
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -96,8 +105,8 @@ export default function AdminOrderDetailPage() {
 
   return (
     <div className="p-8 max-w-4xl">
-      <Link href="/admin/orders" className="text-sm text-fox-muted hover:text-fox-primary mb-4 inline-block">
-        ← Back to orders
+      <Link href={backHref} className="text-sm text-fox-muted hover:text-fox-primary mb-4 inline-block">
+        {backLabel}
       </Link>
 
       <div className="flex justify-between items-start mb-6">
