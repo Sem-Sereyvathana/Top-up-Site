@@ -50,6 +50,7 @@ model User {
   passwordHash String?
   telegramId       String?    @unique
   telegramUsername String?
+  googleId         String?    @unique
   avatarUrl        String?
   name         String?
   points       Int            @default(0)

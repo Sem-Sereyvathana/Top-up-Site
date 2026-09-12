@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import TelegramLoginButton from "@/components/TelegramLoginButton";
+import GoogleLoginButton from "@/components/GoogleLoginButton";
 import { Send } from "lucide-react";
 
 export default function LoginPage() {
@@ -33,6 +34,16 @@ export default function LoginPage() {
 
           <div className="flex justify-center">
             <TelegramLoginButton next={next} size="large" />
+          </div>
+
+          <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-wide text-fox-muted">
+            <div className="h-px flex-1 bg-white/10" />
+            or
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <div className="flex justify-center">
+            <GoogleLoginButton next={next} size="large" />
           </div>
         </div>
       </main>
