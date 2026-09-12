@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
-import TelegramLoginButton from "@/components/TelegramLoginButton";
+import GoogleLoginButton from "@/components/GoogleLoginButton";
 import { User, Coins, LogOut, ChevronDown } from "lucide-react";
 
-// Shown in the Header. Guests see the "Login with Telegram" widget directly
-// (no email/password sign in or sign up) — one tap in Telegram creates the
+// Shown in the Header. Guests see the "Continue with Google" button
+// directly (no email/password sign in or sign up) — one click creates the
 // account on first use. Logged-in users see a dropdown with their points
 // balance and account/logout.
 //
@@ -18,7 +18,7 @@ import { User, Coins, LogOut, ChevronDown } from "lucide-react";
 // below is invisible there, making "My account"/"Sign out" unreachable on
 // mobile. When `inline` is set, a logged-in user gets those two links laid
 // out directly in the flow instead of behind a popover, and a guest gets a
-// slightly larger Telegram widget sized for the panel.
+// slightly larger Google button sized for the panel.
 export default function AccountMenu({
   className = "",
   inline = false,
@@ -57,7 +57,7 @@ export default function AccountMenu({
   if (!user) {
     return (
       <div className={`flex items-center ${className}`}>
-        <TelegramLoginButton size={inline ? "medium" : "small"} />
+        <GoogleLoginButton size={inline ? "medium" : "small"} />
       </div>
     );
   }
