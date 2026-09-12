@@ -124,7 +124,7 @@ export default function Header() {
           {pathname?.startsWith("/accounts") && (
             <CartButton kind="accounts" title="Accounts Cart" checkoutHref="/accounts/checkout" />
           )}
-          <AccountMenu className="hidden sm:block" />
+          <AccountMenu />
 
           {/* Mobile burger */}
           <button

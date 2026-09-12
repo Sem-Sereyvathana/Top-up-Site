@@ -9,9 +9,16 @@ import { useState } from "react";
 export default function GoogleLoginButton({
   next = "/account",
   size = "large",
+  label = "Continue with Google",
+  compactLabel = "Connect",
 }: {
   next?: string;
   size?: "small" | "medium" | "large";
+  label?: string;
+  // Shown instead of `label` below the `sm` breakpoint, so the same button
+  // can read "Continue with Google" on wider screens and something shorter
+  // like "Connect" once space gets tight (e.g. the mobile header bar).
+  compactLabel?: string;
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -51,7 +58,14 @@ export default function GoogleLoginButton({
           d="M12 4.75c1.76 0 3.34.61 4.59 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.28 6.61l3.99 3.1C6.22 6.86 8.87 4.75 12 4.75Z"
         />
       </svg>
-      {loading ? "Redirecting..." : "Continue with Google"}
+      {loading ? (
+        "..."
+      ) : (
+        <>
+          <span className="hidden sm:inline">{label}</span>
+          <span className="sm:hidden">{compactLabel}</span>
+        </>
+      )}
     </button>
   );
 }
