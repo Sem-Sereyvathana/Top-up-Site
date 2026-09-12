@@ -41,34 +41,75 @@ export default async function AdminLayout({
           </div>
         </Link>
 
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-4 overflow-y-auto">
+          <Link
+            href="/admin"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-fox-text/80 hover:bg-fox-card hover:text-fox-primary transition-colors"
+          >
+            <span>📊</span>
+            Dashboard
+          </Link>
+
           {[
-            { href: "/admin", label: "Dashboard", icon: "📊" },
-            { href: "/admin/orders", label: "Orders", icon: "📦" },
-            { href: "/admin/robux-orders", label: "Robux Orders", icon: "🪙" },
-            { href: "/admin/games", label: "Games", icon: "🎮" },
-            { href: "/admin/products", label: "Products", icon: "💎" },
-            { href: "/admin/robux-stock", label: "Robux Stock", icon: "🪙" },
-            { href: "/admin/game-items", label: "Game Items", icon: "🎁" },
-            { href: "/admin/game-item-orders", label: "Item Orders", icon: "📮" },
-            { href: "/admin/accounts", label: "Accounts", icon: "🕹️" },
-            { href: "/admin/account-orders", label: "Account Orders", icon: "🔑" },
-            { href: "/admin/promo-codes", label: "Promo Codes", icon: "🏷️" },
-            { href: "/admin/banners", label: "Banners", icon: "🖼️" },
-            { href: "/admin/blog", label: "Blog", icon: "📝" },
-            { href: "/admin/customers", label: "Customers", icon: "👥" },
-            { href: "/admin/banlist", label: "Banlist", icon: "🚫" },
-            { href: "/admin/audit-logs", label: "Audit Log", icon: "📜" },
-            { href: "/admin/settings", label: "Settings", icon: "⚙️" },
-          ].map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-fox-text/80 hover:bg-fox-card hover:text-fox-primary transition-colors"
-            >
-              <span>{item.icon}</span>
-              {item.label}
-            </Link>
+            {
+              // Order queues — where you actually process customer orders,
+              // day to day. Kept separate from the catalog section below so
+              // this is the group you live in while fulfilling orders.
+              title: "Orders",
+              items: [
+                { href: "/admin/orders", label: "Orders", icon: "📦" },
+                { href: "/admin/robux-orders", label: "Robux Orders", icon: "🪙" },
+                { href: "/admin/game-item-orders", label: "Item Orders", icon: "📮" },
+                { href: "/admin/account-orders", label: "Account Orders", icon: "🔑" },
+              ],
+            },
+            {
+              // Catalog — what's for sale and how much of it exists.
+              // Setup/inventory work, not order processing.
+              title: "Catalog",
+              items: [
+                { href: "/admin/games", label: "Games", icon: "🎮" },
+                { href: "/admin/products", label: "Products", icon: "💎" },
+                { href: "/admin/robux-stock", label: "Robux Stock", icon: "🪙" },
+                { href: "/admin/game-items", label: "Game Items", icon: "🎁" },
+                { href: "/admin/accounts", label: "Accounts", icon: "🕹️" },
+              ],
+            },
+            {
+              title: "Marketing",
+              items: [
+                { href: "/admin/promo-codes", label: "Promo Codes", icon: "🏷️" },
+                { href: "/admin/banners", label: "Banners", icon: "🖼️" },
+                { href: "/admin/blog", label: "Blog", icon: "📝" },
+              ],
+            },
+            {
+              title: "System",
+              items: [
+                { href: "/admin/customers", label: "Customers", icon: "👥" },
+                { href: "/admin/banlist", label: "Banlist", icon: "🚫" },
+                { href: "/admin/audit-logs", label: "Audit Log", icon: "📜" },
+                { href: "/admin/settings", label: "Settings", icon: "⚙️" },
+              ],
+            },
+          ].map((group) => (
+            <div key={group.title}>
+              <div className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-fox-muted/70">
+                {group.title}
+              </div>
+              <div className="space-y-1">
+                {group.items.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-fox-text/80 hover:bg-fox-card hover:text-fox-primary transition-colors"
+                  >
+                    <span>{item.icon}</span>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
