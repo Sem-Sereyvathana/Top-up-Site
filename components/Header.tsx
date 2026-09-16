@@ -119,10 +119,10 @@ export default function Header() {
         <div className="flex items-center gap-2">
           <CurrencyToggle className="hidden sm:inline-flex" />
           {pathname?.startsWith("/game-items") && (
-            <CartButton kind="items" title="Game Items Cart" checkoutHref="/game-items/checkout" />
+            <CartButton kind="items" cartHref="/game-items/cart" />
           )}
           {pathname?.startsWith("/accounts") && (
-            <CartButton kind="accounts" title="Accounts Cart" checkoutHref="/accounts/checkout" />
+            <CartButton kind="accounts" cartHref="/accounts/cart" />
           )}
           <AccountMenu />
 

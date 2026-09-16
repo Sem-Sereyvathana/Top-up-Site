@@ -1,123 +1,44 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { ShoppingCart, X } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import { useShopCart, ShopKind } from "@/lib/shopCart";
-import { useCurrency } from "@/lib/currency";
 
 // Shared navbar cart widget for both marketplaces — Game Items and
 // Accounts each have their own cart (see lib/shopCart.tsx's per-kind
-// storage), so this takes `kind` to know which one to show. Accounts now
-// supports real quantities (multi-stock listings) same as Game Items, so
-// it gets the same cart widget instead of being bought straight off the
-// grid.
+// storage), so this takes `kind` to know which one to show.
+//
+// This used to open an inline dropdown panel anchored under the icon, but
+// on narrow screens the panel (fixed width) could overflow past the edge
+// of the viewport with no way to scroll to the clipped part — item names
+// got cut off and were unreadable. It's just a link to a dedicated cart
+// page now (see ShopCartPage.tsx), which has all the room it needs and a
+// back button of its own.
 
 export default function CartButton({
   kind,
-  title,
-  checkoutHref,
+  cartHref,
   className = "",
 }: {
   kind: ShopKind;
-  title: string;
-  checkoutHref: string;
+  cartHref: string;
   className?: string;
 }) {
-  const { linesFor, countFor, removeLine } = useShopCart();
-  const { format } = useCurrency();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  const itemLines = linesFor(kind);
+  const { countFor } = useShopCart();
   const totalCount = countFor(kind);
-  const subtotal = itemLines.reduce((sum, l) => sum + l.card.priceUsd * l.quantity, 0);
-
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, []);
 
   return (
-    <div className={`relative ${className}`} ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Cart"
-        className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-fox-border bg-fox-card/80 text-fox-text transition-colors hover:border-fox-primary/60 hover:text-fox-primary"
-      >
-        <ShoppingCart className="h-5 w-5" />
-        {totalCount > 0 && (
-          <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-r from-fox-primary to-fox-accent px-1 text-[10px] font-bold text-black shadow-md shadow-fox-primary/40">
-            {totalCount > 99 ? "99+" : totalCount}
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 max-w-[90vw] rounded-2xl border border-fox-border bg-fox-surface/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-xl">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-display text-sm font-bold uppercase tracking-wider text-fox-muted">
-              {title}
-            </h3>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="text-fox-muted hover:text-fox-text"
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {itemLines.length === 0 ? (
-            <p className="py-6 text-center text-sm text-fox-muted">Your cart is empty.</p>
-          ) : (
-            <div>
-              <div className="space-y-2">
-                {itemLines.map((l) => (
-                  <div key={l.card.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="truncate text-fox-text">
-                      {l.card.name}
-                      {l.quantity > 1 ? ` ×${l.quantity}` : ""}
-                    </span>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="font-mono text-xs text-fox-muted">
-                        {format(l.card.priceUsd * l.quantity)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeLine(kind, l.card.id)}
-                        className="text-xs text-red-400 hover:underline"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-3 flex items-center justify-between border-t border-fox-border pt-2">
-                <span className="text-xs text-fox-muted">Subtotal</span>
-                <span className="text-sm font-bold text-fox-primary">{format(subtotal)}</span>
-              </div>
-
-              <Link
-                href={checkoutHref}
-                onClick={() => setOpen(false)}
-                className="btn-primary mt-3 w-full !py-2 text-sm"
-              >
-                Checkout
-              </Link>
-            </div>
-          )}
-        </div>
+    <Link
+      href={cartHref}
+      aria-label="Cart"
+      className={`relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-fox-border bg-fox-card/80 text-fox-text transition-colors hover:border-fox-primary/60 hover:text-fox-primary ${className}`}
+    >
+      <ShoppingCart className="h-5 w-5" />
+      {totalCount > 0 && (
+        <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-r from-fox-primary to-fox-accent px-1 text-[10px] font-bold text-black shadow-md shadow-fox-primary/40">
+          {totalCount > 99 ? "99+" : totalCount}
+        </span>
       )}
-    </div>
+    </Link>
   );
 }

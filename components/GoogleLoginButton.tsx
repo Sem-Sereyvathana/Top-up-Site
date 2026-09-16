@@ -11,6 +11,11 @@ export default function GoogleLoginButton({
   size = "large",
   label = "Continue with Google",
   compactLabel = "Connect",
+  compact = false,
+  // Deprecated alias kept so existing callers (AccountMenu) keep working.
+  // The button is no longer icon-only: it now shows `compactLabel` on
+  // narrow screens instead of dropping the text.
+  compactIconOnly = false,
 }: {
   next?: string;
   size?: "small" | "medium" | "large";
@@ -19,14 +24,31 @@ export default function GoogleLoginButton({
   // can read "Continue with Google" on wider screens and something shorter
   // like "Connect" once space gets tight (e.g. the mobile header bar).
   compactLabel?: string;
+  // Below `sm`, shrink padding, icon and type so the button still fits
+  // next to the store name in the header without truncating it to
+  // "SHARUSTO...". Text stays visible at every width.
+  compact?: boolean;
+  /** @deprecated use `compact` */
+  compactIconOnly?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
+  const isCompact = compact || compactIconOnly;
 
+  // Literal (non-interpolated) strings so Tailwind's scanner picks up
+  // every class it needs to generate.
   const sizeClasses: Record<string, string> = {
-    small: "px-4 py-2 text-sm",
-    medium: "px-5 py-2.5 text-sm",
-    large: "px-6 py-3 text-base",
+    small: "px-4 py-2 text-sm gap-2",
+    medium: "px-5 py-2.5 text-sm gap-2",
+    large: "px-6 py-3 text-base gap-2",
   };
+
+  const compactClasses: Record<string, string> = {
+    small: "px-2.5 py-1.5 text-xs gap-1.5 sm:px-4 sm:py-2 sm:text-sm sm:gap-2",
+    medium: "px-3 py-2 text-xs gap-1.5 sm:px-5 sm:py-2.5 sm:text-sm sm:gap-2",
+    large: "px-3 py-2 text-xs gap-1.5 sm:px-6 sm:py-3 sm:text-base sm:gap-2",
+  };
+
+  const iconClasses = isCompact ? "h-3.5 w-3.5 sm:h-4 sm:w-4" : "h-4 w-4";
 
   function handleClick() {
     setLoading(true);
@@ -38,9 +60,12 @@ export default function GoogleLoginButton({
       type="button"
       onClick={handleClick}
       disabled={loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg border border-white/15 bg-white font-medium text-gray-800 transition hover:bg-gray-100 disabled:opacity-60 ${sizeClasses[size]}`}
+      aria-label={label}
+      className={`inline-flex max-w-full shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-white/15 bg-white font-medium text-gray-800 transition hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fox-primary disabled:opacity-60 ${
+        isCompact ? compactClasses[size] : sizeClasses[size]
+      }`}
     >
-      <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className={`${iconClasses} shrink-0`} aria-hidden="true">
         <path
           fill="#4285F4"
           d="M23.52 12.27c0-.79-.07-1.54-.2-2.27H12v4.51h6.47a5.6 5.6 0 0 1-2.4 3.66v3h3.87c2.26-2.09 3.58-5.17 3.58-8.9Z"
@@ -59,11 +84,11 @@ export default function GoogleLoginButton({
         />
       </svg>
       {loading ? (
-        "..."
+        <span className="truncate">…</span>
       ) : (
         <>
-          <span className="hidden sm:inline">{label}</span>
-          <span className="sm:hidden">{compactLabel}</span>
+          <span className="hidden truncate sm:inline">{label}</span>
+          <span className="truncate sm:hidden">{compactLabel}</span>
         </>
       )}
     </button>

@@ -51,13 +51,13 @@ export default function AccountMenu({
   }
 
   if (loading) {
-    return <div className={`h-9 w-20 rounded-lg bg-fox-card/60 animate-pulse ${className}`} />;
+    return <div className={`h-9 w-9 sm:w-20 rounded-lg bg-fox-card/60 animate-pulse ${className}`} />;
   }
 
   if (!user) {
     return (
       <div className={`flex items-center ${className}`}>
-        <GoogleLoginButton size={inline ? "medium" : "small"} />
+        <GoogleLoginButton size={inline ? "medium" : "small"} compactIconOnly={!inline} />
       </div>
     );
   }
