@@ -189,6 +189,8 @@ export default function WelcomePopupAdminPage() {
             <img
               src={form.imageUrl}
               alt=""
+              loading="lazy"
+              decoding="async"
               className="mt-3 max-h-40 rounded-lg border border-fox-border object-cover"
             />
           )}

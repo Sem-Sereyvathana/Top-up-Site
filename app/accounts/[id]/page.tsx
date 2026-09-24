@@ -79,11 +79,21 @@ export default async function AccountDetailsPage({ params }: { params: { id: str
 
         <div className="grid gap-8 sm:grid-cols-2">
           <div
-            className={`aspect-square rounded-2xl border border-fox-border bg-fox-card/50 bg-cover bg-center ${
+            className={`aspect-square overflow-hidden rounded-2xl border border-fox-border bg-fox-card/50 ${
               soldOut ? "opacity-60 grayscale" : ""
             }`}
-            style={account.imageUrl ? { backgroundImage: `url(${account.imageUrl})` } : undefined}
-          />
+          >
+            {account.imageUrl && (
+              // Main image for this detail page — loads eagerly since it's
+              // the primary visible content, not an off-screen list item.
+              <img
+                src={account.imageUrl}
+                alt={account.title}
+                decoding="async"
+                className="h-full w-full object-cover"
+              />
+            )}
+          </div>
 
           <div className="flex flex-col">
             <p className="text-xs uppercase tracking-wide text-fox-muted">

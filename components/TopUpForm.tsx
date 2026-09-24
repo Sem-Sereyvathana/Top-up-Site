@@ -7,7 +7,9 @@ import {
   isRobuxGame,
 } from "@/lib/utils";
 import { useCurrency } from "@/lib/currency";
+import DualPrice from "@/components/DualPrice";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { getGameIdConfig } from "@/lib/gameIdConfig";
 import {
   ArrowRight,
   Lock,
@@ -19,28 +21,13 @@ import {
   Coins,
   Plus,
   Minus,
+  Star,
   X,
 } from "lucide-react";
 import RobuxStockBadge from "@/components/RobuxStockBadge";
 
-// Games that support automatic nickname lookup
-const LOOKUP_SLUGS = new Set([
-  "mobile-legends",
-  "free-fire",
-  "genshin-impact",
-  "honkai-star-rail",
-]);
-
-// Games that use Zone ID
-const ZONE_ID_SLUGS = new Set([
-  "mobile-legends",
-]);
-
-// Per-server Mobile Legends games use slugs like "mobile-legends-khmer" and behave
-// exactly like the original "mobile-legends" game (Zone ID + nickname lookup).
-const isMlSlug = (slug: string) => slug === "mobile-legends" || slug.startsWith("mobile-legends-");
-const isZoneIdSlug = (slug: string) => ZONE_ID_SLUGS.has(slug) || isMlSlug(slug);
-const isLookupSlug = (slug: string) => LOOKUP_SLUGS.has(slug) || isMlSlug(slug);
+// Which games have a nickname check / a separate Zone ID box lives in
+// lib/gameIdConfig.ts (one entry per game).
 
 interface Product {
   id: string;
@@ -103,8 +90,103 @@ export default function TopUpForm({
   const { user } = useCurrentUser();
 
   const robuxGame = isRobuxGame(game);
-  const supportsLookup = isLookupSlug(game.slug);
-  const useZoneField = isZoneIdSlug(game.slug);
+  // Packages with an admin-set badge (Hot, Best Selling, ...) are also
+  // shown in a compact "Popular" section above the full list. Roblox is
+  // excluded because its cards have quantity controls.
+  const popularProducts = robuxGame
+    ? []
+    : products.filter((p) => !!p.badge?.trim());
+
+  // Compact package tile used by the Popular section (large) and the
+  // All Packages grid (compact) on every non-Roblox game.
+  const renderTile = (
+    product: Product,
+    size: "large" | "compact",
+    keyPrefix: string
+  ) => {
+    const large = size === "large";
+    const unavailable = isOutOfStock(product);
+    const isSelected = selected === product.id;
+    const hasBadge = !!product.badge?.trim();
+
+    return (
+      <button
+        key={`${keyPrefix}-${product.id}`}
+        type="button"
+        disabled={unavailable}
+        onClick={() => setSelected(product.id)}
+        className={`card relative overflow-hidden text-left transition-all ${
+          large ? "p-4" : "p-3"
+        } ${hasBadge ? (large ? "pb-11" : "pb-9") : ""} ${
+          isSelected
+            ? "border-fox-primary ring-1 ring-fox-primary/50"
+            : "hover:border-fox-primary/40"
+        } ${unavailable ? "opacity-40 cursor-not-allowed" : ""}`}
+      >
+        {isSelected && (
+          <div className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-fox-primary text-black">
+            <Check className="h-3 w-3" />
+          </div>
+        )}
+
+        <div className={`flex items-center ${large ? "gap-4" : "gap-3"}`}>
+          {product.imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={product.imageUrl}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className={`shrink-0 rounded-lg object-cover ${
+                large ? "h-16 w-16" : "h-14 w-14"
+              }`}
+            />
+          )}
+          <div className="min-w-0">
+            <div
+              className={`font-display font-bold leading-tight ${
+                large ? "text-lg" : "text-base"
+              }`}
+            >
+              <DualPrice usd={product.priceUsd} stacked />
+            </div>
+            <div
+              className={`mt-1 truncate text-fox-muted ${
+                large ? "text-sm" : "text-xs"
+              }`}
+            >
+              {product.name}
+            </div>
+            {product.bonus > 0 && (
+              <div className="text-xs text-green-400">
+                +{product.bonus.toLocaleString()} Bonus
+              </div>
+            )}
+          </div>
+        </div>
+
+        {hasBadge && (
+          <span
+            className={`absolute bottom-0 left-0 rounded-tr-lg bg-gradient-to-r from-fox-primary to-fox-accent font-bold uppercase italic text-black ${
+              large ? "px-3 py-1.5 text-xs" : "px-2.5 py-1 text-[10px]"
+            }`}
+          >
+            {product.badge}
+          </span>
+        )}
+
+        {unavailable && (
+          <span className="absolute bottom-1 right-2 text-[10px] text-red-400">
+            Out of stock
+          </span>
+        )}
+      </button>
+    );
+  };
+
+  const idConfig = getGameIdConfig(game.slug);
+  const supportsLookup = !!idConfig;
+  const useZoneField = !!idConfig?.needsServer;
 
   const [currentRobuxStock] =
     useState<number | null>(robuxStock);
@@ -164,7 +246,9 @@ export default function TopUpForm({
     | "idle"
     | "checking"
     | "verified"
-    | "not_found";
+    | "not_found" // the service says this ID doesn't exist
+    | "unavailable" // the service failed — can't tell
+    | "unsupported"; // no lookup set up for this game yet
 
   const [nicknameStatus, setNicknameStatus] =
     useState<NicknameStatus>("idle");
@@ -208,7 +292,57 @@ export default function TopUpForm({
     setNickname(null);
   }, []);
 
-  // Nickname lookup
+  // Runs the nickname lookup right now. Used by the debounced auto-check
+  // below and by the "Check User ID" button.
+  const runLookup = useCallback(async () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+
+    setNicknameStatus("checking");
+    setNickname(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const res = await fetch("/api/lookup-uid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gameSlug: game.slug,
+          uid: uid.trim(),
+          server: serverId.trim() || undefined,
+        }),
+        signal: controller.signal,
+      });
+
+      const data = await res.json();
+
+      if (controller.signal.aborted) return;
+
+      const status: string =
+        data.status ??
+        (data.verified && data.nickname ? "verified" : "unavailable");
+
+      if (status === "verified" && data.nickname) {
+        setNickname(data.nickname);
+        setNicknameStatus("verified");
+      } else if (status === "not_found") {
+        setNicknameStatus("not_found");
+      } else if (status === "unsupported") {
+        setNicknameStatus("unsupported");
+      } else {
+        setNicknameStatus("unavailable");
+      }
+    } catch {
+      if (!controller.signal.aborted) {
+        setNicknameStatus("unavailable");
+      }
+    }
+  }, [uid, serverId, game.slug]);
+
+  // Nickname lookup (auto, after the person stops typing)
   useEffect(() => {
     if (!supportsLookup) return;
 
@@ -232,56 +366,7 @@ export default function TopUpForm({
       return;
     }
 
-    debounceRef.current = setTimeout(
-      async () => {
-        setNicknameStatus("checking");
-        setNickname(null);
-
-        const controller =
-          new AbortController();
-
-        abortRef.current = controller;
-
-        try {
-          const res = await fetch(
-            "/api/lookup-uid",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-              body: JSON.stringify({
-                gameSlug: game.slug,
-                uid: uid.trim(),
-                server:
-                  serverId.trim() || undefined,
-              }),
-              signal: controller.signal,
-            }
-          );
-
-          const data = await res.json();
-
-          if (controller.signal.aborted) return;
-
-          if (
-            data.verified &&
-            data.nickname
-          ) {
-            setNickname(data.nickname);
-            setNicknameStatus("verified");
-          } else {
-            setNicknameStatus("not_found");
-          }
-        } catch {
-          if (!controller.signal.aborted) {
-            setNicknameStatus("not_found");
-          }
-        }
-      },
-      800
-    );
+    debounceRef.current = setTimeout(runLookup, 800);
 
     return () => {
       if (debounceRef.current) {
@@ -294,6 +379,7 @@ export default function TopUpForm({
     game.slug,
     supportsLookup,
     useZoneField,
+    runLookup,
   ]);
 
   const selectedProduct =
@@ -708,6 +794,9 @@ export default function TopUpForm({
                       : useZoneField
                       ? "User ID"
                       : game.uidLabel}
+                    {useZoneField && !robuxGame && (
+                      <span className="text-red-400"> *</span>
+                    )}
                   </label>
 
                   <input
@@ -745,6 +834,7 @@ export default function TopUpForm({
                   <div>
                     <label className="label">
                       Zone ID
+                      <span className="text-red-400"> *</span>
                     </label>
 
                     <input
@@ -762,6 +852,39 @@ export default function TopUpForm({
                   </div>
                 )}
               </div>
+
+              {/* CHECK USER ID (every non-Roblox game) */}
+              {!robuxGame && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (debounceRef.current) {
+                        clearTimeout(debounceRef.current);
+                      }
+                      if (!supportsLookup) {
+                        setNickname(null);
+                        setNicknameStatus("unsupported");
+                        return;
+                      }
+                      runLookup();
+                    }}
+                    disabled={
+                      !isValidUid(uid) ||
+                      (useZoneField && serverId.trim().length === 0) ||
+                      nicknameStatus === "checking"
+                    }
+                    className="btn-ghost text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {nicknameStatus === "checking" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <UserRoundCheck className="h-4 w-4" />
+                    )}
+                    Check User ID
+                  </button>
+                </div>
+              )}
 
               {/* ROBLOX AVATAR */}
               {robuxGame && (
@@ -794,6 +917,8 @@ export default function TopUpForm({
                           robloxAccount.avatarUrl
                         }
                         alt="Roblox avatar"
+                        loading="lazy"
+                        decoding="async"
                         className="h-20 w-20 rounded-xl border border-fox-border object-cover bg-fox-bg"
                       />
 
@@ -828,40 +953,46 @@ export default function TopUpForm({
                 </div>
               )}
 
-              {/* AUTO LOOKUP */}
-              {supportsLookup &&
-                nicknameStatus !== "idle" && (
-                  <div>
-                    {nicknameStatus ===
-                      "checking" && (
-                      <div className="flex items-center gap-2 text-sm text-fox-muted">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Verifying account…
-                      </div>
-                    )}
+              {/* LOOKUP RESULT */}
+              {!robuxGame && nicknameStatus !== "idle" && (
+                <div>
+                  {nicknameStatus === "checking" && (
+                    <div className="flex items-center gap-2 text-sm text-fox-muted">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Verifying account…
+                    </div>
+                  )}
 
-                    {nicknameStatus ===
-                      "verified" &&
-                      nickname && (
-                        <div className="inline-flex items-center gap-2 rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-2 text-sm text-green-300">
-                          <UserRoundCheck className="h-4 w-4" />
-                          Player:{" "}
-                          <strong>
-                            {nickname}
-                          </strong>
-                        </div>
-                      )}
+                  {nicknameStatus === "verified" && nickname && (
+                    <div className="inline-flex items-center gap-2 rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-2 text-sm text-green-300">
+                      <UserRoundCheck className="h-4 w-4" />
+                      Player: <strong>{nickname}</strong>
+                    </div>
+                  )}
 
-                    {nicknameStatus ===
-                      "not_found" && (
-                      <div className="inline-flex items-center gap-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-300">
-                        <AlertCircle className="h-4 w-4" />
-                        Couldn&apos;t verify right now
-                        — you can still continue.
-                      </div>
-                    )}
-                  </div>
-                )}
+                  {nicknameStatus === "not_found" && (
+                    <div className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                      <AlertCircle className="h-4 w-4" />
+                      ID not found — please check your{" "}
+                      {useZoneField ? "User ID and Zone ID" : "ID"}.
+                    </div>
+                  )}
+
+                  {nicknameStatus === "unavailable" && (
+                    <div className="inline-flex items-center gap-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-300">
+                      <AlertCircle className="h-4 w-4" />
+                      Couldn&apos;t verify right now — you can still continue.
+                    </div>
+                  )}
+
+                  {nicknameStatus === "unsupported" && (
+                    <div className="inline-flex items-center gap-2 rounded-lg border border-fox-border bg-fox-card/60 px-3 py-2 text-sm text-fox-muted">
+                      <AlertCircle className="h-4 w-4" />
+                      Verification isn&apos;t available for this game yet — you can still continue.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -885,6 +1016,37 @@ export default function TopUpForm({
               </div>
             )}
 
+            {!robuxGame && popularProducts.length > 0 && (
+              <div className="mb-6">
+                <div className="mb-3 flex items-center gap-2">
+                  <Star className="h-5 w-5 text-fox-primary" fill="currentColor" />
+                  <h3 className="font-display text-lg font-bold text-fox-primary">
+                    Popular
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                  {popularProducts.map((product) =>
+                    renderTile(product, "large", "popular")
+                  )}
+                </div>
+
+                <h3 className="mt-6 font-display text-lg font-bold">
+                  All Packages
+                </h3>
+              </div>
+            )}
+
+            {!robuxGame && (
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                {products.map((product) =>
+                  renderTile(product, "compact", "all")
+                )}
+              </div>
+            )}
+
+            {/* Roblox keeps its original cards (quantity controls) */}
+            {robuxGame && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
               {products.map((product) => {
@@ -979,7 +1141,7 @@ export default function TopUpForm({
                       </div>
 
                       <div className="font-display text-xl font-bold mt-4">
-                        {format(product.priceUsd)}
+                        <DualPrice usd={product.priceUsd} />
                       </div>
 
                       {unavailable && (
@@ -1035,6 +1197,7 @@ export default function TopUpForm({
                 );
               })}
             </div>
+            )}
 
             {cartExceedsStock && (
               <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">

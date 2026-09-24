@@ -27,11 +27,20 @@ function GameCardContent({
         <div
           className={
             active
-              ? "absolute inset-0 bg-gradient-to-br from-fox-primary/20 to-fox-accent/10 bg-cover bg-center transition-transform duration-700 ease-out group-hover:scale-110"
-              : "absolute inset-0 bg-gradient-to-br from-fox-primary/20 to-fox-accent/10 bg-cover bg-center grayscale opacity-50"
+              ? "absolute inset-0 overflow-hidden bg-gradient-to-br from-fox-primary/20 to-fox-accent/10 transition-transform duration-700 ease-out group-hover:scale-110"
+              : "absolute inset-0 overflow-hidden bg-gradient-to-br from-fox-primary/20 to-fox-accent/10 grayscale opacity-50"
           }
-          style={imageUrl ? { backgroundImage: "url(" + imageUrl + ")" } : {}}
-        />
+        >
+          {imageUrl && (
+            <img
+              src={imageUrl}
+              alt={name}
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full object-cover"
+            />
+          )}
+        </div>
 
         {active && (
           <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">

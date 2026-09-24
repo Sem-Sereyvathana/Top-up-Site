@@ -47,7 +47,7 @@ export default async function BlogIndex() {
               >
                 {p.coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.coverUrl} alt="" className="h-44 w-full object-cover" />
+                  <img src={p.coverUrl} alt="" loading="lazy" decoding="async" className="h-44 w-full object-cover" />
                 ) : (
                   <div className="h-44 w-full bg-gradient-to-br from-fox-primary/20 to-fox-accent/10" />
                 )}

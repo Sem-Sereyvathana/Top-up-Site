@@ -1,9 +1,16 @@
 /**
  * Game-specific UID → in-game nickname lookup.
  *
- * Uses the community API at api.isan.eu.org (no auth, best-effort).
- * Every function has a 5 s timeout and catches all errors → returns null.
+ * Order of attempts: paid provider (lib/idCheckProvider.ts, when connected),
+ * then the free community services below (no auth, best-effort).
+ * Every request has a timeout and never throws.
  */
+
+import {
+  getGameIdConfig,
+  type LookupResult,
+} from "@/lib/gameIdConfig";
+import { lookupViaProvider } from "@/lib/idCheckProvider";
 
 // ---------- helpers ----------
 
@@ -13,7 +20,20 @@ interface IsanResponse {
   message?: string;
 }
 
-async function fetchIsan(url: string): Promise<string | null> {
+const RANK: Record<LookupResult["status"], number> = {
+  verified: 3,
+  not_found: 2,
+  unavailable: 1,
+  unsupported: 0,
+};
+
+function best(a: LookupResult, b: LookupResult): LookupResult {
+  return RANK[b.status] > RANK[a.status] ? b : a;
+}
+
+// verified → got a name; not_found → the service answered (HTTP 200) with
+// success:false; unavailable → network error, timeout, bad reply or HTTP error.
+async function fetchIsan(url: string): Promise<LookupResult> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
@@ -24,11 +44,12 @@ async function fetchIsan(url: string): Promise<string | null> {
     });
     clearTimeout(timer);
 
-    const data: IsanResponse = await res.json();
-    if (data.success && data.name) return data.name;
-    return null;
+    const data: IsanResponse | null = await res.json().catch(() => null);
+    if (data?.success && data.name) return { status: "verified", name: data.name };
+    if (res.ok && data && data.success === false) return { status: "not_found" };
+    return { status: "unavailable" };
   } catch {
-    return null;
+    return { status: "unavailable" };
   }
 }
 
@@ -37,13 +58,19 @@ async function fetchIsan(url: string): Promise<string | null> {
 export async function lookupMobileLegends(
   uid: string,
   zone: string,
-): Promise<string | null> {
-  return fetchIsan(
-    `https://api.isan.eu.org/nickname/ml/${encodeURIComponent(uid)}/${encodeURIComponent(zone)}`,
-  );
+): Promise<LookupResult> {
+  const base = "https://api.isan.eu.org/nickname/ml";
+  const id = encodeURIComponent(uid);
+  const server = encodeURIComponent(zone);
+
+  // Documented format first, then the older path format as a backup.
+  const a = await fetchIsan(`${base}?id=${id}&server=${server}`);
+  if (a.status === "verified") return a;
+  const b = await fetchIsan(`${base}/${id}/${server}`);
+  return best(a, b);
 }
 
-export async function lookupFreeFire(uid: string): Promise<string | null> {
+export async function lookupFreeFire(uid: string): Promise<LookupResult> {
   // CamRapidSecure FreeFire validator
   // GET https://v1.camrapidx.com/validate_user/FreeFire_LevelUpPass.php?UserID=<uid>
   // Returns: { status: "APPROVED", username: "PlayerName#", ... }
@@ -65,59 +92,61 @@ export async function lookupFreeFire(uid: string): Promise<string | null> {
     );
     clearTimeout(timer);
 
-    if (!res.ok) return null;
+    if (!res.ok) return { status: "unavailable" };
 
     const data = await res.json().catch(() => null);
-    if (!data || data.status !== "APPROVED") return null;
+    if (!data || typeof data !== "object") return { status: "unavailable" };
 
-    if (typeof data.username === "string" && data.username.length > 0) {
-      return data.username;
+    if (
+      data.status === "APPROVED" &&
+      typeof data.username === "string" &&
+      data.username.length > 0
+    ) {
+      return { status: "verified", name: data.username };
     }
-    return null;
+    if (typeof data.status === "string") return { status: "not_found" };
+    return { status: "unavailable" };
   } catch {
-    return null;
+    return { status: "unavailable" };
   }
-}
-
-export async function lookupGenshin(
-  _uid: string,
-  _server?: string,
-): Promise<string | null> {
-  // Stub — upstream doesn't reliably return names for Genshin
-  return null;
-}
-
-export async function lookupHonkaiStarRail(
-  _uid: string,
-  _server?: string,
-): Promise<string | null> {
-  // Stub — upstream doesn't reliably return names for HSR
-  return null;
 }
 
 // ---------- router ----------
 
 /**
- * Looks up the in-game nickname for a given game + UID + optional server.
- * Returns the nickname string or null if lookup is unsupported / fails.
+ * Looks up the in-game nickname for a game slug + UID + optional server.
  */
+export async function lookupGameId(
+  gameSlug: string,
+  uid: string,
+  server?: string,
+): Promise<LookupResult> {
+  const cfg = getGameIdConfig(gameSlug);
+  if (!cfg) return { status: "unsupported" };
+
+  // Paid provider first (when connected).
+  const viaProvider = await lookupViaProvider(cfg.key, uid, server);
+  if (viaProvider) return viaProvider;
+
+  switch (cfg.key) {
+    case "mobile-legends":
+      return server
+        ? lookupMobileLegends(uid, server)
+        : { status: "unavailable" };
+    case "free-fire":
+      return lookupFreeFire(uid);
+    default:
+      // Genshin / Honkai: Star Rail — no working lookup until a provider is connected.
+      return { status: "unsupported" };
+  }
+}
+
+/** Kept for older callers: nickname or null. */
 export async function lookupNickname(
   gameSlug: string,
   uid: string,
   server?: string,
 ): Promise<string | null> {
-  // Per-server Mobile Legends games (e.g. "mobile-legends-khmer") reuse the same lookup.
-  if (gameSlug.startsWith("mobile-legends-")) gameSlug = "mobile-legends";
-  switch (gameSlug) {
-    case "mobile-legends":
-      return server ? lookupMobileLegends(uid, server) : null;
-    case "free-fire":
-      return lookupFreeFire(uid);
-    case "genshin-impact":
-      return lookupGenshin(uid, server);
-    case "honkai-star-rail":
-      return lookupHonkaiStarRail(uid, server);
-    default:
-      return null;
-  }
+  const r = await lookupGameId(gameSlug, uid, server);
+  return r.status === "verified" ? r.name : null;
 }

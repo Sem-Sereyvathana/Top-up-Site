@@ -341,6 +341,8 @@ export default function ShopCheckout({
                         <img
                           src={robloxAccount.avatarUrl}
                           alt="Roblox avatar"
+                          loading="lazy"
+                          decoding="async"
                           className="h-20 w-20 rounded-xl border border-fox-border object-cover bg-fox-bg"
                         />
                         <div>

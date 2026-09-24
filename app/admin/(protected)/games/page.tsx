@@ -143,7 +143,7 @@ export default function AdminGamesPage() {
               >
                 {group.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={group.imageUrl} alt="" className="h-5 w-5 rounded object-cover" />
+                  <img src={group.imageUrl} alt="" loading="lazy" decoding="async" className="h-5 w-5 rounded object-cover" />
                 ) : (
                   <div className="h-5 w-5 rounded bg-fox-bg/60" />
                 )}
@@ -182,7 +182,7 @@ export default function AdminGamesPage() {
           </div>
           {groupForm.imageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={groupForm.imageUrl} alt="" className="h-9 w-9 rounded-lg border border-fox-border object-cover" />
+            <img src={groupForm.imageUrl} alt="" loading="lazy" decoding="async" className="h-9 w-9 rounded-lg border border-fox-border object-cover" />
           )}
           <button type="submit" disabled={groupSaving || !groupForm.name.trim()} className="btn-primary">
             {groupSaving ? "Saving..." : editingGroupId ? "Save" : "Add group"}
@@ -485,7 +485,7 @@ function ImageField({
         {value ? (
           <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-fox-border bg-fox-bg">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={value} alt="" className="h-full w-full object-cover" />
+            <img src={value} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
           </div>
         ) : (
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-dashed border-fox-border bg-fox-bg text-xs text-fox-muted">

@@ -78,10 +78,17 @@ export default function ShopCartPage({
             <div className="card divide-y divide-fox-border/60 p-0">
               {lines.map((l) => (
                 <div key={l.card.id} className="flex items-center gap-4 p-4 sm:p-5">
-                  <div
-                    className="h-16 w-16 shrink-0 rounded-xl bg-fox-bg/60 bg-cover bg-center"
-                    style={l.card.imageUrl ? { backgroundImage: `url(${l.card.imageUrl})` } : undefined}
-                  />
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-fox-bg/60">
+                    {l.card.imageUrl && (
+                      <img
+                        src={l.card.imageUrl}
+                        alt={l.card.name}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                  </div>
                   <div className="min-w-0 flex-1">
                     {l.card.subLabel && (
                       <p className="text-xs uppercase tracking-wide text-fox-muted">{l.card.subLabel}</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCurrency } from "@/lib/currency";
+import DualPrice from "./DualPrice";
 
 export default function PriceTag({
   priceUsd,
@@ -9,6 +9,5 @@ export default function PriceTag({
   priceUsd: number;
   className?: string;
 }) {
-  const { format } = useCurrency();
-  return <span className={className}>{format(priceUsd)}</span>;
+  return <DualPrice usd={priceUsd} className={className} />;
 }

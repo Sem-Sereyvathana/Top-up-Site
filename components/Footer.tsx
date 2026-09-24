@@ -40,6 +40,8 @@ export default function Footer() {
                 <img
                   src={logoUrl}
                   alt={siteName}
+                  loading="lazy"
+                  decoding="async"
                   className="h-8 w-8 rounded-lg object-contain"
                 />
               ) : (

@@ -257,7 +257,7 @@ export default function GameItemsAdminPage() {
               >
                 {cat.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={cat.imageUrl} alt="" className="h-5 w-5 rounded object-cover" />
+                  <img src={cat.imageUrl} alt="" loading="lazy" decoding="async" className="h-5 w-5 rounded object-cover" />
                 ) : (
                   <div className="h-5 w-5 rounded bg-fox-bg/60" />
                 )}
@@ -305,7 +305,7 @@ export default function GameItemsAdminPage() {
           </div>
           {catForm.imageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={catForm.imageUrl} alt="" className="h-9 w-9 rounded-lg border border-fox-border object-cover" />
+            <img src={catForm.imageUrl} alt="" loading="lazy" decoding="async" className="h-9 w-9 rounded-lg border border-fox-border object-cover" />
           )}
           <button type="submit" disabled={catSaving || !catForm.name.trim()} className="btn-primary">
             <Save className="h-4 w-4" /> {catSaving ? "Saving..." : editingCatId ? "Save" : "Add category"}
@@ -382,7 +382,7 @@ export default function GameItemsAdminPage() {
               </div>
               {form.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={form.imageUrl} alt="" className="mt-3 h-32 w-32 rounded-lg border border-fox-border object-cover" />
+                <img src={form.imageUrl} alt="" loading="lazy" decoding="async" className="mt-3 h-32 w-32 rounded-lg border border-fox-border object-cover" />
               )}
             </div>
             <div>
@@ -489,7 +489,7 @@ export default function GameItemsAdminPage() {
                       <div className="flex items-center gap-3">
                         {item.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={item.imageUrl} alt="" className="h-10 w-10 rounded-lg object-cover border border-fox-border" />
+                          <img src={item.imageUrl} alt="" loading="lazy" decoding="async" className="h-10 w-10 rounded-lg object-cover border border-fox-border" />
                         ) : (
                           <div className="h-10 w-10 rounded-lg bg-fox-bg/60 border border-fox-border" />
                         )}

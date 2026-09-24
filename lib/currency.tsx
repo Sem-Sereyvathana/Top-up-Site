@@ -9,7 +9,7 @@ interface CurrencyContextValue {
   exchangeRate: number; // KHR per 1 USD
   setCurrency: (c: CurrencyCode) => void;
   toggle: () => void;
-  /** Format a USD amount as the active display currency. */
+  /** Format a USD amount as "$x.xx · y ៛" (USD and KHR side by side). */
   format: (usd: number) => string;
   /** Convert USD → KHR (rounded to nearest 100). */
   toKhr: (usd: number) => number;
@@ -60,14 +60,11 @@ export function CurrencyProvider({
     [exchangeRate]
   );
 
+  // Both currencies are always shown together; the KHR side is calculated
+  // from the admin-configured exchange rate (Settings.exchangeRate).
   const format = useCallback(
-    (usd: number) => {
-      if (currency === "KHR") {
-        return `${toKhr(usd).toLocaleString("en-US")} ៛`;
-      }
-      return `$${usd.toFixed(2)}`;
-    },
-    [currency, toKhr]
+    (usd: number) => `$${usd.toFixed(2)} · ${toKhr(usd).toLocaleString("en-US")} ៛`,
+    [toKhr]
   );
 
   const value = useMemo<CurrencyContextValue>(

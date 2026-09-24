@@ -122,7 +122,7 @@ export default function EditBlogPostPage() {
           </div>
           {form.coverUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={form.coverUrl} alt="" className="mt-3 h-32 rounded-lg border border-fox-border object-cover" />
+            <img src={form.coverUrl} alt="" loading="lazy" decoding="async" className="mt-3 h-32 rounded-lg border border-fox-border object-cover" />
           )}
         </div>
         <div>

@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { z } from "zod";
-import { lookupNickname } from "@/lib/uidLookup";
+import { lookupGameId } from "@/lib/uidLookup";
 import { checkRateLimit } from "@/lib/rateLimit";
 
 const bodySchema = z.object({
@@ -48,10 +48,12 @@ export async function POST(req: NextRequest) {
   const { gameSlug, uid, server } = parsed.data;
 
   // â”€â”€ lookup â”€â”€
-  const nickname = await lookupNickname(gameSlug, uid, server);
+  const result = await lookupGameId(gameSlug, uid, server);
+  const nickname = result.status === "verified" ? result.name : null;
 
   return NextResponse.json({
     nickname,
-    verified: nickname !== null,
+    verified: result.status === "verified",
+    status: result.status,
   });
 }

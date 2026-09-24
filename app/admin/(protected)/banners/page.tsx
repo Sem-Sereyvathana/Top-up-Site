@@ -158,7 +158,7 @@ export default function BannersAdminPage() {
             </div>
             {form.imageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={form.imageUrl} alt="" className="mt-3 h-32 rounded-lg border border-fox-border object-cover" />
+              <img src={form.imageUrl} alt="" loading="lazy" decoding="async" className="mt-3 h-32 rounded-lg border border-fox-border object-cover" />
             )}
           </div>
           <div>
@@ -198,7 +198,7 @@ export default function BannersAdminPage() {
           {items.map((b) => (
             <div key={b.id} className="card overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={b.imageUrl} alt="" className="h-40 w-full object-cover" />
+              <img src={b.imageUrl} alt="" loading="lazy" decoding="async" className="h-40 w-full object-cover" />
               <div className="p-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold">{b.title}</h3>

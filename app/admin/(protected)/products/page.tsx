@@ -146,7 +146,7 @@ export default function AdminProductsPage() {
                       <div className="flex items-center gap-3">
                         {p.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.imageUrl} alt="" className="h-10 w-10 rounded-lg object-cover border border-fox-border" />
+                          <img src={p.imageUrl} alt="" loading="lazy" decoding="async" className="h-10 w-10 rounded-lg object-cover border border-fox-border" />
                         ) : (
                           <div className="h-10 w-10 rounded-lg bg-fox-bg/60 border border-fox-border" />
                         )}
@@ -282,7 +282,7 @@ function ProductForm({ games, defaultGameId, initial, onCancel, onSaved }: any) 
           <div className="flex items-center gap-3">
             {form.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={form.imageUrl} alt="" className="h-12 w-12 rounded-lg border border-fox-border object-cover" />
+              <img src={form.imageUrl} alt="" loading="lazy" decoding="async" className="h-12 w-12 rounded-lg border border-fox-border object-cover" />
             ) : (
               <div className="h-12 w-12 rounded-lg border border-dashed border-fox-border bg-fox-bg" />
             )}

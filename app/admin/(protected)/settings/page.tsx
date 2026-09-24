@@ -73,7 +73,7 @@ export default function AdminSettingsPage() {
           <label className="label">Site Logo</label>
           <div className="flex items-center gap-4">
             {form.logoUrl ? (
-              <img src={form.logoUrl} alt="Logo" className="h-12 w-12 rounded-lg object-contain bg-fox-surface border border-fox-border" />
+              <img src={form.logoUrl} alt="Logo" loading="lazy" decoding="async" className="h-12 w-12 rounded-lg object-contain bg-fox-surface border border-fox-border" />
             ) : (
               <div className="h-12 w-12 rounded-lg border border-dashed border-fox-border flex items-center justify-center text-[10px] text-fox-muted text-center">
                 No logo

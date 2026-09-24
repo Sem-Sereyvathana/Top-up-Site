@@ -61,6 +61,11 @@ export default function HeroCarousel({ banners }: { banners: Banner[] }) {
             <img
               src={banner.imageUrl}
               alt={banner.title || "Display Banner"}
+              // First slide is visible immediately (it's the page's hero
+              // image), so it loads eagerly; the rest are only shown after
+              // the carousel rotates, so they can wait.
+              loading={i === 0 ? "eager" : "lazy"}
+              decoding="async"
               className="h-full w-full object-cover"
             />
           </div>

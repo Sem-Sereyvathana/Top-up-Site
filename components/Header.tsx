@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import CurrencyToggle from "./CurrencyToggle";
 import AccountMenu from "./AccountMenu";
 import CartButton from "./CartButton";
 import { DEFAULT_SITE_NAME, splitBrandName } from "@/lib/siteBrand";
 
 const NAV = [
-  { href: "/game-items", label: "Game Items" },
+  { href: "/game-items", label: "Game" },
   { href: "/accounts", label: "Account" },
   { href: "/history", label: "History" },
 ];
@@ -125,7 +124,6 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <CurrencyToggle className="hidden sm:inline-flex" />
           {pathname?.startsWith("/game-items") && (
             <CartButton kind="items" cartHref="/game-items/cart" />
           )}
@@ -168,10 +166,6 @@ export default function Header() {
               {item.label}
             </Link>
           ))}
-          <div className="mt-2 flex items-center justify-between rounded-lg border border-fox-border bg-fox-card/60 px-4 py-3">
-            <span className="text-xs uppercase tracking-wider text-fox-muted">Display currency</span>
-            <CurrencyToggle />
-          </div>
           <div className="mt-2">
             <AccountMenu inline onNavigate={() => setMobileOpen(false)} />
           </div>

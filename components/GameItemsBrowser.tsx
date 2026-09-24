@@ -91,10 +91,15 @@ export default function GameItemsBrowser({
             onClick={() => setSelected(g.key)}
             icon={
               g.imageUrl ? (
-                <span
-                  className="h-5 w-5 shrink-0 rounded bg-cover bg-center"
-                  style={{ backgroundImage: `url(${g.imageUrl})` }}
-                />
+                <span className="h-5 w-5 shrink-0 overflow-hidden rounded">
+                  <img
+                    src={g.imageUrl}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover"
+                  />
+                </span>
               ) : undefined
             }
           />
@@ -109,10 +114,15 @@ export default function GameItemsBrowser({
             <section key={group.key}>
               <div className="mb-4 flex items-center gap-3 rounded-xl bg-gradient-to-r from-fox-primary to-fox-accent px-4 py-3 shadow-glow-sm">
                 {group.imageUrl && (
-                  <span
-                    className="h-6 w-6 shrink-0 rounded bg-cover bg-center"
-                    style={{ backgroundImage: `url(${group.imageUrl})` }}
-                  />
+                  <span className="h-6 w-6 shrink-0 overflow-hidden rounded">
+                    <img
+                      src={group.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover"
+                    />
+                  </span>
                 )}
                 <h2 className="text-sm font-bold uppercase tracking-wider text-white sm:text-base">
                   {group.label}
@@ -125,14 +135,17 @@ export default function GameItemsBrowser({
                     key={item.id}
                     className="rounded-2xl border border-fox-border/70 bg-fox-card/50 p-4 backdrop-blur-md transition-transform hover:-translate-y-1 hover:border-fox-primary/60"
                   >
-                    <div
-                      className="mb-3 aspect-square rounded-xl bg-fox-bg/60 bg-cover bg-center"
-                      style={
-                        item.imageUrl
-                          ? { backgroundImage: `url(${item.imageUrl})` }
-                          : undefined
-                      }
-                    />
+                    <div className="mb-3 aspect-square overflow-hidden rounded-xl bg-fox-bg/60">
+                      {item.imageUrl && (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
+                      )}
+                    </div>
                     {item.badge && (
                       <span className="mb-1 inline-block rounded-full bg-fox-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-fox-primary">
                         {item.badge}

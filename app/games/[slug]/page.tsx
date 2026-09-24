@@ -32,14 +32,16 @@ export default async function GamePage({ params }: { params: { slug: string } })
 
       {/* Game banner */}
       <section className="relative overflow-hidden border-b border-fox-border">
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{
-            backgroundImage: game.bannerUrl ? `url(${game.bannerUrl})` : undefined,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        />
+        {game.bannerUrl && (
+          // Above-the-fold banner for this page — loads eagerly since it's
+          // the first thing visible, not an off-screen list item.
+          <img
+            src={game.bannerUrl}
+            alt=""
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover opacity-30"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-fox-bg via-fox-bg/90 to-fox-bg/70" />
 
         <div className="relative mx-auto max-w-6xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
@@ -52,14 +54,14 @@ export default async function GamePage({ params }: { params: { slug: string } })
           </Link>
 
           <div className="flex items-center gap-4 sm:gap-6">
-            <div
-              className="h-20 w-20 sm:h-28 sm:w-28 rounded-2xl border-2 border-fox-border bg-fox-card shadow-xl shrink-0 overflow-hidden"
-              style={{
-                backgroundImage: `url(${game.imageUrl})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            />
+            <div className="h-20 w-20 sm:h-28 sm:w-28 rounded-2xl border-2 border-fox-border bg-fox-card shadow-xl shrink-0 overflow-hidden">
+              <img
+                src={game.imageUrl}
+                alt={game.name}
+                decoding="async"
+                className="h-full w-full object-cover"
+              />
+            </div>
             <div>
               {game.publisher && (
                 <p className="text-[10px] sm:text-xs uppercase tracking-widest text-fox-muted mb-1">

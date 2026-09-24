@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCurrency } from "@/lib/currency";
+import DualPrice from "./DualPrice";
 import { useShopCart, ShopKind } from "@/lib/shopCart";
 import { Plus, Minus, Check, ShoppingCart, MessageCircle } from "lucide-react";
 
@@ -174,17 +175,22 @@ export default function ShopCartBrowser({
             <section key={group.key}>
               <div className="mb-4 flex items-center gap-3 rounded-xl bg-gradient-to-r from-fox-primary to-fox-accent px-4 py-3 shadow-glow-sm">
                 {group.imageUrl && (
-                  <span
-                    className="h-6 w-6 shrink-0 rounded bg-cover bg-center"
-                    style={{ backgroundImage: `url(${group.imageUrl})` }}
-                  />
+                  <span className="h-6 w-6 shrink-0 overflow-hidden rounded">
+                    <img
+                      src={group.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover"
+                    />
+                  </span>
                 )}
                 <h2 className="text-sm font-bold uppercase tracking-wider text-white sm:text-base">
                   {group.label}
                 </h2>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              <div className={kind === "items" ? "grid grid-cols-[repeat(auto-fill,minmax(150px,150px))] justify-start gap-3" : "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"}>
                 {group.cards.map((card) => {
                   const qty = cart[card.id] ?? 0;
                   const inCart = qty > 0;
@@ -222,7 +228,7 @@ export default function ShopCartBrowser({
                           handleCardActivate();
                         }
                       }}
-                      className={`relative rounded-2xl border p-4 text-left backdrop-blur-md transition-transform ${
+                      className={`relative rounded-2xl border ${kind === "items" ? "p-3" : "p-4"} text-left backdrop-blur-md transition-transform ${
                         card.soldOut
                           ? "cursor-not-allowed border-fox-border/50 bg-fox-card/30 opacity-60"
                           : inCart
@@ -240,21 +246,33 @@ export default function ShopCartBrowser({
                           <Check className="h-3.5 w-3.5" strokeWidth={3} />
                         </span>
                       )}
-                      <div
-                        className={`mb-3 aspect-square rounded-xl bg-fox-bg/60 bg-cover bg-center ${card.soldOut ? "opacity-40 grayscale" : ""}`}
-                        style={card.imageUrl ? { backgroundImage: `url(${card.imageUrl})` } : undefined}
-                      />
-                      {card.badge && (
-                        <span className="mb-1 inline-block rounded-full bg-fox-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-fox-primary">
+                      {card.badge && !inCart && !card.soldOut && (
+                        <span className="absolute right-3 top-3 z-10 badge-best flex items-center gap-1 text-[9px]">
+                          <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z" />
+                          </svg>
                           {card.badge}
                         </span>
                       )}
+                      <div
+                        className={`${kind === "items" ? "mb-2" : "mb-3"} aspect-square overflow-hidden rounded-xl bg-fox-bg/60 ${card.soldOut ? "opacity-40 grayscale" : ""}`}
+                      >
+                        {card.imageUrl && (
+                          <img
+                            src={card.imageUrl}
+                            alt={card.name}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover"
+                          />
+                        )}
+                      </div>
                       {card.subLabel && (
                         <p className="text-xs uppercase tracking-wide text-fox-muted">{card.subLabel}</p>
                       )}
-                      <h3 className="mt-1 font-medium text-fox-text">{card.name}</h3>
+                      <h3 className={kind === "items" ? "mt-1 text-sm font-medium text-fox-text line-clamp-1" : "mt-1 font-medium text-fox-text"}>{card.name}</h3>
                       <div className="mt-2 flex items-center justify-between">
-                        <span className="text-sm font-semibold text-fox-primary">{format(card.priceUsd)}</span>
+                        <span className="text-sm font-semibold text-fox-primary"><DualPrice usd={card.priceUsd} /></span>
                       </div>
 
                       {!card.soldOut && (
@@ -384,7 +402,9 @@ function CategoryPill({
       }
     >
       {imageUrl && (
-        <span className="h-5 w-5 shrink-0 rounded bg-cover bg-center" style={{ backgroundImage: `url(${imageUrl})` }} />
+        <span className="h-5 w-5 shrink-0 overflow-hidden rounded">
+          <img src={imageUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+        </span>
       )}
       {label}
     </button>
