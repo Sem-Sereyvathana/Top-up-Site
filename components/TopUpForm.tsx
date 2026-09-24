@@ -942,16 +942,20 @@ export default function TopUpForm({
                       </div>
                     )}
 
-                    <div className="pr-8">
-
+                    {/* Phone: image on top. sm+: image on the right, text on the left. */}
+                    <div className="flex flex-col gap-3 sm:flex-row-reverse sm:items-center sm:justify-between">
                       {product.imageUrl && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={product.imageUrl}
                           alt=""
-                          className="h-12 w-12 rounded-lg object-cover mb-3"
+                          loading="lazy"
+                          decoding="async"
+                          className="h-12 w-12 shrink-0 rounded-lg object-cover sm:h-28 sm:w-28"
                         />
                       )}
+
+                    <div className={product.imageUrl ? "min-w-0 pr-8 sm:flex-1 sm:pr-0" : "min-w-0 pr-8 sm:flex-1"}>
 
                       {product.badge && (
                         <div className="inline-block text-xs px-2 py-1 rounded-full bg-fox-primary/10 text-fox-primary mb-3">
@@ -1025,6 +1029,7 @@ export default function TopUpForm({
                             </button>
                           </div>
                         )}
+                    </div>
                     </div>
                   </button>
                 );

@@ -252,11 +252,11 @@ model Admin {
 
 model Settings {
   id                 Int      @id @default(1)
-  siteName           String   @default("RITHTOPUP")
+  siteName           String   @default("SharuStore")
   logoUrl            String?
   exchangeRate       Float    @default(4100)
-  supportTelegram    String?  @default("@rithtopup")
-  supportEmail       String?  @default("support@rithtopup.com")
+  supportTelegram    String?  @default("@sharustore")
+  supportEmail       String?
   maintenanceMode    Boolean  @default(false)
   maintenanceMessage String?
   announcement       String?
@@ -599,4 +599,25 @@ model GameAccountOrderItem {
 
   @@index([orderId])
   @@index([gameAccountId])
+}
+
+// Single-row table (id = 1) for the "welcome" popup shown to first-time
+// visitors. Kept separate from Settings on purpose: adding columns to
+// Settings would break every Settings query until `prisma db push` has run,
+// whereas a new table only affects the popup itself.
+model WelcomePopup {
+  id          Int      @id @default(1)
+  enabled     Boolean  @default(false)
+  // Bumped from the admin ("show again to everyone") so returning visitors
+  // who already dismissed an older popup see the new one.
+  version     Int      @default(1)
+  imageUrl    String?
+  title       String   @default("")
+  body        String?
+  // One checklist item per line.
+  bullets     String?
+  telegramUrl String?
+  buttonLabel String   @default("Join Telegram")
+  closeLabel  String   @default("Close")
+  updatedAt   DateTime @updatedAt
 }

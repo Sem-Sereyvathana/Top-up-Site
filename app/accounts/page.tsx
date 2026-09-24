@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import HeroCarousel from "@/components/HeroCarousel";
 import ShopCartBrowser, { ShopCartCard } from "@/components/ShopCartBrowser";
 
 export const metadata: Metadata = {
@@ -13,7 +12,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AccountsPage() {
-  const [accounts, banners] = await Promise.all([
+  const [accounts] = await Promise.all([
     prisma.gameAccount.findMany({
       // Sold-out listings are excluded outright rather than shown greyed
       // out with a "Sold" badge — a buyer can't buy them anyway, and
@@ -35,10 +34,6 @@ export default async function AccountsPage() {
         Category: { select: { name: true, slug: true } },
       },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-    }),
-    prisma.heroBanner.findMany({
-      where: { active: true },
-      orderBy: { sortOrder: "asc" },
     }),
   ]);
 
@@ -72,9 +67,6 @@ export default async function AccountsPage() {
   return (
     <>
       <Header />
-      <div className="pt-8">
-        <HeroCarousel banners={banners} />
-      </div>
       <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <ShopCartBrowser
           cards={cards}

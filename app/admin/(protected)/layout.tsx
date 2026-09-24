@@ -80,6 +80,7 @@ export default async function AdminLayout({
               items: [
                 { href: "/admin/promo-codes", label: "Promo Codes", icon: "🏷️" },
                 { href: "/admin/banners", label: "Banners", icon: "🖼️" },
+                { href: "/admin/welcome-popup", label: "Welcome Popup", icon: "💬" },
                 { href: "/admin/blog", label: "Blog", icon: "📝" },
               ],
             },

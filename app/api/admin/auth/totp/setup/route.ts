@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 
-const ISSUER = "RITHTOPUP Admin";
+const ISSUER = "SharuStore Admin";
 
 function randomBackupCode() {
   // 10 chars, groups of 5, uppercase — easy to read back, hard to guess.

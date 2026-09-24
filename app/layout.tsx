@@ -5,6 +5,7 @@ import { CurrencyProvider } from "@/lib/currency";
 import { ShopCartProvider } from "@/lib/shopCart";
 import RouteProgress from "@/components/RouteProgress";
 import AnnouncementBar from "@/components/AnnouncementBar";
+import WelcomePopup from "@/components/WelcomePopup";
 
 export const metadata: Metadata = {
   title: "SHARUSTORE — Fast & Secure Game Top Up",
@@ -43,6 +44,7 @@ export default async function RootLayout({
           <ShopCartProvider>
             <AnnouncementBar />
             {children}
+            <WelcomePopup />
           </ShopCartProvider>
         </CurrencyProvider>
       </body>

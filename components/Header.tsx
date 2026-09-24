@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import CurrencyToggle from "./CurrencyToggle";
 import AccountMenu from "./AccountMenu";
 import CartButton from "./CartButton";
+import { DEFAULT_SITE_NAME, splitBrandName } from "@/lib/siteBrand";
 
 const NAV = [
   { href: "/game-items", label: "Game Items" },
@@ -19,6 +20,7 @@ export default function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [siteName, setSiteName] = useState<string>(DEFAULT_SITE_NAME);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -27,18 +29,23 @@ export default function Header() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Admin-configured logo (Settings.logoUrl) — falls back to the default
+  // Admin-configured logo and site name (Settings) — fall back to the default
   // icon below when nothing has been uploaded yet.
   useEffect(() => {
     fetch("/api/settings")
       .then((r) => r.json())
-      .then((data) => setLogoUrl(data?.logoUrl || null))
+      .then((data) => {
+        setLogoUrl(data?.logoUrl || null);
+        if (data?.siteName) setSiteName(data.siteName);
+      })
       .catch(() => {});
   }, []);
 
   // First nav item toggles label based on route, but always links home
   const homeItem = { href: "/", label: isHome ? "Home" : "Top up" };
   const fullNav = [homeItem, ...NAV];
+
+  const [brandMain, brandAccent] = splitBrandName(siteName);
 
   return (
     <header
@@ -57,7 +64,7 @@ export default function Header() {
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={logoUrl}
-              alt="SHARUSTORE"
+              alt={siteName}
               className="h-10 w-10 rounded-xl object-contain transition-transform duration-300 group-hover:scale-110"
             />
           ) : (
@@ -82,8 +89,9 @@ export default function Header() {
             </div>
           )}
           <div className="flex flex-col leading-none">
-            <span className="font-display text-xl font-bold tracking-tight">
-              SHARU<span className="text-fox-primary">STORE</span>
+            <span className="font-display text-xl font-bold tracking-tight uppercase">
+              {brandMain}
+              {brandAccent && <span className="text-fox-primary">{brandAccent}</span>}
             </span>
             <span className="text-[10px] text-fox-muted tracking-widest">
               INSTANT · SECURE · 24/7
