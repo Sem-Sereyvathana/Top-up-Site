@@ -3,19 +3,84 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+interface Group {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  sortOrder: number;
+}
+
+const emptyGroup = { name: "", imageUrl: "" };
+
 export default function AdminGamesPage() {
   const [games, setGames] = useState<any[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<any | null>(null);
   const [creating, setCreating] = useState(false);
 
+  // Inline group manager
+  const [groupForm, setGroupForm] = useState(emptyGroup);
+  const [groupUploading, setGroupUploading] = useState(false);
+  const [groupSaving, setGroupSaving] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/admin/games");
-    setGames(await res.json());
+    const [gRes, grpRes] = await Promise.all([
+      fetch("/api/admin/games").then((r) => r.json()),
+      fetch("/api/admin/game-groups").then((r) => r.json()),
+    ]);
+    setGames(gRes);
+    setGroups(grpRes);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
+
+  async function uploadGroupImage(file: File) {
+    setGroupUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+    if (res.ok) {
+      const data = await res.json();
+      setGroupForm((f) => ({ ...f, imageUrl: data.url }));
+    }
+    setGroupUploading(false);
+  }
+
+  function openEditGroup(group: Group) {
+    setEditingGroupId(group.id);
+    setGroupForm({ name: group.name, imageUrl: group.imageUrl || "" });
+  }
+
+  function closeGroupForm() {
+    setEditingGroupId(null);
+    setGroupForm(emptyGroup);
+  }
+
+  async function saveGroup(e: React.FormEvent) {
+    e.preventDefault();
+    if (!groupForm.name.trim()) return;
+    setGroupSaving(true);
+    const payload = { name: groupForm.name, imageUrl: groupForm.imageUrl || null };
+    const url = editingGroupId ? `/api/admin/game-groups/${editingGroupId}` : "/api/admin/game-groups";
+    const method = editingGroupId ? "PATCH" : "POST";
+    await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setGroupSaving(false);
+    closeGroupForm();
+    await load();
+  }
+
+  async function deleteGroup(group: Group) {
+    if (!confirm(`Delete group "${group.name}"? Games in it will become ungrouped, not deleted.`)) return;
+    await fetch(`/api/admin/game-groups/${group.id}`, { method: "DELETE" });
+    await load();
+  }
 
   async function toggleActive(game: any) {
     await fetch(`/api/admin/games/${game.id}`, {
@@ -60,9 +125,80 @@ export default function AdminGamesPage() {
         <button onClick={() => setCreating(true)} className="btn-primary">+ Add Game</button>
       </div>
 
+      {/* Inline group manager — create a group (name + banner) once here,
+          then pick it from a dropdown on any game below instead of typing
+          it out each time. Mirrors the Categories manager on Game Items. */}
+      <div className="card p-5 mb-6">
+        <h2 className="font-semibold mb-1">Groups</h2>
+        <p className="text-fox-muted text-xs mb-4">
+          Games sharing a group (e.g. every Mobile Legends server) appear under one filter tab on the home page.
+        </p>
+
+        {groups.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {groups.map((group) => (
+              <div
+                key={group.id}
+                className="flex items-center gap-2 rounded-lg border border-fox-border bg-fox-surface px-3 py-1.5"
+              >
+                {group.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={group.imageUrl} alt="" className="h-5 w-5 rounded object-cover" />
+                ) : (
+                  <div className="h-5 w-5 rounded bg-fox-bg/60" />
+                )}
+                <span className="text-sm">{group.name}</span>
+                <button type="button" onClick={() => openEditGroup(group)} className="text-fox-accent text-xs hover:underline">
+                  Edit
+                </button>
+                <button type="button" onClick={() => deleteGroup(group)} className="text-red-400 text-xs hover:underline">
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={saveGroup} className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[160px]">
+            <label className="label">{editingGroupId ? "Edit group name" : "New group name"}</label>
+            <input
+              className="input"
+              placeholder="e.g. Mobile Legends"
+              value={groupForm.name}
+              onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="btn-ghost cursor-pointer">
+              {groupUploading ? "Uploading..." : "Banner"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && uploadGroupImage(e.target.files[0])}
+              />
+            </label>
+          </div>
+          {groupForm.imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={groupForm.imageUrl} alt="" className="h-9 w-9 rounded-lg border border-fox-border object-cover" />
+          )}
+          <button type="submit" disabled={groupSaving || !groupForm.name.trim()} className="btn-primary">
+            {groupSaving ? "Saving..." : editingGroupId ? "Save" : "Add group"}
+          </button>
+          {editingGroupId && (
+            <button type="button" onClick={closeGroupForm} className="btn-ghost">
+              Cancel
+            </button>
+          )}
+        </form>
+      </div>
+
       {(creating || editing) && (
         <GameForm
           initial={editing}
+          groups={groups}
           onCancel={() => {
             setCreating(false);
             setEditing(null);
@@ -158,10 +294,11 @@ export default function AdminGamesPage() {
   );
 }
 
-function GameForm({ initial, onCancel, onSaved }: { initial: any; onCancel: () => void; onSaved: () => void }) {
+function GameForm({ initial, groups, onCancel, onSaved }: { initial: any; groups: Group[]; onCancel: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     slug: initial?.slug || "",
     name: initial?.name || "",
+    groupId: initial?.groupId || "",
     publisher: initial?.publisher || "",
     description: initial?.description || "",
     imageUrl: initial?.imageUrl || "",
@@ -169,8 +306,6 @@ function GameForm({ initial, onCancel, onSaved }: { initial: any; onCancel: () =
     currencyName: initial?.currencyName || "",
     uidLabel: initial?.uidLabel || "Player ID",
     uidExample: initial?.uidExample || "",
-    requiresServer: initial?.requiresServer || false,
-    servers: (() => { try { return (JSON.parse(initial?.servers || "[]") as string[]).join(", "); } catch { return ""; } })(),
     featured: initial?.featured || false,
     active: initial?.active ?? true,
     sortOrder: initial?.sortOrder || 0,
@@ -186,7 +321,7 @@ function GameForm({ initial, onCancel, onSaved }: { initial: any; onCancel: () =
     setError(null);
     const payload = {
       ...form,
-      servers: JSON.stringify(form.servers.split(",").map((s: string) => s.trim()).filter(Boolean)),
+      groupId: form.groupId || "",
       bannerUrl: form.bannerUrl || undefined,
       description: form.description || undefined,
       publisher: form.publisher || undefined,
@@ -223,9 +358,17 @@ function GameForm({ initial, onCancel, onSaved }: { initial: any; onCancel: () =
             className="input font-mono"
             value={form.slug}
             onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })}
-            disabled={!!initial}
             required
           />
+        </div>
+        <div>
+          <label className="label">Group <span className="text-fox-muted/60 font-normal">(optional — e.g. share one filter tab across servers)</span></label>
+          <select className="input" value={form.groupId} onChange={(e) => setForm({ ...form, groupId: e.target.value })}>
+            <option value="">— No group —</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="label">Publisher <span className="text-fox-muted/60 font-normal">(optional)</span></label>
@@ -263,10 +406,6 @@ function GameForm({ initial, onCancel, onSaved }: { initial: any; onCancel: () =
           <input className="input" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </div>
         <div>
-          <label className="label">Servers (comma-separated, leave blank if not needed)</label>
-          <input className="input" value={form.servers} onChange={(e) => setForm({ ...form, servers: e.target.value })} placeholder="America, Europe, Asia" />
-        </div>
-        <div>
           <label className="label">Sort Order</label>
           <input className="input" type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: Number(e.target.value) })} />
         </div>
@@ -285,10 +424,6 @@ function GameForm({ initial, onCancel, onSaved }: { initial: any; onCancel: () =
       </div>
 
       <div className="flex gap-6 mb-6">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={form.requiresServer} onChange={(e) => setForm({ ...form, requiresServer: e.target.checked })} />
-          Requires server selection
-        </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={form.featured} onChange={(e) => setForm({ ...form, featured: e.target.checked })} />
           Featured

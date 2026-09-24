@@ -106,6 +106,8 @@ export async function lookupNickname(
   uid: string,
   server?: string,
 ): Promise<string | null> {
+  // Per-server Mobile Legends games (e.g. "mobile-legends-khmer") reuse the same lookup.
+  if (gameSlug.startsWith("mobile-legends-")) gameSlug = "mobile-legends";
   switch (gameSlug) {
     case "mobile-legends":
       return server ? lookupMobileLegends(uid, server) : null;

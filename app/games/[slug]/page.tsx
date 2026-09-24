@@ -92,8 +92,6 @@ export default async function GamePage({ params }: { params: { slug: string } })
             currencyName: game.currencyName,
             uidLabel: game.uidLabel,
             uidExample: game.uidExample,
-            requiresServer: game.requiresServer,
-            servers: (() => { try { return JSON.parse(game.servers || "[]"); } catch { return []; } })(),
           }}
           robuxStock={robuxStock}
           products={game.products.map((p) => ({
@@ -103,6 +101,7 @@ export default async function GamePage({ params }: { params: { slug: string } })
             bonus: p.bonus,
             priceUsd: p.priceUsd,
             badge: p.badge,
+            imageUrl: p.imageUrl,
             stock: p.stock,
           }))}
         />

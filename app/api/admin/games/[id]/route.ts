@@ -14,7 +14,9 @@ const imagePath = z
   );
 
 const updateSchema = z.object({
+  slug: z.string().min(2).regex(/^[a-z0-9-]+$/).optional(),
   name: z.string().min(1).optional(),
+  groupId: z.string().optional().or(z.literal("")),
   publisher: z.string().min(1).optional(),
   description: z.string().optional(),
   imageUrl: imagePath.optional(),
@@ -22,8 +24,6 @@ const updateSchema = z.object({
   currencyName: z.string().min(1).optional(),
   uidLabel: z.string().optional(),
   uidExample: z.string().optional(),
-  requiresServer: z.boolean().optional(),
-  servers: z.string().optional(),
   featured: z.boolean().optional(),
   active: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
@@ -53,11 +53,21 @@ export async function PATCH(
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid" }, { status: 400 });
   }
-  const game = await prisma.game.update({
-    where: { id: params.id },
-    data: parsed.data,
-  });
-  return NextResponse.json(game);
+  try {
+    const game = await prisma.game.update({
+      where: { id: params.id },
+      data: {
+        ...parsed.data,
+        ...(parsed.data.groupId !== undefined ? { groupId: parsed.data.groupId || null } : {}),
+      },
+    });
+    return NextResponse.json(game);
+  } catch (err: any) {
+    if (err.code === "P2002") {
+      return NextResponse.json({ error: "Slug already exists" }, { status: 409 });
+    }
+    throw err;
+  }
 }
 
 export async function DELETE(

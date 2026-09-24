@@ -123,8 +123,6 @@ async function main() {
       currencyName: "Genesis Crystals",
       uidLabel: "UID",
       uidExample: "812345678",
-      requiresServer: true,
-      servers: JSON.stringify(["America", "Europe", "Asia", "TW/HK/MO"]),
       featured: true,
       sortOrder: 4,
       products: [
@@ -146,8 +144,6 @@ async function main() {
       currencyName: "Oneiric Shards",
       uidLabel: "UID",
       uidExample: "812345678",
-      requiresServer: true,
-      servers: JSON.stringify(["America", "Europe", "Asia", "TW/HK/MO"]),
       sortOrder: 5,
       products: [
         { name: "60 Oneiric Shards", amount: 60, priceUsd: 0.99 },

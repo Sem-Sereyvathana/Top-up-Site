@@ -36,6 +36,12 @@ const ZONE_ID_SLUGS = new Set([
   "mobile-legends",
 ]);
 
+// Per-server Mobile Legends games use slugs like "mobile-legends-khmer" and behave
+// exactly like the original "mobile-legends" game (Zone ID + nickname lookup).
+const isMlSlug = (slug: string) => slug === "mobile-legends" || slug.startsWith("mobile-legends-");
+const isZoneIdSlug = (slug: string) => ZONE_ID_SLUGS.has(slug) || isMlSlug(slug);
+const isLookupSlug = (slug: string) => LOOKUP_SLUGS.has(slug) || isMlSlug(slug);
+
 interface Product {
   id: string;
   name: string;
@@ -43,6 +49,7 @@ interface Product {
   bonus: number;
   priceUsd: number;
   badge: string | null;
+  imageUrl?: string | null;
   stock?: number | null;
 }
 
@@ -53,8 +60,6 @@ interface Game {
   currencyName: string;
   uidLabel: string;
   uidExample: string | null;
-  requiresServer: boolean;
-  servers: string[];
 }
 
 function isOutOfStock(product: Product): boolean {
@@ -98,8 +103,8 @@ export default function TopUpForm({
   const { user } = useCurrentUser();
 
   const robuxGame = isRobuxGame(game);
-  const supportsLookup = LOOKUP_SLUGS.has(game.slug);
-  const useZoneField = ZONE_ID_SLUGS.has(game.slug);
+  const supportsLookup = isLookupSlug(game.slug);
+  const useZoneField = isZoneIdSlug(game.slug);
 
   const [currentRobuxStock] =
     useState<number | null>(robuxStock);
@@ -116,11 +121,7 @@ export default function TopUpForm({
 
   const [uid, setUid] = useState("");
 
-  const [serverId, setServerId] = useState(
-    ZONE_ID_SLUGS.has(game.slug) || robuxGame
-      ? ""
-      : game.servers[0] ?? ""
-  );
+  const [serverId, setServerId] = useState("");
 
   const [method] =
     useState<"KHPAY">("KHPAY");
@@ -432,11 +433,7 @@ export default function TopUpForm({
   ]);
 
   const needsServer =
-    !robuxGame &&
-    (
-      game.requiresServer ||
-      useZoneField
-    );
+    !robuxGame && useZoneField;
 
   const packageReady = robuxGame
     ? cartLines.length > 0 &&
@@ -831,38 +828,6 @@ export default function TopUpForm({
                 </div>
               )}
 
-              {/* SERVER */}
-              {game.requiresServer &&
-                !useZoneField &&
-                !robuxGame && (
-                  <div>
-                    <label className="label">
-                      Server
-                    </label>
-
-                    <select
-                      value={serverId}
-                      onChange={(e) =>
-                        setServerId(
-                          e.target.value
-                        )
-                      }
-                      className="input"
-                    >
-                      {game.servers.map(
-                        (server) => (
-                          <option
-                            key={server}
-                            value={server}
-                          >
-                            {server}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </div>
-                )}
-
               {/* AUTO LOOKUP */}
               {supportsLookup &&
                 nicknameStatus !== "idle" && (
@@ -978,6 +943,15 @@ export default function TopUpForm({
                     )}
 
                     <div className="pr-8">
+
+                      {product.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={product.imageUrl}
+                          alt=""
+                          className="h-12 w-12 rounded-lg object-cover mb-3"
+                        />
+                      )}
 
                       {product.badge && (
                         <div className="inline-block text-xs px-2 py-1 rounded-full bg-fox-primary/10 text-fox-primary mb-3">

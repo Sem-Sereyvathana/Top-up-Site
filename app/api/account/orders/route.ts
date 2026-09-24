@@ -10,25 +10,31 @@ import { NextResponse } from "next/server";
 // first, for the History page. Each entry carries a `viewHref` pointing at
 // the right order-tracker route for its type so the page can just link
 // straight there.
+// Only these statuses show up in the user's own History page — paid,
+// still-processing, and delivered orders. PENDING ("Awaiting Payment"),
+// FAILED, and CANCELLED orders are hidden here but remain fully visible
+// in the admin panel.
+const VISIBLE_TO_USER = ["PAID", "PROCESSING", "DELIVERED"];
+
 export async function GET() {
   const session = await getCurrentUser();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const [topUpOrders, gameItemOrders, gameAccountOrders] = await Promise.all([
     prisma.order.findMany({
-      where: { userId: session.userId },
+      where: { userId: session.userId, status: { in: VISIBLE_TO_USER } },
       orderBy: { createdAt: "desc" },
       take: 100,
       include: { game: true, product: true },
     }),
     prisma.gameItemOrder.findMany({
-      where: { userId: session.userId },
+      where: { userId: session.userId, status: { in: VISIBLE_TO_USER } },
       orderBy: { createdAt: "desc" },
       take: 100,
       include: { items: { select: { name: true, quantity: true } } },
     }),
     prisma.gameAccountOrder.findMany({
-      where: { userId: session.userId },
+      where: { userId: session.userId, status: { in: VISIBLE_TO_USER } },
       orderBy: { createdAt: "desc" },
       take: 100,
       include: { items: { select: { title: true, quantity: true } } },

@@ -198,10 +198,6 @@ export async function POST(req: NextRequest) {
       lineItems = [{ product, quantity: 1 }];
     }
 
-    if (game.requiresServer && !data.serverId) {
-      return NextResponse.json({ error: "Server is required for this game" }, { status: 400 });
-    }
-
     // Create the order
     const orderNumber = generateOrderNumber();
     const userAgent = req.headers.get("user-agent") ?? "unknown";

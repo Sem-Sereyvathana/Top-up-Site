@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Image as ImageIcon } from "lucide-react";
 
 export default function AdminProductsPage() {
   const searchParams = useSearchParams();
@@ -141,7 +142,17 @@ export default function AdminProductsPage() {
                 products.map((p) => (
                   <tr key={p.id} className="hover:bg-fox-surface/50">
                     <td className="px-5 py-3 text-fox-muted">{p.game.name}</td>
-                    <td className="px-5 py-3 font-medium">{p.name}</td>
+                    <td className="px-5 py-3 font-medium">
+                      <div className="flex items-center gap-3">
+                        {p.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.imageUrl} alt="" className="h-10 w-10 rounded-lg object-cover border border-fox-border" />
+                        ) : (
+                          <div className="h-10 w-10 rounded-lg bg-fox-bg/60 border border-fox-border" />
+                        )}
+                        <span>{p.name}</span>
+                      </div>
+                    </td>
                     <td className="px-5 py-3 text-right font-mono">{p.amount.toLocaleString()}</td>
                     <td className="px-5 py-3 text-right font-mono text-fox-accent">{p.bonus > 0 ? `+${p.bonus}` : "—"}</td>
                     <td className="px-5 py-3 text-right font-mono text-fox-primary">${p.priceUsd.toFixed(2)}</td>
@@ -194,12 +205,26 @@ function ProductForm({ games, defaultGameId, initial, onCancel, onSaved }: any) 
     bonus: initial?.bonus ?? 0,
     priceUsd: initial?.priceUsd ?? 0,
     badge: initial?.badge || "",
+    imageUrl: initial?.imageUrl || "",
     active: initial?.active ?? true,
     stock: initial?.stock === null || initial?.stock === undefined ? "" : String(initial.stock),
     sortOrder: initial?.sortOrder ?? 0,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function uploadImage(file: File) {
+    setUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+    if (res.ok) {
+      const data = await res.json();
+      setForm((f: typeof form) => ({ ...f, imageUrl: data.url }));
+    }
+    setUploading(false);
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -212,6 +237,7 @@ function ProductForm({ games, defaultGameId, initial, onCancel, onSaved }: any) 
       priceUsd: Number(form.priceUsd),
       sortOrder: Number(form.sortOrder),
       badge: form.badge || null,
+      imageUrl: form.imageUrl || null,
       stock: form.stock.trim() === "" ? null : Number(form.stock),
     };
     const url = initial ? `/api/admin/products/${initial.id}` : "/api/admin/products";
@@ -250,6 +276,38 @@ function ProductForm({ games, defaultGameId, initial, onCancel, onSaved }: any) 
         <div className="md:col-span-3">
           <label className="label">Product Name (e.g. &quot;86 Diamonds&quot;)</label>
           <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+        </div>
+        <div className="md:col-span-3">
+          <label className="label">Icon <span className="text-fox-muted/60 font-normal">(optional — shown on this package&apos;s card, e.g. a diamond or treasure chest image)</span></label>
+          <div className="flex items-center gap-3">
+            {form.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={form.imageUrl} alt="" className="h-12 w-12 rounded-lg border border-fox-border object-cover" />
+            ) : (
+              <div className="h-12 w-12 rounded-lg border border-dashed border-fox-border bg-fox-bg" />
+            )}
+            <label className="btn-ghost cursor-pointer">
+              <ImageIcon className="h-4 w-4" />
+              {uploading ? "Uploading..." : "Upload"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && uploadImage(e.target.files[0])}
+              />
+            </label>
+            <input
+              className="input flex-1"
+              placeholder="or paste an image URL"
+              value={form.imageUrl}
+              onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+            />
+            {form.imageUrl && (
+              <button type="button" onClick={() => setForm({ ...form, imageUrl: "" })} className="text-xs text-red-400 hover:underline">
+                Clear
+              </button>
+            )}
+          </div>
         </div>
         <div>
           <label className="label">Amount (0 for passes)</label>

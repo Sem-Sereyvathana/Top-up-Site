@@ -16,6 +16,7 @@ const imagePath = z
 const gameSchema = z.object({
   slug: z.string().min(2).regex(/^[a-z0-9-]+$/),
   name: z.string().min(1),
+  groupId: z.string().optional().or(z.literal("")),
   publisher: z.string().optional().or(z.literal("")),
   description: z.string().optional(),
   imageUrl: imagePath,
@@ -23,8 +24,6 @@ const gameSchema = z.object({
   currencyName: z.string().min(1),
   uidLabel: z.string().default("Player ID"),
   uidExample: z.string().optional(),
-  requiresServer: z.boolean().default(false),
-  servers: z.string().default("[]"),
   featured: z.boolean().default(false),
   active: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
@@ -52,7 +51,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const game = await prisma.game.create({ data: parsed.data });
+    const game = await prisma.game.create({ data: { ...parsed.data, groupId: parsed.data.groupId || null } });
     return NextResponse.json(game);
   } catch (err: any) {
     if (err.code === "P2002") {

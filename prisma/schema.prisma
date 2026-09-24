@@ -16,6 +16,18 @@ model Game {
   id             String        @id @default(cuid())
   slug           String        @unique
   name           String
+  // DEPRECATED — replaced by groupId/Group below. Kept here only so
+  // prisma/scripts/backfill-game-groups.ts has a safe window to copy each
+  // existing value into a GameGroup before this column is ever dropped.
+  // Safe to remove (and run `db push` once more) any time after that
+  // backfill has run.
+  groupName      String?
+  // Optional: games sharing the same Group (e.g. every Mobile Legends server)
+  // appear under ONE filter tab on the home page while keeping their own
+  // card/page. Created once on the Games admin page ("Groups" manager),
+  // same pattern as GameItemCategory for the Game Items storefront.
+  groupId        String?
+  Group          GameGroup?    @relation(fields: [groupId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   publisher      String?
   description    String?
   imageUrl       String
@@ -23,8 +35,6 @@ model Game {
   currencyName   String
   uidLabel       String        @default("Player ID")
   uidExample     String?
-  requiresServer Boolean       @default(false)
-  servers        String        @default("[]")
   featured       Boolean       @default(false)
   active         Boolean       @default(true)
   sortOrder      Int           @default(0)
@@ -41,6 +51,24 @@ model Game {
   GameItem       GameItem[]
   orders         Order[]
   products       Product[]
+
+  @@index([groupId])
+}
+
+// Reusable groups for the Top-up "Games" list — create the group (name +
+// banner) once here, then pick it from a dropdown when creating/editing a
+// Game card, instead of retyping a group name each time. Mirrors
+// GameItemCategory, but intentionally its own table so Top-up and Game
+// Items never share taxonomy.
+model GameGroup {
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name      String
+  slug      String   @unique
+  imageUrl  String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now()) @db.Timestamp(6)
+  updatedAt DateTime @default(now()) @db.Timestamp(6)
+  Game      Game[]
 }
 
 model User {

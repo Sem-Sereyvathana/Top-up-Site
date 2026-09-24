@@ -1,28 +1,34 @@
 import { prisma } from "@/lib/prisma";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import GameCard from "@/components/GameCard";
-import RecentOrdersTicker from "@/components/RecentOrdersTicker";
+import GameFilterBar from "@/components/GameFilterBar";
 import HeroCarousel from "@/components/HeroCarousel";
-import { isRobuxGame } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [games, banners, robuxStock] = await Promise.all([
+  const [games, banners] = await Promise.all([
     prisma.game.findMany({
       orderBy: [{ active: "desc" }, { featured: "desc" }, { sortOrder: "asc" }],
+      include: { Group: true },
     }),
     prisma.heroBanner.findMany({
       where: { active: true },
       orderBy: { sortOrder: "asc" },
     }),
-    prisma.robuxStock.upsert({
-      where: { id: 1 },
-      update: {},
-      create: { id: 1 },
-    }),
   ]);
+
+  const gamesForFilter = games.map((game) => ({
+    id: game.id,
+    slug: game.slug,
+    name: game.name,
+    groupName: game.Group?.name ?? null,
+    publisher: game.publisher,
+    currencyName: game.currencyName,
+    imageUrl: game.imageUrl,
+    featured: game.featured,
+    active: game.active,
+  }));
 
   return (
     <>
@@ -42,41 +48,17 @@ export default async function HomePage() {
         <HeroCarousel banners={banners} />
       </section>
 
-      {/* 3. Recent orders ticker */}
-      <div className="mt-6">
-        <RecentOrdersTicker />
-      </div>
-
-      {/* 4. Product Cards Grid */}
-      <section id="games" className="relative mx-auto max-w-7xl px-4 py-8 pb-16 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-          {games.map((game, i) => (
-            <div
-              key={game.id}
-              className="fade-up"
-              style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
-            >
-              <GameCard
-                slug={game.slug}
-                name={game.name}
-                publisher={game.publisher}
-                currencyName={game.currencyName}
-                imageUrl={game.imageUrl}
-                featured={game.featured}
-                active={game.active}
-                robuxStock={isRobuxGame(game) ? robuxStock.totalRobux : null}
-              />
-            </div>
-          ))}
-        </div>
-
-        {games.length === 0 && (
+      {/* 3. Game categories: filter pills + grid */}
+      <section id="games" className="relative mx-auto max-w-7xl px-4 pt-6 pb-16 sm:px-6 lg:px-8">
+        {games.length === 0 ? (
           <div className="text-center py-16 text-fox-muted">
             <p>
               No games available. Run{" "}
               <code className="text-fox-primary font-mono">npm run db:seed</code> to populate.
             </p>
           </div>
+        ) : (
+          <GameFilterBar games={gamesForFilter} />
         )}
       </section>
 
