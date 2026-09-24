@@ -136,7 +136,7 @@ export default function ShopCartPage({
             </div>
 
             <div className="card flex items-center justify-between p-5 sm:p-6">
-              <span className="text-sm text-fox-muted">Subtotal</span>
+              <span className="text-sm text-fox-muted">តម្លៃសរុប</span>
               <span className="font-display text-xl font-bold text-fox-primary">{format(subtotal)}</span>
             </div>
 
@@ -145,7 +145,7 @@ export default function ShopCartPage({
               onClick={() => router.push(checkoutHref)}
               className="btn-primary w-full"
             >
-              Checkout
+              ទិញឥឡូវនេះ
               <ShoppingCart className="h-5 w-5" />
             </button>
           </div>

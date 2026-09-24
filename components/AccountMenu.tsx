@@ -70,10 +70,6 @@ export default function AccountMenu({
             <User className="h-4 w-4 shrink-0" strokeWidth={2.5} />
             <span className="truncate">{user.name || user.email || user.phone}</span>
           </span>
-          <span className="inline-flex shrink-0 items-center gap-1 text-fox-primary text-xs font-semibold">
-            <Coins className="h-3 w-3" strokeWidth={2.5} />
-            {user.points.toLocaleString()}
-          </span>
         </div>
         <Link
           href="/account"
@@ -103,7 +99,7 @@ export default function AccountMenu({
         <span className="hidden sm:inline max-w-[100px] truncate">
           {user.name || user.email || user.phone}
         </span>
-        <span className="inline-flex items-center gap-1 text-fox-primary text-xs font-semibold">
+        <span className="hidden sm:inline-flex items-center gap-1 text-fox-primary text-xs font-semibold">
           <Coins className="h-3 w-3" strokeWidth={2.5} />
           {user.points.toLocaleString()}
         </span>

@@ -313,7 +313,7 @@ export default function ShopCartBrowser({
                                 onClick={() => toggleCard(kind, card)}
                                 className="w-full rounded-lg border border-fox-primary/40 bg-fox-primary/10 py-1.5 text-xs font-semibold text-fox-primary hover:bg-fox-primary/20"
                               >
-                                + Add
+                                ដាក់ចូលកន្ត្រក
                               </button>
                             )
                           ) : (
@@ -331,7 +331,7 @@ export default function ShopCartBrowser({
                                 onClick={() => toggleCard(kind, card)}
                                 className="w-full rounded-lg border border-fox-primary/40 bg-fox-primary/10 py-1.5 text-xs font-semibold text-fox-primary hover:bg-fox-primary/20"
                               >
-                                + Add
+                                ដាក់ចូលកន្ត្រក
                               </button>
                             )
                           )}
@@ -343,7 +343,7 @@ export default function ShopCartBrowser({
                               className="flex w-full items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-fox-primary to-fox-accent py-1.5 text-xs font-bold text-black hover:opacity-90"
                             >
                               <ShoppingCart className="h-3.5 w-3.5" strokeWidth={2.5} />
-                              Go to Checkout
+                              ទិញឥឡូវនេះ
                             </button>
                           )}
                         </div>

@@ -4,7 +4,7 @@ export default function GameItemsCartPage() {
   return (
     <ShopCartPage
       kind="items"
-      title="Game Items Cart"
+      title="ទំនិញដែលអ្នកបានជ្រើសរើស"
       backHref="/game-items"
       checkoutHref="/game-items/checkout"
       allowQuantity

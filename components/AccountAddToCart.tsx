@@ -75,7 +75,7 @@ export default function AccountAddToCart({ card }: { card: ShopCartCard }) {
             onClick={() => toggleCard("accounts", card)}
             className="btn-primary w-full"
           >
-            <Plus className="h-4 w-4" /> Add to cart
+            <Plus className="h-4 w-4" /> ដាក់ចូលកន្ត្រក
           </button>
         )
       ) : inCart ? (
@@ -92,7 +92,7 @@ export default function AccountAddToCart({ card }: { card: ShopCartCard }) {
           onClick={() => toggleCard("accounts", card)}
           className="btn-primary w-full"
         >
-          <Plus className="h-4 w-4" /> Add to cart
+          <Plus className="h-4 w-4" /> ដាក់ចូលកន្ត្រក
         </button>
       )}
 
@@ -103,7 +103,7 @@ export default function AccountAddToCart({ card }: { card: ShopCartCard }) {
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fox-primary to-fox-accent py-3 text-sm font-bold text-black hover:opacity-90"
         >
           <ShoppingCart className="h-4 w-4" strokeWidth={2.5} />
-          Go to Checkout · {format(card.priceUsd * qty)}
+          ទិញឥឡូវនេះ · {format(card.priceUsd * qty)}
         </button>
       )}
     </div>

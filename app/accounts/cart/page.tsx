@@ -4,7 +4,7 @@ export default function AccountsCartPage() {
   return (
     <ShopCartPage
       kind="accounts"
-      title="Accounts Cart"
+      title="ទំនិញដែលអ្នកបានជ្រើសរើស"
       backHref="/accounts"
       checkoutHref="/accounts/checkout"
       allowQuantity

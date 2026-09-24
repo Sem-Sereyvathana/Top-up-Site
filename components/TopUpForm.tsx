@@ -774,7 +774,7 @@ export default function TopUpForm({
               </div>
 
               <h2 className="font-display text-xl font-bold">
-                Enter Account Info
+                បញ្ចូលអាខោនរបស់អ្នក
               </h2>
             </div>
 
@@ -881,7 +881,7 @@ export default function TopUpForm({
                     ) : (
                       <UserRoundCheck className="h-4 w-4" />
                     )}
-                    Check User ID
+                    ពិនិត្យមើលអាខោន
                   </button>
                 </div>
               )}
@@ -905,7 +905,7 @@ export default function TopUpForm({
                         Checking…
                       </>
                     ) : (
-                      "Check Avatar"
+                      "ពិនិត្យមើលអាខោន"
                     )}
                   </button>
 
@@ -1005,8 +1005,8 @@ export default function TopUpForm({
 
               <h2 className="font-display text-xl font-bold">
                 {robuxGame
-                  ? "Select Packages"
-                  : "Select Package"}
+                  ? "ជ្រើសរើសកញ្ចប់ដែរអ្នកចង់បាន"
+                  : "ជ្រើសរើសកញ្ចប់ដែរអ្នកចង់បាន"}
               </h2>
             </div>
 
@@ -1398,7 +1398,7 @@ export default function TopUpForm({
                   </>
                 ) : (
                   <>
-                    Continue to Payment
+                    ទិញឥឡូវនេះ
                     <ArrowRight className="h-5 w-5" />
                   </>
                 )}

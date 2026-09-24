@@ -259,7 +259,7 @@ export default function ShopCheckout({
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-fox-primary to-fox-accent font-display font-bold text-black shadow-lg shadow-fox-primary/40">
                   {stepNum(1)}
                 </div>
-                <h2 className="font-display text-xl font-bold">Your Order</h2>
+                <h2 className="font-display text-xl font-bold">ទំនិញដែលអ្នកបានជ្រើសរើស</h2>
               </div>
 
               <div className="card p-5 sm:p-6">
@@ -299,7 +299,7 @@ export default function ShopCheckout({
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-fox-primary to-fox-accent font-display font-bold text-black shadow-lg shadow-fox-primary/40">
                     {stepNum(2)}
                   </div>
-                  <h2 className="font-display text-xl font-bold">Enter Account Info</h2>
+                  <h2 className="font-display text-xl font-bold">បញ្ចូលអាខោនរបស់អ្នក</h2>
                 </div>
 
                 <div className="card p-5 sm:p-6 space-y-4">
@@ -332,7 +332,7 @@ export default function ShopCheckout({
                           Checking…
                         </>
                       ) : (
-                        "Check Avatar"
+                        "ពិនិត្យមើលអាខោន"
                       )}
                     </button>
 
