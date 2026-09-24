@@ -65,18 +65,12 @@ export default function AccountMenu({
   if (inline) {
     return (
       <div className={`flex flex-col gap-1 ${className}`}>
-        <div className="flex items-center justify-between rounded-lg border border-fox-border bg-fox-card/60 px-4 py-3">
-          <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-fox-text">
-            <User className="h-4 w-4 shrink-0" strokeWidth={2.5} />
-            <span className="truncate">{user.name || user.email || user.phone}</span>
-          </span>
-        </div>
         <Link
           href="/account"
           onClick={onNavigate}
           className="rounded-lg px-4 py-3 text-sm font-medium text-fox-text/90 hover:bg-fox-card hover:text-fox-primary transition-colors"
         >
-          My account
+          ករណីរបស់ខ្ញុំ
         </Link>
         <button
           onClick={handleLogout}
@@ -90,7 +84,7 @@ export default function AccountMenu({
   }
 
   return (
-    <div className={`relative ${className}`} ref={ref}>
+    <div className={`relative hidden md:block ${className}`} ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 rounded-lg border border-fox-border bg-fox-card/80 px-3 py-2 text-sm font-medium text-fox-text hover:border-fox-primary/60 transition-all"
