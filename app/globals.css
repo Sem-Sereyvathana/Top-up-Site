@@ -77,6 +77,17 @@ body::before {
   background: linear-gradient(180deg, var(--fox-accent), var(--fox-gold));
 }
 
+/* Sticky-footer page shell (see app/layout.tsx): makes the header/main/
+   footer stack as flex children so the footer sits at the bottom on short
+   pages. Flex items with auto margins (the header/main/footer all use
+   `mx-auto` for their own max-width centering) don't stretch to the
+   container's width by default — they shrink to fit their content instead
+   — so we force full width here to preserve the original block-layout
+   sizing. */
+.site-shell > * {
+  width: 100%;
+}
+
 /* Components */
 @layer components {
   .btn-primary {

@@ -44,7 +44,7 @@ export default async function RootLayout({
         <CurrencyProvider exchangeRate={exchangeRate}>
           <ShopCartProvider>
             <AnnouncementBar />
-            {children}
+            <div className="site-shell flex min-h-screen flex-col">{children}</div>
             <WelcomePopup />
             <SignInPopup />
           </ShopCartProvider>

@@ -22,7 +22,7 @@ function GameCardContent({
   active: boolean;
 }) {
   return (
-    <div className="relative flex flex-col items-center rounded-2xl border border-fox-border/60 bg-fox-card p-4 sm:p-5 transition-all duration-500 group-hover:border-transparent group-hover:bg-fox-card/90">
+    <div className="relative flex h-full flex-col items-center rounded-2xl border border-fox-border/60 bg-fox-card p-4 sm:p-5 transition-all duration-500 group-hover:border-transparent group-hover:bg-fox-card/90">
       <div className="relative w-full aspect-square overflow-hidden rounded-xl bg-fox-surface mb-4">
         <div
           className={
@@ -69,8 +69,8 @@ function GameCardContent({
       <h3
         className={
           active
-            ? "font-display font-bold text-sm sm:text-base text-center leading-tight mb-3 transition-colors duration-300 group-hover:text-fox-gold"
-            : "font-display font-bold text-sm sm:text-base text-center leading-tight mb-3 text-fox-muted"
+            ? "font-display font-bold text-sm sm:text-base text-center leading-tight mb-3 line-clamp-2 transition-colors duration-300 group-hover:text-fox-gold"
+            : "font-display font-bold text-sm sm:text-base text-center leading-tight mb-3 line-clamp-2 text-fox-muted"
         }
       >
         {name}
@@ -81,8 +81,8 @@ function GameCardContent({
         disabled={!active}
         className={
           active
-            ? "w-full rounded-xl bg-gradient-to-r from-fox-primary to-fox-accent py-2.5 text-sm font-bold text-black uppercase tracking-wider transition-all duration-300 group-hover:shadow-lg group-hover:shadow-fox-primary/40 group-hover:scale-[1.03] active:scale-[0.97]"
-            : "w-full cursor-not-allowed rounded-xl bg-fox-surface py-2.5 text-sm font-bold text-fox-muted uppercase tracking-wider"
+            ? "mt-auto w-full rounded-xl bg-gradient-to-r from-fox-primary to-fox-accent py-2.5 text-sm font-bold text-black uppercase tracking-wider transition-all duration-300 group-hover:shadow-lg group-hover:shadow-fox-primary/40 group-hover:scale-[1.03] active:scale-[0.97]"
+            : "mt-auto w-full cursor-not-allowed rounded-xl bg-fox-surface py-2.5 text-sm font-bold text-fox-muted uppercase tracking-wider"
         }
       >
         {active ? "Top Up" : "Coming Soon"}
@@ -97,7 +97,7 @@ export default function GameCard({ slug, name, publisher, currencyName, imageUrl
       <div
         aria-disabled="true"
         title={name + " (coming soon)"}
-        className="game-card group relative block cursor-not-allowed rounded-2xl opacity-70"
+        className="game-card group relative block h-full cursor-not-allowed rounded-2xl opacity-70"
       >
         <GameCardContent name={name} imageUrl={imageUrl} featured={featured} active={false} />
       </div>
@@ -107,7 +107,7 @@ export default function GameCard({ slug, name, publisher, currencyName, imageUrl
   return (
     <Link
       href={"/games/" + slug}
-      className="game-card group relative block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-fox-primary/60"
+      className="game-card group relative block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-fox-primary/60"
     >
       <span
         className="pointer-events-none absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-fox-primary via-fox-accent to-fox-gold opacity-0 transition-opacity duration-500 group-hover:opacity-100"

@@ -199,7 +199,7 @@ export default function ShopCartBrowser({
                 </h2>
               </div>
 
-              <div className={kind === "items" ? "grid grid-cols-[repeat(auto-fill,minmax(150px,150px))] justify-start gap-3" : "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"}>
+              <div className={kind === "items" ? "grid grid-cols-[repeat(auto-fill,minmax(150px,150px))] justify-start gap-3" : "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"}>
                 {group.cards.map((card) => {
                   const qty = cart[card.id] ?? 0;
                   const inCart = qty > 0;

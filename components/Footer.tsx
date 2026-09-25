@@ -30,7 +30,7 @@ export default function Footer() {
   const telegramUrl = toTelegramUrl(telegram);
 
   return (
-    <footer className="border-t border-fox-border/60 bg-fox-bg/80 text-fox-muted text-xs">
+    <footer className="mt-auto border-t border-fox-border/60 bg-fox-bg/80 text-fox-muted text-xs">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-start gap-8">
           
