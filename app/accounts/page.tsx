@@ -55,6 +55,10 @@ export default async function AccountsPage() {
       // Unique accounts can only ever be bought one at a time; multi-stock
       // accounts can be bought up to however many are left.
       maxQty: isMulti ? acc.stock : 1,
+      // Live remaining stock shown next to the card title. Unique listings
+      // show 1 while unsold (then disappear/grey out via soldOut above);
+      // pooled listings show their actual remaining count.
+      stockCount: isMulti ? acc.stock : acc.sold ? 0 : 1,
       // Every account — unique or multi-stock, DIRECT or MANUAL delivery —
       // goes through the normal cart/checkout/payment flow now. Manual
       // handover accounts only get sent to admin's Telegram *after* the

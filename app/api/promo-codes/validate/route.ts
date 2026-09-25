@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 const schema = z.object({
   code: z.string().min(1),
@@ -11,6 +12,16 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    // Without a limit here, this endpoint is a free oracle for brute-forcing
+    // valid promo codes — same tight limit as login/register.
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    if (!(await checkRateLimit(`promo-validate:${ip}`, 10, 10 * 60 * 1000))) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please wait a few minutes and try again." },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) {

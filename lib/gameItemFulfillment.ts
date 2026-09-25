@@ -40,14 +40,21 @@ export async function handleGameItemOrderWebhook(
     }
 
     const now = new Date();
-    await prisma.gameItemOrder.update({
-      where: { id: order.id },
+    // Atomic claim (mirrors lib/fulfillment.ts): the `where` re-checks
+    // status=PENDING in the same statement, so a duplicate/concurrent
+    // delivery of this webhook updates 0 rows instead of re-firing the
+    // Telegram alert below for a payment that was already processed.
+    const claimed = await prisma.gameItemOrder.updateMany({
+      where: { id: order.id, status: "PENDING" },
       data: {
         status: "PAID",
         paidAt: now,
         ...(transactionId ? { paymentRef: transactionId } : {}),
       },
     });
+    if (claimed.count === 0) {
+      return NextResponse.json({ ok: true, skipped: true });
+    }
 
     const baseUrl = process.env.PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "";
     const link = baseUrl

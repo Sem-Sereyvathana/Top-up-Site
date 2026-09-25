@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import PriceTag from "@/components/PriceTag";
 import AccountAddToCart from "@/components/AccountAddToCart";
 import type { ShopCartCard } from "@/components/ShopCartBrowser";
 import { ArrowLeft } from "lucide-react";
@@ -106,21 +105,6 @@ export default async function AccountDetailsPage({ params }: { params: { id: str
                 {account.rank}
               </span>
             )}
-
-            <PriceTag
-              priceUsd={account.priceUsd}
-              className="mt-4 block text-2xl font-bold text-fox-primary"
-            />
-
-            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-fox-muted">
-              {isMulti
-                ? soldOut
-                  ? "Out of stock"
-                  : `${account.stock} in stock`
-                : soldOut
-                  ? "Sold"
-                  : "Available — one buyer only"}
-            </p>
 
             {account.description && (
               <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-fox-muted">

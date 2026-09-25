@@ -49,7 +49,7 @@ const empty = {
   priceUsd: 0,
   sold: false,
   stockMode: "UNIQUE" as "UNIQUE" | "MULTI",
-  stock: 1,
+  stock: 0,
   active: true,
   sortOrder: 0,
   deliveryMode: "MANUAL" as "DIRECT" | "MANUAL",
@@ -363,7 +363,10 @@ export default function AccountsAdminPage() {
       priceUsd: Number(form.priceUsd),
       sold: form.sold,
       stockMode: form.stockMode,
-      stock: form.stockMode === "MULTI" ? Math.max(0, Number(form.stock)) : 1,
+      // MULTI (= Direct delivery) accounts start empty until real stock is
+      // added via Auto Top Up; UNIQUE (= Manual delivery) accounts always
+      // report 1 (they use `sold` instead of a count).
+      stock: form.stockMode === "MULTI" ? (editing ? Math.max(0, Number(form.stock)) : 0) : 1,
       active: form.active,
       sortOrder: Number(form.sortOrder),
       deliveryMode: form.deliveryMode,
@@ -372,11 +375,6 @@ export default function AccountsAdminPage() {
       // Up pool instead, so there's nothing meaningful to save here.
       credentials: form.stockMode === "UNIQUE" ? buildCredentials(form) : null,
     };
-    if (!editing && isPooled(form) && form.stockText.trim()) {
-      // Brand-new pooled account — whatever was pasted/uploaded into Auto
-      // Top Up before saving rides along and becomes its starting stock.
-      payload.stockText = form.stockText;
-    }
     const url = editing ? `/api/admin/accounts/${editing.id}` : "/api/admin/accounts";
     const method = editing ? "PATCH" : "POST";
     const res = await fetch(url, {
@@ -574,22 +572,18 @@ export default function AccountsAdminPage() {
               />
             </div>
             <div>
-              <label className="label">Stock type</label>
-              <select
-                className="input"
-                value={form.stockMode}
-                onChange={(e) => setForm({ ...form, stockMode: e.target.value as "UNIQUE" | "MULTI" })}
-              >
-                <option value="UNIQUE">Unique login (one buyer only)</option>
-                <option value="MULTI">Multiple stock (buyers pick a quantity)</option>
-              </select>
-            </div>
-            <div>
               <label className="label">Delivery</label>
               <select
                 className="input"
                 value={form.deliveryMode}
-                onChange={(e) => setForm({ ...form, deliveryMode: e.target.value as "DIRECT" | "MANUAL" })}
+                onChange={(e) => {
+                  const deliveryMode = e.target.value as "DIRECT" | "MANUAL";
+                  // Delivery mode now decides stock type on its own: Direct
+                  // accounts are always a stock pool (multiple, auto-revealed
+                  // logins), Manual accounts are always a single one-of-a-kind
+                  // login — no separate "Stock type" choice needed.
+                  setForm({ ...form, deliveryMode, stockMode: deliveryMode === "DIRECT" ? "MULTI" : "UNIQUE" });
+                }}
               >
                 <option value="DIRECT">Direct (auto-revealed to buyer once paid)</option>
                 <option value="MANUAL">Manual (buyer messages Telegram)</option>
@@ -598,12 +592,10 @@ export default function AccountsAdminPage() {
             {form.stockMode === "MULTI" && (
               <div>
                 <label className="label">Stock quantity</label>
-                {isPooled(form) ? (
+                {editing ? (
                   <>
                     <div className="input flex items-center justify-between bg-fox-bg/40 text-fox-muted cursor-not-allowed">
-                      <span>
-                        {editing ? (stockLoading ? "Loading…" : `${form.stock} available`) : "0 — add via Auto Top Up below"}
-                      </span>
+                      <span>{stockLoading ? "Loading…" : `${form.stock} available`}</span>
                     </div>
                     <p className="mt-1 text-xs text-fox-muted/70">
                       Managed automatically from real stocked accounts — use Auto Top Up below to add or remove units instead of typing a number here.
@@ -611,16 +603,11 @@ export default function AccountsAdminPage() {
                   </>
                 ) : (
                   <>
-                    <input
-                      className="input"
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={form.stock}
-                      onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })}
-                    />
+                    <div className="input flex items-center bg-fox-bg/40 text-fox-muted cursor-not-allowed">
+                      <span>0 — add stock after creating</span>
+                    </div>
                     <p className="mt-1 text-xs text-fox-muted/70">
-                      How many a buyer can purchase in total — buyers can pick any amount up to what&apos;s left. Goes to 0 automatically as orders are paid.
+                      Direct accounts start with 0 stock. Add the real logins via Auto Top Up right after creating.
                     </p>
                   </>
                 )}
@@ -635,53 +622,8 @@ export default function AccountsAdminPage() {
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
             </div>
-            {form.deliveryMode === "DIRECT" && form.stockMode === "UNIQUE" && (
-              <>
-            <div>
-              <label className="label">
-                Username / Email <span className="font-normal text-fox-muted/60">(login handover — admin-only until paid)</span>
-              </label>
-              <input
-                className="input font-mono text-xs"
-                placeholder="alice@gmail.com"
-                value={form.credUsername}
-                onChange={(e) => setForm({ ...form, credUsername: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="label">Password</label>
-              <input
-                className="input font-mono text-xs"
-                placeholder="account password"
-                value={form.credPassword}
-                onChange={(e) => setForm({ ...form, credPassword: e.target.value })}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">
-                Notes <span className="font-normal text-fox-muted/60">(optional — recovery email, security answers, etc.)</span>
-              </label>
-              <textarea
-                className="input font-mono text-xs"
-                rows={2}
-                value={form.credNotes}
-                onChange={(e) => setForm({ ...form, credNotes: e.target.value })}
-              />
-              <p className="mt-1 text-xs text-fox-muted/70">
-                Username/Email and Password are handed to the buyer automatically — on their payment receipt and again if they revisit it from Order History — once this order is paid.
-              </p>
-            </div>
-            {form.credLegacy && (
-              <div className="sm:col-span-2">
-                <label className="label text-yellow-400">
-                  Previously saved value <span className="font-normal text-fox-muted/60">(older free-text format — didn&apos;t match Username/Password, kept as-is; fill in the fields above to replace it)</span>
-                </label>
-                <textarea className="input font-mono text-xs" rows={2} value={form.credLegacy} readOnly />
-              </div>
-            )}
-              </>
-            )}
-            {isPooled(form) && (
+
+            {editing && form.stockMode === "MULTI" && (
               <div className="sm:col-span-2 rounded-lg border border-fox-border bg-fox-bg/30 p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -727,20 +669,14 @@ export default function AccountsAdminPage() {
                       <span className="text-xs text-fox-muted">
                         {parseAccountStockText(form.stockText).length} account(s) detected
                       </span>
-                      {editing ? (
-                        <button
-                          type="button"
-                          onClick={addStockNow}
-                          disabled={topUpBusy || parseAccountStockText(form.stockText).length === 0}
-                          className="btn-primary ml-auto"
-                        >
-                          <Plus className="h-4 w-4" /> {topUpBusy ? "Adding..." : "Add to stock"}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-fox-muted/70 ml-auto">
-                          Added automatically once you create this account below.
-                        </span>
-                      )}
+                      <button
+                        type="button"
+                        onClick={addStockNow}
+                        disabled={topUpBusy || parseAccountStockText(form.stockText).length === 0}
+                        className="btn-primary ml-auto"
+                      >
+                        <Plus className="h-4 w-4" /> {topUpBusy ? "Adding..." : "Add to stock"}
+                      </button>
                     </div>
                     <p className="text-xs text-fox-muted/60">
                       One account per line: <code>user:pass</code>, <code>user,pass</code>, or <code>user|pass</code> —

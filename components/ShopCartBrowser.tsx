@@ -28,6 +28,15 @@ export interface ShopCartCard {
   groupSortOrder: number;
   soldOut?: boolean;
   /**
+   * Live remaining stock to show on the card, next to the title, as a
+   * numbered green/red pill. Currently only set by the Accounts
+   * marketplace (unique accounts pass 1, pooled accounts pass their live
+   * `stock` count). Game Items cards leave this unset — they get a plain
+   * in-stock/out-of-stock pill instead, driven by `soldOut` (see
+   * ShopCartBrowser), since items don't carry a quantity.
+   */
+  stockCount?: number | null;
+  /**
    * Per-card cap on quantity, independent of the browser-level
    * `allowQuantity` prop. Used by the Accounts marketplace, where a single
    * page mixes one-per-listing accounts (maxQty omitted/1) with stackable
@@ -270,7 +279,44 @@ export default function ShopCartBrowser({
                       {card.subLabel && (
                         <p className="text-xs uppercase tracking-wide text-fox-muted">{card.subLabel}</p>
                       )}
-                      <h3 className={kind === "items" ? "mt-1 text-sm font-medium text-fox-text line-clamp-1" : "mt-1 font-medium text-fox-text"}>{card.name}</h3>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <h3 className={kind === "items" ? "text-sm font-medium text-fox-text line-clamp-1" : "font-medium text-fox-text"}>{card.name}</h3>
+                        {card.stockCount != null ? (
+                          <span
+                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              card.stockCount > 0
+                                ? "bg-green-500/10 text-green-400"
+                                : "bg-red-500/10 text-red-400"
+                            }`}
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                card.stockCount > 0 ? "bg-green-400" : "bg-red-400"
+                              }`}
+                            />
+                            {card.stockCount > 0 ? `${card.stockCount} in stock` : "Out of stock"}
+                          </span>
+                        ) : kind === "items" ? (
+                          // Items don't carry a quantity — admin just flips
+                          // soldOut (or `active` to hide it entirely), so
+                          // this is a plain in-stock/out-of-stock pill, no
+                          // number.
+                          <span
+                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              card.soldOut
+                                ? "bg-red-500/10 text-red-400"
+                                : "bg-green-500/10 text-green-400"
+                            }`}
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                card.soldOut ? "bg-red-400" : "bg-green-400"
+                              }`}
+                            />
+                            {card.soldOut ? "Out of stock" : "In stock"}
+                          </span>
+                        ) : null}
+                      </div>
                       <div className="mt-2 flex items-center justify-between">
                         <span className="text-sm font-semibold text-fox-primary"><DualPrice usd={card.priceUsd} /></span>
                       </div>

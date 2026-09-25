@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/userAuth";
 import { getPointsSettings } from "@/lib/loyalty";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 // A single line in a multi-package cart order. Cart orders are currently
 // only allowed for Roblox (enforced below, not here) — every other game
@@ -41,10 +42,21 @@ export async function POST(req: NextRequest) {
   try {
     // Sign-in is required to place any order. The browser also checks this
     // first (and opens the sign-in popup), but this is the real lock.
-    if (!(await getCurrentUser())) {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
       return NextResponse.json(
         { error: "Please sign in with Google to continue.", code: "LOGIN_REQUIRED" },
         { status: 401 }
+      );
+    }
+
+    // Keyed by account, not IP — a real shopper doesn't place more than a
+    // handful of orders in 10 minutes, and this is what stops a signed-in
+    // bot from spamming pending orders / payment-initiation calls.
+    if (!(await checkRateLimit(`create-order:topup:${currentUser.userId}`, 10, 10 * 60 * 1000))) {
+      return NextResponse.json(
+        { error: "Too many orders placed. Please wait a bit and try again." },
+        { status: 429 }
       );
     }
 

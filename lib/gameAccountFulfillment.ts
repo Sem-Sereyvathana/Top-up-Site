@@ -55,14 +55,22 @@ export async function handleGameAccountOrderWebhook(
 
     try {
       await prisma.$transaction(async (tx) => {
-        await tx.gameAccountOrder.update({
-          where: { id: order.id },
+        // Atomic claim (mirrors lib/fulfillment.ts): the `where` re-checks
+        // status=PENDING inside the same transaction, so a duplicate/
+        // concurrent delivery of this webhook updates 0 rows and aborts
+        // here — before any stock is pulled or reserved twice for one
+        // payment.
+        const claimed = await tx.gameAccountOrder.updateMany({
+          where: { id: order.id, status: "PENDING" },
           data: {
             status: "PAID",
             paidAt: now,
             ...(transactionId ? { paymentRef: transactionId } : {}),
           },
         });
+        if (claimed.count === 0) {
+          throw new Error("ALREADY_CLAIMED");
+        }
 
         if (uniqueIds.length) {
           // Also flip `active` off here — a sold unique-login account has
@@ -103,6 +111,9 @@ export async function handleGameAccountOrderWebhook(
       });
     } catch (err: any) {
       const msg = String(err?.message || "");
+      if (msg === "ALREADY_CLAIMED") {
+        return NextResponse.json({ ok: true, skipped: true });
+      }
       if (msg.startsWith("INSUFFICIENT_STOCK:")) {
         const title = msg.split(":").slice(1).join(":");
         await prisma.gameAccountOrder.update({

@@ -25,8 +25,15 @@ export async function finalizeOrderAfterPayment(
   const nextStatus: "PAID" | "DELIVERED" = isRobuxGame(order.game) ? "PAID" : "DELIVERED";
   const now = new Date();
 
-  await prisma.order.update({
-    where: { id: order.id },
+  // Atomic claim, not a plain update: the `where` re-checks status=PENDING
+  // as part of the same statement, so if a duplicate/concurrent delivery
+  // of the same webhook (KHPay retries on timeout, or a replayed request)
+  // races this one, only the first to reach the DB actually flips the row
+  // — the loser's `where` no longer matches and updates 0 rows. Callers
+  // use that (count === 0 -> null) to skip the points/stock/notify side
+  // effects that follow, instead of re-crediting them.
+  const claimed = await prisma.order.updateMany({
+    where: { id: order.id, status: "PENDING" },
     data: {
       status: nextStatus,
       paidAt: order.paidAt ?? now,
@@ -34,6 +41,7 @@ export async function finalizeOrderAfterPayment(
       ...(opts.paymentRef ? { paymentRef: opts.paymentRef } : {}),
     },
   });
+  if (claimed.count === 0) return null;
 
   return nextStatus;
 }

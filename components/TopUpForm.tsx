@@ -548,6 +548,24 @@ export default function TopUpForm({
       serverId.trim().length > 0
     );
 
+  // Whether the account has been confirmed found — used only to swap the
+  // Pay button's label, so the "ទិញឥឡូវនេះ" (Buy Now) button only appears
+  // once the account lookup has actually succeeded (not on error/not-found).
+  // It doesn't block submitting; canSubmit is unchanged.
+  //
+  // Roblox: the lookup result IS the account (displayName etc.), so only a
+  // confirmed match counts.
+  //
+  // Nickname/ID games: "not_found" means the service confirmed this ID is
+  // invalid, so that still blocks. But "unavailable"/"unsupported" mean the
+  // service couldn't check at all — the UI tells the user they can continue
+  // anyway in that case, so those must NOT be stuck on the placeholder.
+  const accountChecked = robuxGame
+    ? !!robloxAccount
+    : nicknameStatus !== "idle" &&
+      nicknameStatus !== "checking" &&
+      nicknameStatus !== "not_found";
+
   // Restore anything they'd already typed before we asked them to sign in
   // (handleSubmit saves it just before opening the sign-in popup). Runs
   // once, right after they land back on this page from Google.
@@ -1485,6 +1503,8 @@ export default function TopUpForm({
                     <Loader2 className="h-5 w-5 animate-spin" />
                     Creating Order…
                   </>
+                ) : !accountChecked ? (
+                  <>សូមចុចពិនិត្យមើលអាខោនរបស់អ្នកសិន</>
                 ) : (
                   <>
                     ទិញឥឡូវនេះ

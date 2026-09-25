@@ -8,6 +8,7 @@ import { decrementStockForOrder, restoreStockForOrder } from "@/lib/stock";
 import { finalizeOrderAfterPayment } from "@/lib/fulfillment";
 import { handleGameItemOrderWebhook } from "@/lib/gameItemFulfillment";
 import { handleGameAccountOrderWebhook } from "@/lib/gameAccountFulfillment";
+import { checkRateLimit } from "@/lib/rateLimit";
 import { NextRequest, NextResponse } from "next/server";
 
 // KHPay webhook receiver.
@@ -23,6 +24,18 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { method: string } }
 ) {
+  // 120 requests/min per IP — generous, since KHPay legitimately bursts
+  // retries on timeout and this endpoint has no user-facing "too many
+  // attempts" UI to fall back on. This isn't here to stop KHPay; it's here
+  // so a flood of junk POSTs (bad signature or not) can't force unlimited
+  // HMAC computations and DB lookups per second on a public, unauthenticated
+  // route. Signature verification below is still the real gate — this is
+  // just a cost/DoS backstop in front of it.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!(await checkRateLimit(`webhook:${ip}`, 120, 60 * 1000))) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const method = params.method.toUpperCase() as PaymentMethod;
 
   if (method !== "KHPAY") {
@@ -102,7 +115,17 @@ export async function POST(
     // Roblox/Robux stops at PAID for manual admin fulfillment; every other
     // game (Mobile Legends, PUBG, Free Fire, etc.) has nothing left to do
     // once payment clears, so it's marked DELIVERED right here.
-    await finalizeOrderAfterPayment(order.id, { paymentRef: transactionId || order.paymentRef || undefined });
+    const claimedStatus = await finalizeOrderAfterPayment(order.id, {
+      paymentRef: transactionId || order.paymentRef || undefined,
+    });
+
+    // null means a concurrent/duplicate delivery of this same webhook
+    // already claimed the order (see the atomic guard in
+    // finalizeOrderAfterPayment) — stop here so points, stock, and the
+    // Telegram alert below don't fire twice for one payment.
+    if (!claimedStatus) {
+      return NextResponse.json({ ok: true, skipped: true });
+    }
 
     // Credit loyalty points now that the order is actually paid (no-op for
     // guest orders / already-credited orders).

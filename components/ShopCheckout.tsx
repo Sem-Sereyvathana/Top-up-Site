@@ -453,6 +453,8 @@ export default function ShopCheckout({
                       <Loader2 className="h-5 w-5 animate-spin" />
                       Creating Order…
                     </>
+                  ) : requireUsername && !robloxAccount ? (
+                    <>សូមចុចពិនិត្យមើលអាខោនរបស់អ្នកសិន</>
                   ) : (
                     <>
                       Pay {format(subtotal)}
