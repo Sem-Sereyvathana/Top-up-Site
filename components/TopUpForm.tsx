@@ -10,6 +10,8 @@ import { useCurrency } from "@/lib/currency";
 import DualPrice from "@/components/DualPrice";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { getGameIdConfig } from "@/lib/gameIdConfig";
+import { requireLogin, isLoginRequired } from "@/lib/loginGate";
+import { saveDraft, loadDraft, clearDraft } from "@/lib/formDraft";
 import {
   ArrowRight,
   Lock,
@@ -204,6 +206,12 @@ export default function TopUpForm({
   const [uid, setUid] = useState("");
 
   const [serverId, setServerId] = useState("");
+
+  // Key for the "keep what they typed through Google sign-in" draft — see
+  // handleSubmit (which writes it via lib/loginGate + lib/formDraft) and
+  // the restore effect below.
+  const draftKey = `sharustore_topup_draft_${game.slug}`;
+  const restoredFromDraftRef = useRef(false);
 
   const [method] =
     useState<"KHPAY">("KHPAY");
@@ -540,6 +548,63 @@ export default function TopUpForm({
       serverId.trim().length > 0
     );
 
+  // Restore anything they'd already typed before we asked them to sign in
+  // (handleSubmit saves it just before opening the sign-in popup). Runs
+  // once, right after they land back on this page from Google.
+  useEffect(() => {
+    const draft = loadDraft<{
+      uid?: string;
+      serverId?: string;
+      selected?: string | null;
+      cart?: Record<string, number>;
+    }>(draftKey);
+    if (!draft) return;
+
+    if (draft.uid) setUid(draft.uid);
+    if (draft.serverId) setServerId(draft.serverId);
+    if (robuxGame) {
+      if (draft.cart) {
+        const validIds = new Set(products.map((p) => p.id));
+        const restored: Record<string, number> = {};
+        for (const [id, qty] of Object.entries(draft.cart)) {
+          if (validIds.has(id) && qty > 0) restored[id] = qty;
+        }
+        if (Object.keys(restored).length > 0) setCart(restored);
+      }
+    } else if (draft.selected) {
+      setSelected(draft.selected);
+    }
+
+    restoredFromDraftRef.current = true;
+    clearDraft(draftKey);
+    // Intentionally once-only: this restores a one-time draft, not a
+    // subscription to draftKey.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Once signed in, pre-fill the UID / Zone-Server with whatever they used
+  // last time on this game — unless we just restored a pre-sign-in draft,
+  // or they've already typed something themselves.
+  useEffect(() => {
+    if (!user || restoredFromDraftRef.current || uid.trim()) return;
+
+    let cancelled = false;
+    fetch(`/api/auth/saved-id?gameId=${encodeURIComponent(game.id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.saved) return;
+        setUid((current) => current || data.saved.uid || "");
+        if (needsServer) {
+          setServerId((current) => current || data.saved.serverId || "");
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   async function checkRobloxAvatar() {
     if (
       !robuxGame ||
@@ -674,6 +739,19 @@ export default function TopUpForm({
 
     if (!canSubmit || submitting) return;
 
+    if (!user) {
+      // Keep what they've filled in so it's still here once they're back
+      // from signing in, then send them there instead of submitting.
+      saveDraft(draftKey, {
+        uid,
+        serverId,
+        selected,
+        cart: robuxGame ? cart : undefined,
+      });
+      requireLogin();
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
@@ -741,6 +819,17 @@ export default function TopUpForm({
       const data = await res.json();
 
       if (!res.ok) {
+        if (isLoginRequired(res, data)) {
+          saveDraft(draftKey, {
+            uid,
+            serverId,
+            selected,
+            cart: robuxGame ? cart : undefined,
+          });
+          requireLogin();
+          setSubmitting(false);
+          return;
+        }
         throw new Error(
           data.error ||
             "Failed to create order"

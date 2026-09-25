@@ -7,6 +7,7 @@ import {
   DEFAULT_SUPPORT_TELEGRAM,
   splitBrandName,
 } from "@/lib/siteBrand";
+import { toTelegramUrl } from "@/lib/telegramLink";
 
 export default function Footer() {
   // Admin-configured brand (Settings) — same source as the header.
@@ -26,6 +27,7 @@ export default function Footer() {
   }, []);
 
   const [brandMain, brandAccent] = splitBrandName(siteName);
+  const telegramUrl = toTelegramUrl(telegram);
 
   return (
     <footer className="border-t border-fox-border/60 bg-fox-bg/80 text-fox-muted text-xs">
@@ -65,7 +67,21 @@ export default function Footer() {
               Support
             </h4>
             <ul className="space-y-2">
-              <li>Telegram: {telegram}</li>
+              <li>
+                Telegram:{" "}
+                {telegramUrl ? (
+                  <a
+                    href={telegramUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-fox-text hover:text-fox-primary underline underline-offset-2"
+                  >
+                    {telegram}
+                  </a>
+                ) : (
+                  telegram
+                )}
+              </li>
               <li>24/7 Service</li>
             </ul>
           </div>

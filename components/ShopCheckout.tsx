@@ -7,6 +7,9 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useCurrency } from "@/lib/currency";
 import { useShopCart, readBuyNow, getPendingOrder, setPendingOrder, clearPendingOrder, ShopKind, ShopCartLine } from "@/lib/shopCart";
+import { useCurrentUser } from "@/lib/useCurrentUser";
+import { requireLogin, isLoginRequired } from "@/lib/loginGate";
+import { saveDraft, loadDraft, clearDraft } from "@/lib/formDraft";
 import {
   ArrowRight,
   Lock,
@@ -56,6 +59,13 @@ export default function ShopCheckout({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { linesFor, removeLine } = useShopCart();
+  const { user } = useCurrentUser();
+
+  // Key for the "keep what they typed through Google sign-in" draft — see
+  // handleCheckout (writes it via lib/loginGate + lib/formDraft) and the
+  // restore effect below. The cart itself already survives sign-in on its
+  // own (lib/shopCart persists to storage), so only username/contact need it.
+  const draftKey = `sharustore_checkout_draft_${kind}`;
 
   const isBuyNow = searchParams.get("buyNow") === "1";
   const [buyNowLine, setBuyNowLine] = useState<ShopCartLine | null>(null);
@@ -120,6 +130,17 @@ export default function ShopCheckout({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Restore what they'd already typed before we asked them to sign in.
+  // Runs once, right after they land back on this page from Google.
+  useEffect(() => {
+    const draft = loadDraft<{ username?: string; contact?: string }>(draftKey);
+    if (!draft) return;
+    if (draft.username) setUsername(draft.username);
+    if (draft.contact) setContact(draft.contact);
+    clearDraft(draftKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [robloxChecking, setRobloxChecking] = useState(false);
   const [robloxAccount, setRobloxAccount] = useState<{
     id: number;
@@ -159,6 +180,15 @@ export default function ShopCheckout({
 
   async function handleCheckout() {
     if (!canSubmit) return;
+
+    if (!user) {
+      // Cart contents already survive sign-in on their own; only the
+      // typed fields need saving here.
+      saveDraft(draftKey, { username, contact });
+      requireLogin();
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
@@ -183,7 +213,15 @@ export default function ShopCheckout({
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create order");
+      if (!res.ok) {
+        if (isLoginRequired(res, data)) {
+          saveDraft(draftKey, { username, contact });
+          requireLogin();
+          setSubmitting(false);
+          return;
+        }
+        throw new Error(data.error || "Failed to create order");
+      }
 
       // Cart (and buyNow selection) is intentionally left untouched here —
       // the order still isn't paid yet. It only gets cleared once payment

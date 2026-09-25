@@ -621,3 +621,19 @@ model WelcomePopup {
   closeLabel  String   @default("Close")
   updatedAt   DateTime @updatedAt
 }
+
+// The popup shown to a visitor who tries to top up / buy without being signed
+// in (edited in Admin -> Sign-in Popup). One row, id = 1. When `enabled` is
+// off — or the row doesn't exist yet — the popup falls back to a built-in
+// default message, so the sign-in gate itself never depends on this table.
+model SignInPopup {
+  id         Int      @id @default(1)
+  enabled    Boolean  @default(false)
+  imageUrl   String?
+  title      String   @default("")
+  body       String?
+  // One checklist item per line.
+  bullets    String?
+  closeLabel String   @default("Not now")
+  updatedAt  DateTime @updatedAt
+}

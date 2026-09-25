@@ -89,6 +89,7 @@ export default async function AdminLayout({
               items: [
                 { href: "/admin/customers", label: "Customers", icon: "👥" },
                 { href: "/admin/banlist", label: "Banlist", icon: "🚫" },
+                { href: "/admin/signin-popup", label: "Sign-in Popup", icon: "🔐" },
                 { href: "/admin/audit-logs", label: "Audit Log", icon: "📜" },
                 { href: "/admin/settings", label: "Settings", icon: "⚙️" },
               ],

@@ -39,6 +39,15 @@ const createOrderSchema = z
 
 export async function POST(req: NextRequest) {
   try {
+    // Sign-in is required to place any order. The browser also checks this
+    // first (and opens the sign-in popup), but this is the real lock.
+    if (!(await getCurrentUser())) {
+      return NextResponse.json(
+        { error: "Please sign in with Google to continue.", code: "LOGIN_REQUIRED" },
+        { status: 401 }
+      );
+    }
+
     const isPublicHttpUrl = (value?: string | null): value is string => {
       if (!value) return false;
       if (!/^https?:\/\//i.test(value)) return false;
