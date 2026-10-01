@@ -15,7 +15,7 @@ export default async function GamePage({ params }: { params: { slug: string } })
     include: {
       products: {
         where: { active: true },
-        orderBy: { sortOrder: "asc" },
+        orderBy: [{ priceUsd: "asc" }, { sortOrder: "asc" }],
       },
     },
   });

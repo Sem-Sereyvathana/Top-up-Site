@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Image as ImageIcon } from "lucide-react";
+import { Image as ImageIcon, X } from "lucide-react";
 
 export default function AdminProductsPage() {
   const searchParams = useSearchParams();
@@ -214,6 +214,13 @@ function ProductForm({ games, defaultGameId, initial, onCancel, onSaved }: any) 
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function uploadImage(file: File) {
     setUploading(true);
     const fd = new FormData();
@@ -257,8 +264,17 @@ function ProductForm({ games, defaultGameId, initial, onCancel, onSaved }: any) 
   }
 
   return (
-    <form onSubmit={save} className="card p-6 mb-6">
-      <h3 className="font-semibold text-lg mb-4">{initial ? "Edit Product" : "New Product"}</h3>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+    <form onSubmit={save} className="card p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-lg">{initial ? "Edit Product" : "New Product"}</h3>
+        <button type="button" onClick={onCancel} aria-label="Close" className="text-fox-muted hover:text-white">
+          <X className="h-5 w-5" />
+        </button>
+      </div>
       <div className="grid md:grid-cols-3 gap-4 mb-4">
         <div className="md:col-span-3">
           <label className="label">Game</label>
@@ -355,5 +371,6 @@ function ProductForm({ games, defaultGameId, initial, onCancel, onSaved }: any) 
         <button type="button" onClick={onCancel} className="btn-ghost">Cancel</button>
       </div>
     </form>
+    </div>
   );
 }

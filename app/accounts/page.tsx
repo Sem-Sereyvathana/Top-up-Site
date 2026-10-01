@@ -78,9 +78,9 @@ export default async function AccountsPage() {
           checkoutHref="/accounts/checkout"
           allowQuantity={false}
           detailsBaseHref="/accounts"
-          emptyStateTitle="Listings coming soon"
+          emptyStateTitle="នឹងមកដល់ឆាប់ៗនេះ"
           emptyStateBody="We're verifying accounts for sale. Check back shortly for listings across your favorite games."
-          soldOutLabel="Sold"
+          soldOutLabel="អស់ហើយ"
         />
       </main>
       <Footer />

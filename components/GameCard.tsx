@@ -22,8 +22,8 @@ function GameCardContent({
   active: boolean;
 }) {
   return (
-    <div className="relative flex h-full flex-col items-center rounded-2xl border border-fox-border/60 bg-fox-card p-4 sm:p-5 transition-all duration-500 group-hover:border-transparent group-hover:bg-fox-card/90">
-      <div className="relative w-full aspect-square overflow-hidden rounded-xl bg-fox-surface mb-4">
+    <div className="relative flex h-full flex-col items-center rounded-2xl border border-fox-border/60 bg-fox-card p-2 sm:p-5 transition-all duration-500 group-hover:border-transparent group-hover:bg-fox-card/90">
+      <div className="relative w-full aspect-square overflow-hidden rounded-xl bg-fox-surface mb-2 sm:mb-4">
         <div
           className={
             active
@@ -59,8 +59,8 @@ function GameCardContent({
 
         {!active && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-            <span className="rounded-full border border-fox-border/80 bg-fox-card/90 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-fox-muted">
-              Coming Soon
+            <span className="rounded-full border border-fox-border/80 bg-fox-card/90 px-2 py-0.5 text-[9px] sm:px-3 sm:py-1 sm:text-[10px] font-bold uppercase tracking-wider text-fox-muted">
+              នឹងមកដល់ឆាប់ៗនេះ
             </span>
           </div>
         )}
@@ -69,8 +69,8 @@ function GameCardContent({
       <h3
         className={
           active
-            ? "font-display font-bold text-sm sm:text-base text-center leading-tight mb-3 line-clamp-2 transition-colors duration-300 group-hover:text-fox-gold"
-            : "font-display font-bold text-sm sm:text-base text-center leading-tight mb-3 line-clamp-2 text-fox-muted"
+            ? "font-display font-bold text-xs sm:text-base text-center leading-tight mb-2 sm:mb-3 line-clamp-2 transition-colors duration-300 group-hover:text-fox-gold"
+            : "font-display font-bold text-xs sm:text-base text-center leading-tight mb-2 sm:mb-3 line-clamp-2 text-fox-muted"
         }
       >
         {name}
@@ -81,11 +81,11 @@ function GameCardContent({
         disabled={!active}
         className={
           active
-            ? "mt-auto w-full rounded-xl bg-gradient-to-r from-fox-primary to-fox-accent py-2.5 text-sm font-bold text-black uppercase tracking-wider transition-all duration-300 group-hover:shadow-lg group-hover:shadow-fox-primary/40 group-hover:scale-[1.03] active:scale-[0.97]"
-            : "mt-auto w-full cursor-not-allowed rounded-xl bg-fox-surface py-2.5 text-sm font-bold text-fox-muted uppercase tracking-wider"
+            ? "mt-auto w-full rounded-xl bg-gradient-to-r from-fox-primary to-fox-accent py-1.5 text-[11px] sm:py-2.5 sm:text-sm font-bold text-black uppercase tracking-wider transition-all duration-300 group-hover:shadow-lg group-hover:shadow-fox-primary/40 group-hover:scale-[1.03] active:scale-[0.97]"
+            : "mt-auto w-full cursor-not-allowed rounded-xl bg-fox-surface py-1.5 text-[11px] sm:py-2.5 sm:text-sm font-bold text-fox-muted uppercase tracking-wider"
         }
       >
-        {active ? "Top Up" : "Coming Soon"}
+        {active ? "Top Up" : "នឹងមកដល់ឆាប់ៗនេះ"}
       </button>
     </div>
   );
@@ -96,7 +96,7 @@ export default function GameCard({ slug, name, publisher, currencyName, imageUrl
     return (
       <div
         aria-disabled="true"
-        title={name + " (coming soon)"}
+        title={name + " (នឹងមកដល់ឆាប់ៗនេះ)"}
         className="game-card group relative block h-full cursor-not-allowed rounded-2xl opacity-70"
       >
         <GameCardContent name={name} imageUrl={imageUrl} featured={featured} active={false} />

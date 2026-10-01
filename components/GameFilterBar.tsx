@@ -27,14 +27,14 @@ export default function GameFilterBar({ games }: { games: GameForFilter[] }) {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap gap-2 sm:gap-3">
+      <div className="mb-6 flex flex-wrap gap-1.5 sm:gap-3">
         <button
           type="button"
           onClick={() => setSelected("All")}
           className={
             selected === "All"
-              ? "rounded-full bg-gradient-to-r from-fox-primary to-fox-accent px-4 py-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-black"
-              : "rounded-full border border-fox-border/60 bg-fox-card px-4 py-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-fox-muted transition-colors hover:text-white"
+              ? "rounded-full bg-gradient-to-r from-fox-primary to-fox-accent px-2.5 py-1 text-[10px] sm:px-4 sm:py-2 sm:text-sm font-bold uppercase tracking-wide sm:tracking-wider text-black"
+              : "rounded-full border border-fox-border/60 bg-fox-card px-2.5 py-1 text-[10px] sm:px-4 sm:py-2 sm:text-sm font-bold uppercase tracking-wide sm:tracking-wider text-fox-muted transition-colors hover:text-white"
           }
         >
           All Games
@@ -46,8 +46,8 @@ export default function GameFilterBar({ games }: { games: GameForFilter[] }) {
             onClick={() => setSelected(tab)}
             className={
               selected === tab
-                ? "rounded-full bg-gradient-to-r from-fox-primary to-fox-accent px-4 py-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-black"
-                : "rounded-full border border-fox-border/60 bg-fox-card px-4 py-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-fox-muted transition-colors hover:text-white"
+                ? "rounded-full bg-gradient-to-r from-fox-primary to-fox-accent px-2.5 py-1 text-[10px] sm:px-4 sm:py-2 sm:text-sm font-bold uppercase tracking-wide sm:tracking-wider text-black"
+                : "rounded-full border border-fox-border/60 bg-fox-card px-2.5 py-1 text-[10px] sm:px-4 sm:py-2 sm:text-sm font-bold uppercase tracking-wide sm:tracking-wider text-fox-muted transition-colors hover:text-white"
             }
           >
             {tab}
@@ -55,7 +55,7 @@ export default function GameFilterBar({ games }: { games: GameForFilter[] }) {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">
         {visible.map((game, i) => (
           <div key={game.id} className="fade-up" style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}>
             <GameCard

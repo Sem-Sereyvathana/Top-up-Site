@@ -94,7 +94,7 @@ export default function ShopCartBrowser({
   allowQuantity,
   emptyStateTitle,
   emptyStateBody,
-  soldOutLabel = "Sold",
+  soldOutLabel = "អស់ហើយ",
   allProductsLabel = "All products",
   detailsBaseHref,
 }: ShopCartBrowserProps) {
@@ -159,7 +159,7 @@ export default function ShopCartBrowser({
   return (
     <div className="pb-28">
       {/* Category pill bar */}
-      <div className="mb-8 flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mb-8 flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <CategoryPill
           active={selectedGroup === ALL_KEY}
           label={allProductsLabel}
@@ -199,7 +199,7 @@ export default function ShopCartBrowser({
                 </h2>
               </div>
 
-              <div className={kind === "items" ? "grid grid-cols-[repeat(auto-fill,minmax(150px,150px))] justify-start gap-3" : "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"}>
+              <div className={kind === "items" ? "grid grid-cols-3 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(150px,150px))] md:grid-cols-[repeat(auto-fill,minmax(210px,210px))] justify-start sm:gap-3 md:gap-4" : "grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-5"}>
                 {group.cards.map((card) => {
                   const qty = cart[card.id] ?? 0;
                   const inCart = qty > 0;
@@ -237,7 +237,7 @@ export default function ShopCartBrowser({
                           handleCardActivate();
                         }
                       }}
-                      className={`relative rounded-2xl border ${kind === "items" ? "p-3" : "p-4"} text-left backdrop-blur-md transition-transform ${
+                      className={`relative rounded-2xl border ${kind === "items" ? "p-2 sm:p-3 md:p-4" : "p-2 sm:p-4"} text-left backdrop-blur-md transition-transform ${
                         card.soldOut
                           ? "cursor-not-allowed border-fox-border/50 bg-fox-card/30 opacity-60"
                           : inCart
@@ -246,17 +246,17 @@ export default function ShopCartBrowser({
                       }`}
                     >
                       {card.soldOut && (
-                        <span className="absolute right-3 top-3 z-10 rounded-full bg-red-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+                        <span className="absolute right-1.5 top-1.5 z-10 rounded-full bg-red-500/90 px-1.5 py-0.5 text-[8px] sm:right-3 sm:top-3 sm:px-2 sm:text-[10px] font-semibold uppercase tracking-wider text-white">
                           {soldOutLabel}
                         </span>
                       )}
                       {inCart && !card.soldOut && (
-                        <span className="absolute right-3 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-fox-primary text-black">
+                        <span className="absolute right-1.5 top-1.5 z-10 flex h-5 w-5 sm:right-3 sm:top-3 sm:h-6 sm:w-6 items-center justify-center rounded-full bg-fox-primary text-black">
                           <Check className="h-3.5 w-3.5" strokeWidth={3} />
                         </span>
                       )}
                       {card.badge && !inCart && !card.soldOut && (
-                        <span className="absolute right-3 top-3 z-10 badge-best flex items-center gap-1 text-[9px]">
+                        <span className="absolute right-1.5 top-1.5 z-10 badge-best flex items-center gap-1 !px-1.5 !text-[8px] sm:right-3 sm:top-3 sm:!px-2 sm:!text-[9px]">
                           <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z" />
                           </svg>
@@ -264,7 +264,7 @@ export default function ShopCartBrowser({
                         </span>
                       )}
                       <div
-                        className={`${kind === "items" ? "mb-2" : "mb-3"} aspect-square overflow-hidden rounded-xl bg-fox-bg/60 ${card.soldOut ? "opacity-40 grayscale" : ""}`}
+                        className={`${kind === "items" ? "mb-1.5 sm:mb-2 md:mb-3" : "mb-2 sm:mb-3"} aspect-square overflow-hidden rounded-xl bg-fox-bg/60 ${card.soldOut ? "opacity-40 grayscale" : ""}`}
                       >
                         {card.imageUrl && (
                           <img
@@ -277,58 +277,23 @@ export default function ShopCartBrowser({
                         )}
                       </div>
                       {card.subLabel && (
-                        <p className="text-xs uppercase tracking-wide text-fox-muted">{card.subLabel}</p>
+                        <p className="truncate text-[10px] uppercase tracking-wide text-fox-muted sm:text-xs">{card.subLabel}</p>
                       )}
                       <div className="mt-1 flex items-center justify-between gap-2">
-                        <h3 className={kind === "items" ? "text-sm font-medium text-fox-text line-clamp-1" : "font-medium text-fox-text"}>{card.name}</h3>
-                        {card.stockCount != null ? (
-                          <span
-                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              card.stockCount > 0
-                                ? "bg-green-500/10 text-green-400"
-                                : "bg-red-500/10 text-red-400"
-                            }`}
-                          >
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full ${
-                                card.stockCount > 0 ? "bg-green-400" : "bg-red-400"
-                              }`}
-                            />
-                            {card.stockCount > 0 ? `${card.stockCount} in stock` : "Out of stock"}
-                          </span>
-                        ) : kind === "items" ? (
-                          // Items don't carry a quantity — admin just flips
-                          // soldOut (or `active` to hide it entirely), so
-                          // this is a plain in-stock/out-of-stock pill, no
-                          // number.
-                          <span
-                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              card.soldOut
-                                ? "bg-red-500/10 text-red-400"
-                                : "bg-green-500/10 text-green-400"
-                            }`}
-                          >
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full ${
-                                card.soldOut ? "bg-red-400" : "bg-green-400"
-                              }`}
-                            />
-                            {card.soldOut ? "Out of stock" : "In stock"}
-                          </span>
-                        ) : null}
+                        <h3 className="min-w-0 flex-1 break-words text-[clamp(10px,2.9vw,13px)] font-medium leading-tight text-fox-text line-clamp-2 sm:text-sm md:text-base">{card.name}</h3>
                       </div>
                       <div className="mt-2 flex items-center justify-between">
-                        <span className="text-sm font-semibold text-fox-primary"><DualPrice usd={card.priceUsd} /></span>
+                        <span className="text-xs font-semibold text-fox-primary sm:text-sm"><DualPrice usd={card.priceUsd} /></span>
                       </div>
 
                       {!card.soldOut && (
-                        <div className="mt-3 flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        <div className="mt-2 flex flex-col gap-1 sm:mt-3 sm:gap-1.5" onClick={(e) => e.stopPropagation()}>
                           {card.contactAdminUrl ? (
                             <a
                               href={card.contactAdminUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex w-full items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-fox-primary to-fox-accent py-1.5 text-xs font-bold text-black hover:opacity-90"
+                              className="flex w-full items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-fox-primary to-fox-accent py-1 text-[10px] font-bold sm:py-1.5 sm:text-xs text-black hover:opacity-90"
                             >
                               <MessageCircle className="h-3.5 w-3.5" strokeWidth={2.5} />
                               Buy
@@ -357,7 +322,7 @@ export default function ShopCartBrowser({
                               <button
                                 type="button"
                                 onClick={() => toggleCard(kind, card)}
-                                className="w-full rounded-lg border border-fox-primary/40 bg-fox-primary/10 py-1.5 text-xs font-semibold text-fox-primary hover:bg-fox-primary/20"
+                                className="w-full rounded-lg border border-fox-primary/40 bg-fox-primary/10 py-1 text-[10px] font-semibold sm:py-1.5 sm:text-xs text-fox-primary hover:bg-fox-primary/20"
                               >
                                 ដាក់ចូលកន្ត្រក
                               </button>
@@ -367,7 +332,7 @@ export default function ShopCartBrowser({
                               <button
                                 type="button"
                                 onClick={() => removeLine(kind, card.id)}
-                                className="w-full rounded-lg border border-red-500/40 bg-red-500/10 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/20"
+                                className="w-full rounded-lg border border-red-500/40 bg-red-500/10 py-1 text-[10px] font-semibold sm:py-1.5 sm:text-xs text-red-400 hover:bg-red-500/20"
                               >
                                 Remove
                               </button>
@@ -375,7 +340,7 @@ export default function ShopCartBrowser({
                               <button
                                 type="button"
                                 onClick={() => toggleCard(kind, card)}
-                                className="w-full rounded-lg border border-fox-primary/40 bg-fox-primary/10 py-1.5 text-xs font-semibold text-fox-primary hover:bg-fox-primary/20"
+                                className="w-full rounded-lg border border-fox-primary/40 bg-fox-primary/10 py-1 text-[10px] font-semibold sm:py-1.5 sm:text-xs text-fox-primary hover:bg-fox-primary/20"
                               >
                                 ដាក់ចូលកន្ត្រក
                               </button>
@@ -386,7 +351,7 @@ export default function ShopCartBrowser({
                             <button
                               type="button"
                               onClick={() => router.push(checkoutHref)}
-                              className="flex w-full items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-fox-primary to-fox-accent py-1.5 text-xs font-bold text-black hover:opacity-90"
+                              className="flex w-full items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-fox-primary to-fox-accent py-1 text-[10px] font-bold sm:py-1.5 sm:text-xs text-black hover:opacity-90"
                             >
                               <ShoppingCart className="h-3.5 w-3.5" strokeWidth={2.5} />
                               ទិញឥឡូវនេះ
@@ -441,14 +406,14 @@ function CategoryPill({
       type="button"
       onClick={onClick}
       className={
-        "flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-semibold uppercase tracking-wide transition-colors sm:text-sm " +
+        "flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-colors sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm " +
         (active
           ? "border-fox-primary bg-fox-primary text-white shadow-glow-sm"
           : "border-fox-border/70 bg-fox-card/60 text-fox-text hover:border-fox-primary/60")
       }
     >
       {imageUrl && (
-        <span className="h-5 w-5 shrink-0 overflow-hidden rounded">
+        <span className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 overflow-hidden rounded">
           <img src={imageUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
         </span>
       )}

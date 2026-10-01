@@ -67,13 +67,13 @@ export default function GameItemsBrowser({
   return (
     <div>
       {/* Category pill bar */}
-      <div className="mb-8 flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mb-8 flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <CategoryPill
           active={selected === ALL_KEY}
           label="Tất cả sản phẩm"
           onClick={() => setSelected(ALL_KEY)}
           icon={
-            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0">
               <path
                 d="M3 3h7v7H3V3Zm11 0h7v7h-7V3ZM3 14h7v7H3v-7Zm11 0h7v7h-7v-7Z"
                 stroke="currentColor"
@@ -91,7 +91,7 @@ export default function GameItemsBrowser({
             onClick={() => setSelected(g.key)}
             icon={
               g.imageUrl ? (
-                <span className="h-5 w-5 shrink-0 overflow-hidden rounded">
+                <span className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 overflow-hidden rounded">
                   <img
                     src={g.imageUrl}
                     alt=""
@@ -188,7 +188,7 @@ function CategoryPill({
       type="button"
       onClick={onClick}
       className={
-        "flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-semibold uppercase tracking-wide transition-colors sm:text-sm " +
+        "flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-colors sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm " +
         (active
           ? "border-fox-primary bg-fox-primary text-white shadow-glow-sm"
           : "border-fox-border/70 bg-fox-card/60 text-fox-text hover:border-fox-primary/60")
@@ -215,7 +215,7 @@ function EmptyState() {
         </svg>
       </div>
       <h2 className="text-lg font-semibold text-fox-text">
-        Items coming soon
+        នឹងមកដល់ឆាប់ៗនេះ
       </h2>
       <p className="text-sm text-fox-muted">
         We&apos;re stocking the shelves. Check back shortly for skins,

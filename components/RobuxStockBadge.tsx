@@ -55,7 +55,7 @@ export default function RobuxStockBadge({ compact = false, initialTotal = null, 
           <div className="min-w-0">
             <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-fox-muted">Robux stock</div>
             <div className="truncate text-sm font-bold text-fox-text">
-              {inStock ? `${total.toLocaleString()} available` : "Out of stock"}
+              {inStock ? `${total.toLocaleString()} available` : "អស់ហើយ"}
             </div>
           </div>
         </div>
@@ -96,7 +96,7 @@ export default function RobuxStockBadge({ compact = false, initialTotal = null, 
       <div className="relative mt-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider">
         <span className={`h-2 w-2 rounded-full ${inStock ? "bg-emerald-300 animate-pulse" : "bg-red-300"}`} />
         <span className={inStock ? "text-emerald-300" : "text-red-300"}>
-          {inStock ? "In stock now" : "Out of stock"}
+          {inStock ? "In stock now" : "អស់ហើយ"}
         </span>
         <span className="text-fox-muted">• updated live</span>
       </div>

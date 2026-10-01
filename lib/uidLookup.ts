@@ -125,7 +125,7 @@ export async function lookupGameId(
   if (!cfg) return { status: "unsupported" };
 
   // Paid provider first (when connected).
-  const viaProvider = await lookupViaProvider(cfg.key, uid, server);
+  const viaProvider = await lookupViaProvider(cfg.key, uid, server, gameSlug);
   if (viaProvider) return viaProvider;
 
   switch (cfg.key) {

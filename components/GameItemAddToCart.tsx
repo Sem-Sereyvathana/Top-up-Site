@@ -27,7 +27,7 @@ export default function GameItemAddToCart({ card }: { card: ShopCartCard }) {
   if (card.soldOut) {
     return (
       <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300">
-        This item is out of stock.
+        អស់ហើយ
       </div>
     );
   }

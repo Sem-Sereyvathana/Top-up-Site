@@ -45,6 +45,10 @@ model Game {
   // arrange handoff after paying. Only used by the Accounts marketplace —
   // Top-up / Products never read this field.
   deliveryMode   String        @default("DIRECT")
+  // SabayStore supplier game slug (e.g. "free-fire-my-sg"). When set, paid
+  // orders for this game are topped up automatically through the supplier
+  // API. Filled in by `npm run db:sync-sabay`.
+  supplierSlug   String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   GameAccount    GameAccount[]
@@ -118,6 +122,8 @@ model Product {
   imageUrl  String?
   active    Boolean  @default(true)
   stock     Int?
+  // SabayStore supplier offer id for this package (CSV "Offer ID").
+  supplierOfferId String?
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -184,6 +190,7 @@ model Order {
   pointsEarned      Int        @default(0)
   pointsRedeemed    Int        @default(0)
   stockDecremented  Boolean    @default(false)
+  supplierOrderNumber String?
   userId            String?
   game              Game       @relation(fields: [gameId], references: [id])
   product           Product    @relation(fields: [productId], references: [id])

@@ -47,9 +47,9 @@ export default async function GameItemsPage() {
           checkoutHref="/game-items/checkout"
           allowQuantity
           detailsBaseHref="/game-items"
-          emptyStateTitle="Items coming soon"
+          emptyStateTitle="នឹងមកដល់ឆាប់ៗនេះ"
           emptyStateBody="We're stocking the shelves. Check back shortly for skins, bundles, and rare in-game items."
-          soldOutLabel="Sold Out"
+          soldOutLabel="អស់ហើយ"
         />
       </main>
       <Footer />

@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { syncSupplierOrder } from "@/lib/fulfillment";
 
 // Customer-facing order status endpoint — polled by the checkout page while
 // a payment is pending. (Invoice PDF generation lives separately at
@@ -28,8 +29,18 @@ export async function GET(
     return NextResponse.json({ error: "Too many requests. Please wait a bit and try again." }, { status: 429 });
   }
 
+  const orderNumber = params.orderNumber.toUpperCase();
+
+  // Auto top-up still waiting on the supplier? Check on it now (no-op for
+  // every other order).
+  const pending = await prisma.order.findUnique({
+    where: { orderNumber },
+    select: { id: true, status: true },
+  });
+  if (pending?.status === "PROCESSING") await syncSupplierOrder(pending.id);
+
   const order = await prisma.order.findUnique({
-    where: { orderNumber: params.orderNumber.toUpperCase() },
+    where: { orderNumber },
     include: {
       game: { select: { name: true, slug: true } },
       product: { select: { name: true } },

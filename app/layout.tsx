@@ -11,14 +11,14 @@ import SignInPopup from "@/components/SignInPopup";
 export const metadata: Metadata = {
   title: "SHARUSTORE — Fast & Secure Game Top Up",
   description:
-    "Top up Mobile Legends, Free Fire, PUBG, Genshin Impact and more. Instant delivery, secure KHQR payment. 24/7 service in Cambodia.",
+    "Top up Mobile Legends, Free Fire, PUBG, and more. Instant delivery, secure KHQR payment. 24/7 service in Cambodia.",
   keywords: [
     "top up",
     "mobile legends diamonds",
     "free fire diamonds",
     "pubg uc",
     "genshin impact",
-    "ABA Pay",
+    "ABA Pay",  
     "KHQR",
     "Cambodia top up",
   ],

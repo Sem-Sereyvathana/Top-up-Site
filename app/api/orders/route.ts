@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "One of the selected packages is no longer available" }, { status: 404 });
         }
         if (p.stock !== null && p.stock < it.quantity) {
-          return NextResponse.json({ error: `"${p.name}" just sold out — remove it and try again` }, { status: 409 });
+          return NextResponse.json({ error: `"${p.name}" អស់ហើយ` }, { status: 409 });
         }
         lineItems.push({ product: p, quantity: it.quantity });
       }
@@ -197,7 +197,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Product not found" }, { status: 404 });
       }
       if (product.stock !== null && product.stock <= 0) {
-        return NextResponse.json({ error: "This package is out of stock" }, { status: 409 });
+        return NextResponse.json({ error: "អស់ហើយ" }, { status: 409 });
       }
 
       // Roblox uses the admin-managed Robux stock as inventory. Check it again

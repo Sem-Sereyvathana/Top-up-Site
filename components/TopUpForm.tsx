@@ -179,7 +179,7 @@ export default function TopUpForm({
 
         {unavailable && (
           <span className="absolute bottom-1 right-2 text-[10px] text-red-400">
-            Out of stock
+            អស់ហើយ
           </span>
         )}
       </button>
@@ -560,11 +560,29 @@ export default function TopUpForm({
   // invalid, so that still blocks. But "unavailable"/"unsupported" mean the
   // service couldn't check at all — the UI tells the user they can continue
   // anyway in that case, so those must NOT be stuck on the placeholder.
+  // Games with a check: until the account is checked, the Pay button
+  // scrolls back up to the ID box instead of being dead.
+  const step1Ref = useRef<HTMLDivElement | null>(null);
+
   const accountChecked = robuxGame
     ? !!robloxAccount
-    : nicknameStatus !== "idle" &&
+    : !supportsLookup ||
+      (nicknameStatus !== "idle" &&
       nicknameStatus !== "checking" &&
-      nicknameStatus !== "not_found";
+      nicknameStatus !== "not_found");
+
+  const needsCheck = !robuxGame && supportsLookup && !accountChecked;
+
+  function goToCheck() {
+    step1Ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const zoneOk = !useZoneField || serverId.trim().length > 0;
+    if (isValidUid(uid) && zoneOk) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (nicknameStatus !== "checking") runLookup();
+    } else {
+      step1Ref.current?.querySelector("input")?.focus({ preventScroll: true });
+    }
+  }
 
   // Restore anything they'd already typed before we asked them to sign in
   // (handleSubmit saves it just before opening the sign-in popup). Runs
@@ -874,7 +892,7 @@ export default function TopUpForm({
         <div className="space-y-8">
 
           {/* STEP 1 */}
-          <div className="fade-up">
+          <div className="fade-up scroll-mt-24" ref={step1Ref}>
             <div className="flex items-center gap-3 mb-4">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-fox-primary to-fox-accent font-display font-bold text-black shadow-lg shadow-fox-primary/40">
                 1
@@ -940,7 +958,7 @@ export default function TopUpForm({
                 {useZoneField && (
                   <div>
                     <label className="label">
-                      Zone ID
+                      {idConfig?.serverLabel ?? "Zone ID"}
                       <span className="text-red-400"> *</span>
                     </label>
 
@@ -952,7 +970,7 @@ export default function TopUpForm({
                           e.target.value
                         )
                       }
-                      placeholder="1234"
+                      placeholder={idConfig?.serverPlaceholder ?? "1234"}
                       className="input font-mono text-lg py-3.5"
                       required
                     />
@@ -960,8 +978,8 @@ export default function TopUpForm({
                 )}
               </div>
 
-              {/* CHECK USER ID (every non-Roblox game) */}
-              {!robuxGame && (
+              {/* CHECK USER ID (only games SabayStore can check) */}
+              {!robuxGame && supportsLookup && (
                 <div className="flex justify-end">
                   <button
                     type="button"
@@ -1081,7 +1099,9 @@ export default function TopUpForm({
                     <div className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
                       <AlertCircle className="h-4 w-4" />
                       ID not found — please check your{" "}
-                      {useZoneField ? "User ID and Zone ID" : "ID"}.
+                      {useZoneField
+                        ? `User ID and ${idConfig?.serverLabel ?? "Zone ID"}`
+                        : "ID"}.
                     </div>
                   )}
 
@@ -1253,7 +1273,7 @@ export default function TopUpForm({
 
                       {unavailable && (
                         <div className="text-xs text-red-400 mt-2">
-                          Out of stock
+                          អស់ហើយ
                         </div>
                       )}
 
@@ -1492,9 +1512,15 @@ export default function TopUpForm({
 
               <button
                 type="submit"
+                onClick={(e) => {
+                  if (needsCheck) {
+                    e.preventDefault();
+                    goToCheck();
+                  }
+                }}
                 disabled={
-                  !canSubmit ||
-                  submitting
+                  submitting ||
+                  (!canSubmit && !needsCheck)
                 }
                 className="btn-primary w-full mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
               >

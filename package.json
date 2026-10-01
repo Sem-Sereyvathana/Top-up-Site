@@ -12,6 +12,7 @@
     "db:backfill-item-categories": "tsx prisma/scripts/backfill-item-categories.ts",
     "db:backfill-account-deliverymode": "tsx prisma/scripts/backfill-account-deliverymode.ts",
     "db:backfill-account-stock-pool": "tsx prisma/scripts/backfill-account-stock-pool.ts",
+    "db:sync-sabay": "tsx prisma/scripts/sync-sabay-packages.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {
