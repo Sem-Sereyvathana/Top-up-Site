@@ -21,7 +21,16 @@ async function main() {
 
   // --- Admin user ---
   const adminEmail = process.env.ADMIN_EMAIL || "admin@sharustore.com";
-  const adminPassword = process.env.ADMIN_PASSWORD || "ChangeMeNow123!";
+  // SECURITY: no default password. Seeding without ADMIN_PASSWORD set fails
+  // loudly instead of silently creating an admin with a well-known password
+  // that anyone could use to sign in to the admin panel.
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    throw new Error(
+      "ADMIN_PASSWORD is not set. Refusing to seed an admin account with a default password. " +
+        "Set ADMIN_PASSWORD in your .env (or Render environment) and run the seed again."
+    );
+  }
   const passwordHash = await bcrypt.hash(adminPassword, 10);
   await prisma.admin.upsert({
     where: { email: adminEmail },
@@ -33,7 +42,7 @@ async function main() {
       role: "SUPERADMIN",
     },
   });
-  console.log(`✅ Admin created: ${adminEmail} / ${adminPassword}`);
+  console.log(`✅ Admin created: ${adminEmail} (password taken from ADMIN_PASSWORD, not printed)`);
 
   // --- Games ---
   const games = [

@@ -13,13 +13,30 @@ interface PromoCode {
   usedCount: number;
   expiresAt: string | null;
   active: boolean;
+  applicableProductId: string | null;
+  applicableProduct: {
+    id: string;
+    name: string;
+    game: { name: string; slug: string };
+  } | null;
   createdAt: string;
+}
+
+interface AdminProduct {
+  id: string;
+  name: string;
+  priceUsd: number;
+  gameId: string;
+  game: { name: string; slug: string };
 }
 
 export default function AdminPromoCodesPage() {
   const [codes, setCodes] = useState<PromoCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  // Every package with its game, used to drive the game → package picker.
+  const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
 
   // Create form
   const [code, setCode] = useState("");
@@ -28,19 +45,44 @@ export default function AdminPromoCodesPage() {
   const [minOrderUsd, setMinOrderUsd] = useState("0");
   const [maxUses, setMaxUses] = useState("0");
   const [expiresAt, setExpiresAt] = useState("");
+  const [applicableGameId, setApplicableGameId] = useState("");
+  const [applicableProductId, setApplicableProductId] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
   async function loadCodes() {
     setLoading(true);
     const res = await fetch("/api/admin/promo-codes");
     const data = await res.json();
-    setCodes(data);
+    setCodes(Array.isArray(data) ? data : []);
     setLoading(false);
   }
 
   useEffect(() => {
     loadCodes();
   }, []);
+
+  // Packages for the game → package picker, fetched the first time the
+  // create form opens.
+  useEffect(() => {
+    if (!creating || products.length > 0 || productsLoading) return;
+    setProductsLoading(true);
+    fetch("/api/admin/products")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: AdminProduct[]) => setProducts(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setProductsLoading(false));
+  }, [creating, products.length, productsLoading]);
+
+  // Games that actually have packages, in a stable alphabetical order.
+  const games = Array.from(
+    new Map(products.map((p) => [p.gameId, p.game])).entries()
+  )
+    .map(([id, game]) => ({ id, ...game }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const packagesForGame = products
+    .filter((p) => p.gameId === applicableGameId)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -56,6 +98,7 @@ export default function AdminPromoCodesPage() {
           minOrderUsd: parseFloat(minOrderUsd) || 0,
           maxUses: parseInt(maxUses) || 0,
           expiresAt: expiresAt || null,
+          applicableProductId: applicableProductId || null,
         }),
       });
       const data = await res.json();
@@ -66,6 +109,8 @@ export default function AdminPromoCodesPage() {
       setMinOrderUsd("0");
       setMaxUses("0");
       setExpiresAt("");
+      setApplicableGameId("");
+      setApplicableProductId("");
       loadCodes();
     } catch (err: any) {
       setFormError(err.message);
@@ -174,6 +219,56 @@ export default function AdminPromoCodesPage() {
               />
             </div>
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="label">
+                Only Works On Game (optional)
+              </label>
+              <select
+                value={applicableGameId}
+                onChange={(e) => {
+                  setApplicableGameId(e.target.value);
+                  // Switching game invalidates the chosen package.
+                  setApplicableProductId("");
+                }}
+                className="input"
+                disabled={productsLoading}
+              >
+                <option value="">Any game (works on everything)</option>
+                {games.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">
+                Only Works On Package (optional)
+              </label>
+              <select
+                value={applicableProductId}
+                onChange={(e) => setApplicableProductId(e.target.value)}
+                className="input"
+                disabled={!applicableGameId || productsLoading}
+              >
+                <option value="">
+                  {applicableGameId
+                    ? "Any package of this game"
+                    : "Pick a game first"}
+                </option>
+                {packagesForGame.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — ${p.priceUsd.toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="text-xs text-fox-muted -mt-2">
+            Leave both empty for the coupon to work on everything. Pick a game + package to
+            restrict the discount to that exact package only.
+          </p>
           {formError && <p className="text-sm text-red-400">{formError}</p>}
           <div className="flex gap-3">
             <button type="submit" className="btn-primary text-sm">Create Code</button>
@@ -201,6 +296,7 @@ export default function AdminPromoCodesPage() {
                 <th className="py-3 px-3 font-medium">Code</th>
                 <th className="py-3 px-3 font-medium">Discount</th>
                 <th className="py-3 px-3 font-medium hidden sm:table-cell">Min Order</th>
+                <th className="py-3 px-3 font-medium hidden lg:table-cell">Applies To</th>
                 <th className="py-3 px-3 font-medium">Uses</th>
                 <th className="py-3 px-3 font-medium hidden md:table-cell">Expires</th>
                 <th className="py-3 px-3 font-medium">Status</th>
@@ -219,6 +315,17 @@ export default function AdminPromoCodesPage() {
                     </td>
                     <td className="py-3 px-3 hidden sm:table-cell">
                       {c.minOrderUsd > 0 ? `$${c.minOrderUsd.toFixed(2)}` : "—"}
+                    </td>
+                    <td className="py-3 px-3 hidden lg:table-cell text-xs max-w-[200px] truncate" title={c.applicableProduct ? `${c.applicableProduct.game.name} — ${c.applicableProduct.name}` : undefined}>
+                      {c.applicableProduct ? (
+                        <span>
+                          <span className="text-fox-muted">{c.applicableProduct.game.name}</span>
+                          {" · "}
+                          {c.applicableProduct.name}
+                        </span>
+                      ) : (
+                        <span className="text-fox-muted">Everything</span>
+                      )}
                     </td>
                     <td className="py-3 px-3">
                       {c.usedCount}{c.maxUses > 0 ? `/${c.maxUses}` : "/∞"}

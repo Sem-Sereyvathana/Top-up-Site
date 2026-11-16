@@ -45,7 +45,7 @@ export async function verifyUserSession(token: string): Promise<UserSession | nu
 }
 
 export async function setUserSessionCookie(token: string) {
-  cookies().set(SESSION_COOKIE, token, {
+  (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -55,13 +55,13 @@ export async function setUserSessionCookie(token: string) {
 }
 
 export async function clearUserSessionCookie() {
-  cookies().delete(SESSION_COOKIE);
+  (await cookies()).delete(SESSION_COOKIE);
 }
 
 // Reads + verifies the session cookie. Returns null for guests — callers
 // should treat that as "continue as guest", never as an error.
 export async function getCurrentUser(): Promise<UserSession | null> {
-  const token = cookies().get(SESSION_COOKIE)?.value;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   return await verifyUserSession(token);
 }

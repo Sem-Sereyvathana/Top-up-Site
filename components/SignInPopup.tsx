@@ -2,8 +2,33 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
+import Link from "next/link";
 import GoogleLoginButton from "./GoogleLoginButton";
+import TelegramLoginButton from "./TelegramLoginButton";
+import { useTelegramBotUsername } from "@/lib/useTelegramBotUsername";
 import { LOGIN_REQUIRED_EVENT } from "@/lib/loginGate";
+
+// Telegram-first sign-in buttons. The Telegram widget is the primary action
+// (when a bot token is configured); Google is a small fallback beneath it.
+function SignInNextButtons({ next }: { next: string }) {
+  const botUsername = useTelegramBotUsername();
+  if (!botUsername) {
+    return (
+      <div className="flex flex-col items-end gap-2">
+        <Link href="/login" className="btn-primary text-sm px-5 py-2.5">
+          Sign in
+        </Link>
+        <GoogleLoginButton next={next} size="small" label="Use Google instead" />
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col items-end gap-2">
+      <TelegramLoginButton botUsername={botUsername} next={next} size="medium" />
+      <GoogleLoginButton next={next} size="small" label="Use Google instead" />
+    </div>
+  );
+}
 
 // Content comes from /api/signin-popup, edited in Admin → Sign-in Popup.
 // Falls back to this default whenever the admin hasn't turned on a custom
@@ -20,7 +45,7 @@ interface PopupContent {
 const DEFAULT_CONTENT: PopupContent = {
   imageUrl: null,
   title: "Sign in to continue",
-  body: "Create a free account with Google to top up or buy — it only takes a few seconds.",
+  body: "Create a free account with Telegram to top up or buy — it only takes a few seconds.",
   bullets: [],
   closeLabel: "Not now",
 };
@@ -159,7 +184,7 @@ export default function SignInPopup() {
             >
               {content.closeLabel}
             </button>
-            <GoogleLoginButton next={next} size="medium" />
+            <SignInNextButtons next={next} />
           </div>
         </div>
       </div>

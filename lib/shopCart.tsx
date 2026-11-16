@@ -25,7 +25,6 @@ interface ShopCartState {
 }
 
 const STORAGE_KEY = "sharu:shopCart";
-const BUY_NOW_KEY = "sharu:buyNow";
 
 const EMPTY_STATE: ShopCartState = { items: {}, accounts: {} };
 
@@ -51,7 +50,6 @@ interface ShopCartContextValue {
   changeQty: (kind: ShopKind, id: string, delta: number, max?: number) => void;
   removeLine: (kind: ShopKind, id: string) => void;
   clear: (kind: ShopKind) => void;
-  setBuyNow: (card: ShopCartCard) => void;
 }
 
 const ShopCartContext = createContext<ShopCartContextValue | null>(null);
@@ -115,14 +113,6 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, [kind]: {} }));
   }, []);
 
-  const setBuyNow = useCallback((card: ShopCartCard) => {
-    try {
-      sessionStorage.setItem(BUY_NOW_KEY, JSON.stringify(card));
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
   const linesFor = useCallback((kind: ShopKind) => Object.values(state[kind]), [state]);
 
   const countFor = useCallback(
@@ -131,8 +121,8 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo<ShopCartContextValue>(
-    () => ({ state, linesFor, countFor, toggleCard, changeQty, removeLine, clear, setBuyNow }),
-    [state, linesFor, countFor, toggleCard, changeQty, removeLine, clear, setBuyNow]
+    () => ({ state, linesFor, countFor, toggleCard, changeQty, removeLine, clear }),
+    [state, linesFor, countFor, toggleCard, changeQty, removeLine, clear]
   );
 
   return <ShopCartContext.Provider value={value}>{children}</ShopCartContext.Provider>;
@@ -144,24 +134,6 @@ export function useShopCart(): ShopCartContextValue {
     throw new Error("useShopCart must be used within a ShopCartProvider");
   }
   return ctx;
-}
-
-/** One-off "Buy Now" pick — bypasses the persistent cart entirely. */
-export function readBuyNow(): ShopCartCard | null {
-  try {
-    const raw = sessionStorage.getItem(BUY_NOW_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-export function clearBuyNow() {
-  try {
-    sessionStorage.removeItem(BUY_NOW_KEY);
-  } catch {
-    /* ignore */
-  }
 }
 
 /**
@@ -203,6 +175,45 @@ export function setPendingOrder(kind: ShopKind, info: PendingOrderInfo) {
 export function clearPendingOrder(kind: ShopKind) {
   try {
     localStorage.removeItem(pendingOrderKey(kind));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Same idea as the per-kind pending orders above, but for COMBINED (GRP-)
+ * checkouts. Written by /cart/checkout right after the group is created;
+ * read by the group payment screen (resume card + safe cart-clear) and the
+ * group tracker. Cleared once the payment actually lands, so a stale entry
+ * never wipes a fresh cart.
+ */
+export interface GroupPendingOrder {
+  orderNumber: string;
+  createdAt: number;
+}
+
+const GROUP_PENDING_KEY = "sharu:pendingOrder:group";
+
+export function getGroupPendingOrder(): GroupPendingOrder | null {
+  try {
+    const raw = localStorage.getItem(GROUP_PENDING_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setGroupPendingOrder(info: GroupPendingOrder) {
+  try {
+    localStorage.setItem(GROUP_PENDING_KEY, JSON.stringify(info));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearGroupPendingOrder() {
+  try {
+    localStorage.removeItem(GROUP_PENDING_KEY);
   } catch {
     /* ignore */
   }

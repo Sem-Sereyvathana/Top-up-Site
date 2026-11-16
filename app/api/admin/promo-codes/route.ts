@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdminApi } from "@/lib/auth";
 
 const createSchema = z.object({
   code: z.string().min(2).max(30).transform((v) => v.toUpperCase().trim()),
@@ -12,16 +13,34 @@ const createSchema = z.object({
   maxUses: z.number().int().min(0).default(0),
   expiresAt: z.string().nullable().optional(),
   active: z.boolean().default(true),
+  // Optional package restriction — coupon only works when this exact product
+  // is in the order. Empty/absent = works on any product, any game.
+  applicableProductId: z.string().nullable().optional(),
 });
 
 export async function GET() {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const codes = await prisma.promoCode.findMany({
     orderBy: { createdAt: "desc" },
+    include: {
+      applicableProduct: {
+        select: {
+          id: true,
+          name: true,
+          game: { select: { name: true, slug: true } },
+        },
+      },
+    },
   });
   return NextResponse.json(codes);
 }
 
 export async function POST(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   try {
     const body = await req.json();
     const parsed = createSchema.safeParse(body);
@@ -38,6 +57,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Code already exists" }, { status: 409 });
     }
 
+    const applicableProductId = data.applicableProductId?.trim() || null;
+    if (applicableProductId) {
+      const product = await prisma.product.findUnique({
+        where: { id: applicableProductId },
+      });
+      if (!product) {
+        return NextResponse.json(
+          { error: "The selected package no longer exists" },
+          { status: 400 }
+        );
+      }
+    }
+
     const promo = await prisma.promoCode.create({
       data: {
         code: data.code,
@@ -47,11 +79,13 @@ export async function POST(req: NextRequest) {
         maxUses: data.maxUses,
         expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
         active: data.active,
+        applicableProductId,
       },
     });
 
     return NextResponse.json(promo, { status: 201 });
-  } catch {
+  } catch (err) {
+    console.error("Promo create error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

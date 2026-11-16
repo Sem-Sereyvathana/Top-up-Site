@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { writeAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdminApi } from "@/lib/auth";
 
 const schema = z.object({
   title: z.string().min(1),
@@ -16,6 +17,9 @@ const schema = z.object({
 });
 
 export async function GET() {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const banners = await prisma.heroBanner.findMany({
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
   });
@@ -23,6 +27,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = schema.safeParse(body);
   if (!parsed.success) {

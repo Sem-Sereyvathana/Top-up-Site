@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import PDFDocument from "pdfkit";
+import { getCurrentUserRecord } from "@/lib/userAuth";
+import { getCurrentAdmin } from "@/lib/auth";
 
 // pdfkit needs the Node runtime (fs, Buffer); it will not work on edge.
 export const runtime = "nodejs";
@@ -374,10 +376,11 @@ function renderPdf(order: {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { orderNumber: string } }
+  { params }: { params: Promise<{  orderNumber: string  }> }
 ) {
+  const { orderNumber } = await params;
   const order = await prisma.order.findUnique({
-    where: { orderNumber: params.orderNumber.toUpperCase() },
+    where: { orderNumber: orderNumber.toUpperCase() },
     include: {
       game: { select: { name: true, publisher: true, currencyName: true } },
       product: { select: { name: true, amount: true, bonus: true, priceUsd: true } },
@@ -390,6 +393,18 @@ export async function GET(
   if (!order) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
+
+  // Owner-only OR admin: invoices contain the buyer's email/phone and player
+  // UID, so only the signed-in buyer may download their own. Admins keep
+  // full access (the admin panel links to this route). Everyone else gets
+  // the same 404 as a non-existent order.
+  const user = await getCurrentUserRecord();
+  const admin = await getCurrentAdmin();
+  const isBuyer = user && order.userId && user.id === order.userId;
+  if (!isBuyer && !admin) {
+    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+
   if (!INVOICEABLE_STATUSES.has(order.status)) {
     return NextResponse.json(
       { error: "Invoice is only available after payment is confirmed." },

@@ -105,9 +105,51 @@ function SingleCredential({
   );
 }
 
-function CredentialsBox({ title, credentials }: { title: string; credentials: string }) {
+// Receipt for one account line.
+//
+// The login is MASKED by default and is not in the page at all until the
+// buyer presses "Show details" — that button calls the server (which
+// re-checks that the requester owns the order and that it is paid) and only
+// then does the password reach the browser. Hiding a password that was
+// already in the payload would protect nothing.
+function CredentialsBox({
+  title,
+  orderNumber,
+  itemId,
+}: {
+  title: string;
+  orderNumber: string;
+  itemId: string;
+}) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const blocks = splitCredentialBlocks(credentials);
+  const [credentials, setCredentials] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const blocks = credentials ? splitCredentialBlocks(credentials) : [];
+
+  async function reveal() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/game-account-orders/${encodeURIComponent(orderNumber)}/items/${encodeURIComponent(itemId)}/reveal`,
+        { method: "POST", cache: "no-store" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't load the login details.");
+      setCredentials(data.credentials);
+    } catch (err: any) {
+      setError(err.message || "Couldn't load the login details.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function hide() {
+    setCredentials(null);
+    setCopiedField(null);
+  }
 
   async function copy(field: string, value: string) {
     await navigator.clipboard.writeText(value);
@@ -117,19 +159,54 @@ function CredentialsBox({ title, credentials }: { title: string; credentials: st
 
   return (
     <div className="rounded-lg border border-green-400/40 bg-green-400/10 p-4 text-sm text-green-200">
-      <p className="mb-2 font-semibold text-green-300">Your account login — {title}</p>
-      <div className="space-y-4">
-        {blocks.map((block, i) => (
-          <SingleCredential
-            key={i}
-            label={blocks.length > 1 ? `Account ${i + 1} of ${blocks.length}` : null}
-            credentials={block}
-            copiedPrefix={`b${i}`}
-            copiedField={copiedField}
-            onCopy={copy}
-          />
-        ))}
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="font-semibold text-green-300">Your account login — {title}</p>
+        {credentials ? (
+          <button
+            type="button"
+            onClick={hide}
+            className="shrink-0 rounded-lg border border-green-400/40 px-3 py-1 text-xs font-semibold text-green-200 hover:bg-green-400/10"
+          >
+            Hide details
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={reveal}
+            disabled={loading}
+            className="shrink-0 rounded-lg border border-green-400/40 px-3 py-1 text-xs font-semibold text-green-200 hover:bg-green-400/10 disabled:opacity-50"
+          >
+            {loading ? "Loading…" : "Show details"}
+          </button>
+        )}
       </div>
+
+      {credentials ? (
+        <div className="space-y-4">
+          {blocks.map((block, i) => (
+            <SingleCredential
+              key={i}
+              label={blocks.length > 1 ? `Account ${i + 1} of ${blocks.length}` : null}
+              credentials={block}
+              copiedPrefix={`b${i}`}
+              copiedField={copiedField}
+              onCopy={copy}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="rounded-md bg-black/20 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-green-400/70">Username / Email</p>
+            <p className="font-mono text-xs text-green-100">••••••••••••</p>
+          </div>
+          <div className="rounded-md bg-black/20 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-green-400/70">Password</p>
+            <p className="font-mono text-xs text-green-100">••••••••••••</p>
+          </div>
+          {error && <p className="text-xs text-red-300">{error}</p>}
+        </div>
+      )}
     </div>
   );
 }
@@ -179,21 +256,23 @@ export default function AccountsOrderTrackerPage() {
       )}
       renderPostPaidExtra={(order: any) => (
         <>
-          {order.deliveryMode === "DIRECT" &&
-            order.items
-              .filter((it: any) => it.credentials)
-              .map((it: any, i: number) => (
-                <CredentialsBox
-                  key={i}
-                  title={it.quantity > 1 ? `${it.title} ×${it.quantity}` : it.title}
-                  credentials={it.credentials}
-                />
-              ))}
-          {order.deliveryMode === "DIRECT" && order.items.every((it: any) => !it.credentials) && order.status === "PAID" && (
-            <div className="rounded-lg border border-blue-400/40 bg-blue-400/10 p-4 text-sm text-blue-300">
-              Payment received — we&apos;re preparing your login details now.
-            </div>
-          )}
+          {order.items
+            .filter((it: any) => it.hasCredentials)
+            .map((it: any) => (
+              <CredentialsBox
+                key={it.id}
+                title={it.quantity > 1 ? `${it.title} ×${it.quantity}` : it.title}
+                orderNumber={order.orderNumber}
+                itemId={it.id}
+              />
+            ))}
+          {(order.status === "PAID" || order.status === "DELIVERED") &&
+            order.items.every((it: any) => !it.hasCredentials) && (
+              <div className="rounded-lg border border-blue-400/40 bg-blue-400/10 p-4 text-sm text-blue-300">
+                Payment received — we&apos;re preparing your login details now. Contact support on Telegram
+                if they don&apos;t appear.
+              </div>
+            )}
         </>
       )}
     />

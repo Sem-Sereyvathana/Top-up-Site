@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/userAuth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/clientIp";
 
 // Game Items marketplace checkout. Mirrors the shape of /api/orders (Top-up)
 // but writes to its own GameItemOrder/GameItemOrderItem tables — see
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     const currentUser = await getCurrentUser();
     if (!currentUser) {
       return NextResponse.json(
-        { error: "Please sign in with Google to continue.", code: "LOGIN_REQUIRED" },
+        { error: "Please sign in to continue.", code: "LOGIN_REQUIRED" },
         { status: 401 }
       );
     }
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     // Keyed by account, not IP — a real shopper doesn't place more than a
     // handful of orders in 10 minutes, and this is what stops a signed-in
     // bot from spamming pending orders / payment-initiation calls.
-    if (!(await checkRateLimit(`create-order:item:${currentUser.userId}`, 10, 10 * 60 * 1000))) {
+    if (!(await checkRateLimit(`create-order:item:${currentUser.userId}`, 10, 10 * 60 * 1000, { failClosed: true }))) {
       return NextResponse.json(
         { error: "Too many orders placed. Please wait a bit and try again." },
         { status: 429 }
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ipAddress = getClientIp(req);
     const blocked = await prisma.blockedIdentity.findFirst({
       where: { OR: [{ type: "ip", value: ipAddress.toLowerCase() }] },
     });
@@ -116,11 +117,25 @@ export async function POST(req: NextRequest) {
     // shows up in their account History.
     const session = await getCurrentUser();
 
+    // A MANUAL item needs the admin to message the buyer, so record the
+    // Telegram username from their VERIFIED sign-in (never from anything the
+    // browser sends). Google-only accounts have none, and the admin queue
+    // shows that clearly instead of a dead button.
+    const buyerRecord = session
+      ? await prisma.user.findUnique({
+          where: { id: session.userId },
+          select: { telegramUsername: true },
+        })
+      : null;
+    const verifiedContact = buyerRecord?.telegramUsername
+      ? `@${buyerRecord.telegramUsername.replace(/^@+/, "")}`
+      : undefined;
+
     const order = await prisma.gameItemOrder.create({
       data: {
         orderNumber,
         buyerUsername: data.buyerUsername.trim(),
-        customerContact: data.customerContact?.trim() || undefined,
+        customerContact: verifiedContact || data.customerContact?.trim() || undefined,
         amountUsd: subtotalUsd,
         amountKhr: calcKhr(subtotalUsd, exchangeRate),
         paymentMethod: data.paymentMethod,
@@ -191,8 +206,8 @@ export async function POST(req: NextRequest) {
       redirectUrl: khpayPageUrl || `${baseUrl}/checkout/items/${order.orderNumber}`,
     });
   } catch (err) {
+    // Log details server-side; never leak Prisma/internal error text to the browser.
     console.error("Game item order create error:", err);
-    const msg = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: "Could not create the order. Please try again." }, { status: 500 });
   }
 }

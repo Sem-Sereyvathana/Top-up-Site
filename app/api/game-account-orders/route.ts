@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/userAuth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/clientIp";
 
 // Accounts marketplace checkout. Same pattern as game-item-orders, kept on
 // its own GameAccountOrder/GameAccountOrderItem tables — never joined
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
     const currentUser = await getCurrentUser();
     if (!currentUser) {
       return NextResponse.json(
-        { error: "Please sign in with Google to continue.", code: "LOGIN_REQUIRED" },
+        { error: "Please sign in to continue.", code: "LOGIN_REQUIRED" },
         { status: 401 }
       );
     }
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
     // Keyed by account, not IP — a real shopper doesn't place more than a
     // handful of orders in 10 minutes, and this is what stops a signed-in
     // bot from spamming pending orders / payment-initiation calls.
-    if (!(await checkRateLimit(`create-order:account:${currentUser.userId}`, 10, 10 * 60 * 1000))) {
+    if (!(await checkRateLimit(`create-order:account:${currentUser.userId}`, 10, 10 * 60 * 1000, { failClosed: true }))) {
       return NextResponse.json(
         { error: "Too many orders placed. Please wait a bit and try again." },
         { status: 429 }
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ipAddress = getClientIp(req);
     const blocked = await prisma.blockedIdentity.findFirst({
       where: { OR: [{ type: "ip", value: ipAddress.toLowerCase() }] },
     });
@@ -304,8 +305,8 @@ export async function POST(req: NextRequest) {
       redirectUrl: khpayPageUrl || `${baseUrl}/checkout/accounts/${order.orderNumber}`,
     });
   } catch (err) {
+    // Log details server-side; never leak Prisma/internal error text to the browser.
     console.error("Account order create error:", err);
-    const msg = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: "Could not create the order. Please try again." }, { status: 500 });
   }
 }

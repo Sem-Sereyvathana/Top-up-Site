@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { notifyTelegram, escapeHtml } from "./telegram";
+import { isDemoMode } from "./simMode";
 import { NextResponse } from "next/server";
 
 // Webhook handling for Accounts marketplace orders — same pattern as
@@ -35,16 +36,44 @@ export async function handleGameAccountOrderWebhook(
   }
 
   if (event === "payment.paid") {
+    // Accounts have a single delivery mode: every paid order is DELIVERED
+    // straight away. The login is already in our stock (GameAccount
+    // .credentials for one-off accounts, GameAccountStockItem rows for
+    // stacked ones), so there is nothing left for the admin to do. The
+    // receipt reveals the credentials once the order is paid and delivered
+    // (see GET /api/game-account-orders/:number).
+    //
+    // Amount + currency + transaction-id cross-checks (see the Top-up
+    // webhook for the full rationale). On any mismatch: do NOT deliver,
+    // do NOT silently fail — record the reason and alert the operator.
     const paidAmount = parseFloat(String(data.amount ?? "0"));
-    if (!Number.isFinite(paidAmount) || Math.abs(paidAmount - order.amountUsd) > 0.01) {
+    const amountOk = Number.isFinite(paidAmount) && Math.abs(paidAmount - order.amountUsd) <= 0.01;
+    const currency: string | undefined = data.currency;
+    const currencyOk = !currency || currency.toUpperCase() === "USD";
+    const txOk = !transactionId || !order.paymentRef || transactionId === order.paymentRef;
+
+    if (!amountOk || !currencyOk || !txOk) {
+      const reason = [
+        !amountOk && `Amount mismatch: got ${paidAmount}, expected ${order.amountUsd}`,
+        !currencyOk && `Currency mismatch: got ${currency}, expected USD`,
+        !txOk && `Transaction ID mismatch: got ${transactionId}, stored ${order.paymentRef}`,
+      ]
+        .filter(Boolean)
+        .join("; ");
+
       await prisma.gameAccountOrder.update({
         where: { id: order.id },
-        data: {
-          status: "FAILED",
-          failureReason: `Amount mismatch: got ${paidAmount}, expected ${order.amountUsd}`,
-        },
+        data: { failureReason: `PAYMENT MISMATCH — ${reason}` },
       });
-      return NextResponse.json({ error: "Amount mismatch" }, { status: 400 });
+
+      await notifyTelegram(
+        `🚨 <b>Payment mismatch on Account order ${escapeHtml(order.orderNumber)}</b>\n` +
+          `${escapeHtml(reason)}\n` +
+          `Order NOT marked paid. Manual review required.`
+      );
+
+      console.error(`[webhook] Payment mismatch for ${order.orderNumber}: ${reason}`);
+      return NextResponse.json({ error: "Payment mismatch" }, { status: 400 });
     }
 
     const now = new Date();
@@ -63,8 +92,10 @@ export async function handleGameAccountOrderWebhook(
         const claimed = await tx.gameAccountOrder.updateMany({
           where: { id: order.id, status: "PENDING" },
           data: {
-            status: "PAID",
+            status: "DELIVERED",
             paidAt: now,
+            deliveredAt: now,
+            ...(isDemoMode() ? { deliveryNote: "DEMO MODE — simulated handover, no real credentials were sent." } : {}),
             ...(transactionId ? { paymentRef: transactionId } : {}),
           },
         });

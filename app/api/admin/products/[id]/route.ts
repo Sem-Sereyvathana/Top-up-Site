@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdminApi } from "@/lib/auth";
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -18,15 +19,19 @@ const updateSchema = z.object({
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string  }> }
 ) {
+  const { id } = await params;
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid" }, { status: 400 });
   }
   const product = await prisma.product.update({
-    where: { id: params.id },
+    where: { id: id },
     data: parsed.data,
   });
   return NextResponse.json(product);
@@ -34,8 +39,12 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string  }> }
 ) {
-  await prisma.product.delete({ where: { id: params.id } });
+  const { id } = await params;
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
+  await prisma.product.delete({ where: { id: id } });
   return NextResponse.json({ ok: true });
 }

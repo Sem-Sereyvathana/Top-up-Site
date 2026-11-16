@@ -4,21 +4,31 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import GiftCodesCard from "@/components/GiftCodesCard";
 import Link from "next/link";
-import { Package, CheckCircle2, XCircle, Truck, CreditCard, Send, FileText, History } from "lucide-react";
+import { Package, CheckCircle2, XCircle, Truck, CreditCard, Send, FileText, History, MessageCircle, PlayCircle, X } from "lucide-react";
+import { isQuickLoginGame } from "@/lib/utils";
 
 interface OrderInfo {
   orderNumber: string;
   status: string;
   gameName: string;
+  gameSlug?: string;
   productName: string;
   items?: { name: string; amount: number; bonus: number; quantity: number; unitPriceUsd: number }[];
   playerUid: string;
   amountUsd: number;
+  amountKhr?: number | null;
   paymentMethod: string;
   createdAt: string;
   paidAt: string | null;
   deliveredAt: string | null;
+  giftCode?: string | null;
+  // Same codes grouped per pack (e.g. "279 Robux" -> [code, code]).
+  giftCodes?: { label: string; codes: string[] }[];
+  // The supplier refused the pack because the account's region doesn't match.
+  // The money was already returned to the buyer's wallet.
+  regionMismatch?: boolean;
 }
 
 const TIMELINE_STEPS = [
@@ -51,6 +61,10 @@ export default function OrderPage() {
   const searchParams = useSearchParams();
   const [order, setOrder] = useState<OrderInfo | null>(null);
   const [loading, setLoading] = useState(false);
+  // Admin-managed "how to redeem" clip (Admin → Settings). Shown in a popup
+  // instead of the old Share-on-Telegram button on gift-card orders.
+  const [redeemVideoUrl, setRedeemVideoUrl] = useState<string | null>(null);
+  const [showRedeemVideo, setShowRedeemVideo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -83,6 +97,15 @@ export default function OrderPage() {
   );
 
   useEffect(() => stopPolling, [stopPolling]);
+
+  // Load the admin's "how to redeem" clip once. Public settings endpoint —
+  // no session needed, and a failure just leaves the button hidden.
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setRedeemVideoUrl(d?.redeemVideoUrl || null))
+      .catch(() => {});
+  }, []);
 
   // Auto-lookup when returning from KHPay payment with ?number=RT-XXXX
   useEffect(() => {
@@ -245,7 +268,9 @@ export default function OrderPage() {
                 <span className="text-fox-muted">Package</span>
                 <span className="font-medium">
                   {order.items && order.items.length > 1
-                    ? `${order.items.reduce((sum, it) => sum + Math.max(0, it.amount) * it.quantity, 0).toLocaleString()} Robux`
+                    ? order.gameSlug === "robux-giftcard"
+                      ? `${order.items.length} gift card packs`
+                      : `${order.items.reduce((sum, it) => sum + Math.max(0, it.amount) * it.quantity, 0).toLocaleString()} Robux`
                     : order.productName}
                 </span>
               </div>
@@ -255,16 +280,20 @@ export default function OrderPage() {
                   <span className="text-right text-xs text-fox-muted space-y-0.5">
                     {order.items.map((it, i) => (
                       <div key={i}>
-                        {it.amount.toLocaleString()} Robux{it.quantity > 1 ? ` ×${it.quantity}` : ""}
+                        {order.gameSlug === "robux-giftcard"
+                          ? `${it.name}${it.quantity > 1 ? ` ×${it.quantity}` : ""}`
+                          : `${it.amount.toLocaleString()} Robux${it.quantity > 1 ? ` ×${it.quantity}` : ""}`}
                       </div>
                     ))}
                   </span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-fox-muted">Player UID</span>
-                <span className="font-mono">{order.playerUid}</span>
-              </div>
+              {order.gameSlug !== "robux-giftcard" && (
+                <div className="flex justify-between">
+                  <span className="text-fox-muted">Player UID</span>
+                  <span className="font-mono">{order.playerUid}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-fox-muted">Payment</span>
                 <span className="font-medium">{order.paymentMethod.replace("_", " ")}</span>
@@ -293,6 +322,23 @@ export default function OrderPage() {
               </div>
             </div>
 
+            {order.regionMismatch && (
+              <div className="mx-5 sm:mx-6 mb-5 sm:mb-6 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm text-yellow-200">
+                <p className="font-semibold mb-1">This pack isn&apos;t for your account&apos;s region</p>
+                <p>
+                  Your account is in a region this pack doesn&apos;t cover, so the top-up couldn&apos;t be
+                  delivered. <strong>Your money has been refunded to your wallet</strong> — you can use it
+                  on the right page for your region, or on any other order.
+                </p>
+                <Link
+                  href="/"
+                  className="mt-3 inline-flex items-center justify-center gap-2 rounded-xl border border-fox-primary/40 bg-fox-primary/10 px-4 py-2 text-sm font-semibold text-fox-primary transition-colors hover:bg-fox-primary/20"
+                >
+                  Browse games
+                </Link>
+              </div>
+            )}
+
             {order.status === "FAILED" && (
               <div className="mx-5 sm:mx-6 mb-5 sm:mb-6 rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-300">
                 Something went wrong. Please contact <strong>@sharustore</strong> on Telegram with your order number.
@@ -303,19 +349,58 @@ export default function OrderPage() {
               <div className="mx-5 sm:mx-6 mb-5 sm:mb-6 space-y-3">
                 <div className="rounded-lg border border-green-500/40 bg-green-500/10 p-4 text-sm text-green-300 flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 shrink-0" strokeWidth={2} />
-                  Your credits have been delivered! Check your in-game account.
+                  {order.gameSlug === "robux-giftcard"
+                    ? "Your gift card is ready! Your code is below."
+                    : "Your credits have been delivered! Check your in-game account."}
                 </div>
-                <a
-                  href={`https://t.me/share/url?url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}&text=${encodeURIComponent(`⚡ Just topped up ${order.productName} for ${order.gameName} on SHARUSTORE! Fast & easy 🔥`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full rounded-xl border border-[#229ED9]/40 bg-[#229ED9]/10 hover:bg-[#229ED9]/20 text-[#229ED9] py-3 text-sm font-medium transition-colors"
-                >
-                  <Send className="h-4 w-4" strokeWidth={2} />
-                  Share on Telegram
-                </a>
+                {order.giftCodes && order.giftCodes.length > 0 && (
+                  <GiftCodesCard groups={order.giftCodes} />
+                )}
+                {order.gameSlug === "robux-giftcard" ? (
+                  // Gift cards need a code redeemed — point the buyer at the
+                  // admin's how-to video instead of a share link.
+                  <button
+                    type="button"
+                    onClick={() => setShowRedeemVideo(true)}
+                    className="flex items-center justify-center gap-2 w-full rounded-xl border border-fox-primary/40 bg-fox-primary/10 hover:bg-fox-primary/20 text-fox-primary py-3 text-sm font-semibold transition-colors"
+                  >
+                    <PlayCircle className="h-4 w-4" strokeWidth={2} />
+                    ចុចទីនេះដើម្បីមើលរបៀបប្រើកូដ
+                  </button>
+                ) : (
+                  <a
+                    href={`https://t.me/share/url?url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}&text=${encodeURIComponent(`⚡ Just topped up ${order.productName} for ${order.gameName} on SHARUSTORE! Fast & easy 🔥`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full rounded-xl border border-[#229ED9]/40 bg-[#229ED9]/10 hover:bg-[#229ED9]/20 text-[#229ED9] py-3 text-sm font-medium transition-colors"
+                  >
+                    <Send className="h-4 w-4" strokeWidth={2} />
+                    Share on Telegram
+                  </a>
+                )}
               </div>
             )}
+
+            {order.gameSlug &&
+              isQuickLoginGame({ slug: order.gameSlug }) &&
+              ["PAID", "PROCESSING"].includes(order.status) &&
+              (() => {
+                return (
+                  <div className="mx-5 sm:mx-6 mb-5 sm:mb-6 space-y-2">
+                    <p className="text-sm text-fox-muted text-center">
+                      Last step: open live chat and send us a message so we can process your order right away.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => window.dispatchEvent(new CustomEvent("sharustore:open-chat"))}
+                      className="flex items-center justify-center gap-2 w-full rounded-xl bg-fox-primary hover:brightness-110 text-black py-3.5 text-sm font-bold transition"
+                    >
+                      <MessageCircle className="h-4 w-4" strokeWidth={2} />
+                      Continue order in Live Chat
+                    </button>
+                  </div>
+                );
+              })()}
 
             {["PAID", "PROCESSING", "DELIVERED"].includes(order.status) && (
               <div className="mx-5 sm:mx-6 mb-5 sm:mb-6">
@@ -332,6 +417,72 @@ export default function OrderPage() {
         )}
       </main>
       <Footer />
+
+      {/* "How to redeem" popup — content is the admin-managed clip. An empty
+          setting falls back to a short written hint, so the button never
+          opens a dead box. */}
+      {showRedeemVideo && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="How to redeem your code"
+        >
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowRedeemVideo(false)}
+          />
+          <div className="relative w-full max-w-2xl rounded-2xl border border-fox-border bg-fox-card shadow-2xl">
+            <div className="flex items-center justify-between border-b border-fox-border px-5 py-3">
+              <h2 className="font-display font-bold">របៀបប្រើកូដ</h2>
+              <button
+                type="button"
+                onClick={() => setShowRedeemVideo(false)}
+                aria-label="Close"
+                className="rounded-lg p-1.5 text-fox-muted hover:bg-fox-surface hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4 p-4 sm:p-5">
+              {/* Video always sits above the written steps — the steps stay
+                  visible whether or not a clip is configured. */}
+              {redeemVideoUrl && (
+                <div className="space-y-2">
+                  {/youtube\.com|youtu\.be|vimeo\.com|facebook\.com/i.test(redeemVideoUrl) ? (
+                    <iframe
+                      src={redeemVideoUrl}
+                      title="How to redeem your code"
+                      className="aspect-video w-full rounded-lg border border-fox-border"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <video
+                      src={redeemVideoUrl}
+                      controls
+                      autoPlay
+                      playsInline
+                      className="w-full rounded-lg border border-fox-border bg-black"
+                    />
+                  )}
+                  <p className="text-center text-[11px] text-fox-muted">
+                    ប្រសិនបើវីដេអូមិនដំណើរការ សូមអានការណែនាំខាងក្រោម។
+                  </p>
+                </div>
+              )}
+
+              <ol className="list-decimal space-y-2 pl-5 text-sm text-fox-text/90">
+                <li>Go to <span className="font-mono text-fox-primary">roblox.com/redeem</span> and sign in.</li>
+                <li>Enter the gift card code shown on this page.</li>
+                <li>Confirm — the Robux (or credit) is added to your account.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
+

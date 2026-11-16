@@ -49,11 +49,11 @@ export default function HeroCarousel({ banners }: { banners: Banner[] }) {
 
   return (
     <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div className="relative h-48 sm:h-72 lg:h-80 w-full overflow-hidden rounded-2xl border border-fox-border bg-fox-card shadow-2xl pointer-events-none select-none">
+      <div className="relative grid w-full overflow-hidden rounded-2xl sm:block sm:h-72 lg:h-80 border border-fox-border bg-fox-card shadow-2xl pointer-events-none select-none">
         {displayBanners.map((banner, i) => (
           <div
             key={banner.id || i}
-            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+            className={`col-start-1 row-start-1 sm:absolute sm:inset-0 transition-opacity duration-1000 ease-in-out ${
               i === idx ? "opacity-100 z-10" : "opacity-0 z-0"
             }`}
           >

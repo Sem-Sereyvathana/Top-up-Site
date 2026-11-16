@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { writeAudit } from "@/lib/audit";
 import { parseAccountStockText } from "@/lib/accountStockParser";
+import { requireAdminApi } from "@/lib/auth";
 
 const accountSchema = z.object({
   gameId: z.string().min(1).optional().nullable(),
@@ -15,11 +16,13 @@ const accountSchema = z.object({
   imageUrl: z.string().optional().nullable(),
   priceUsd: z.number().positive(),
   sold: z.boolean().default(false),
-  stockMode: z.enum(["UNIQUE", "MULTI"]).default("UNIQUE"),
+  // Every account is a stock pool now (manual delivery was removed), so a new
+  // listing always starts MULTI and DIRECT.
+  stockMode: z.enum(["UNIQUE", "MULTI"]).default("MULTI"),
   stock: z.number().int().min(0).default(1),
   active: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
-  deliveryMode: z.enum(["DIRECT", "MANUAL"]).default("MANUAL"),
+  deliveryMode: z.enum(["DIRECT"]).default("DIRECT"),
   // Admin-only login handover, only ever sent back to a buyer once their
   // order is PAID and this account's deliveryMode = "DIRECT". Only used for
   // stockMode = "UNIQUE" — "MULTI" + "DIRECT" accounts are stocked one login
@@ -37,6 +40,9 @@ const accountSchema = z.object({
 // /api/admin/game-items and /api/admin/games already do — no more stripping,
 // so the edit form correctly prefills the saved credentials again.
 export async function GET(req) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const gameId = req.nextUrl.searchParams.get("gameId");
   // Archived = admin deleted an account that still had order history (see
   // DELETE handler), so it's hidden from admin everywhere from now on —
@@ -54,6 +60,9 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = accountSchema.safeParse(body);
   if (!parsed.success) {

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/auth";
 
 function csvCell(v: unknown): string {
   if (v === null || v === undefined) return "";
@@ -11,6 +12,9 @@ function csvCell(v: unknown): string {
 }
 
 export async function GET(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const { searchParams } = req.nextUrl;
   const status = searchParams.get("status") || undefined;
   const q = searchParams.get("q")?.trim();
@@ -20,6 +24,7 @@ export async function GET(req: NextRequest) {
   const robuxGameFilter = {
     OR: [
       { slug: "roblox" },
+      { slug: "robux-quick-login" },
       { currencyName: { contains: "robux", mode: "insensitive" as const } },
     ],
   };

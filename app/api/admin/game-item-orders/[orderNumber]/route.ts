@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { writeAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdminApi } from "@/lib/auth";
 
 const updateSchema = z.object({
   status: z.enum(["PENDING", "PAID", "DELIVERED", "FAILED", "REFUNDED", "CANCELLED"]).optional(),
@@ -13,10 +14,14 @@ const updateSchema = z.object({
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { orderNumber: string } }
+  { params }: { params: Promise<{  orderNumber: string  }> }
 ) {
+  const { orderNumber } = await params;
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const order = await prisma.gameItemOrder.findUnique({
-    where: { orderNumber: params.orderNumber },
+    where: { orderNumber: orderNumber },
     include: { items: true },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -25,15 +30,19 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { orderNumber: string } }
+  { params }: { params: Promise<{  orderNumber: string  }> }
 ) {
+  const { orderNumber } = await params;
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const order = await prisma.gameItemOrder.findUnique({ where: { orderNumber: params.orderNumber } });
+  const order = await prisma.gameItemOrder.findUnique({ where: { orderNumber: orderNumber } });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const data: any = { ...parsed.data };

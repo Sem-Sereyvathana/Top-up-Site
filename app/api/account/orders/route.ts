@@ -20,26 +20,63 @@ export async function GET() {
   const session = await getCurrentUser();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const [topUpOrders, gameItemOrders, gameAccountOrders] = await Promise.all([
+  const [topUpOrders, gameItemOrders, gameAccountOrders, groups] = await Promise.all([
     prisma.order.findMany({
-      where: { userId: session.userId, status: { in: VISIBLE_TO_USER } },
+      where: { userId: session.userId, status: { in: VISIBLE_TO_USER }, paymentGroupId: null },
       orderBy: { createdAt: "desc" },
       take: 100,
       include: { game: true, product: true },
     }),
     prisma.gameItemOrder.findMany({
-      where: { userId: session.userId, status: { in: VISIBLE_TO_USER } },
+      where: { userId: session.userId, status: { in: VISIBLE_TO_USER }, paymentGroupId: null },
       orderBy: { createdAt: "desc" },
       take: 100,
       include: { items: { select: { name: true, quantity: true } } },
     }),
     prisma.gameAccountOrder.findMany({
-      where: { userId: session.userId, status: { in: VISIBLE_TO_USER } },
+      where: { userId: session.userId, status: { in: VISIBLE_TO_USER }, paymentGroupId: null },
       orderBy: { createdAt: "desc" },
       take: 100,
       include: { items: { select: { title: true, quantity: true } } },
     }),
+    // Combined cart payments (Game Items + Accounts paid together).
+    prisma.paymentGroup.findMany({
+      where: { userId: session.userId, status: { in: VISIBLE_TO_USER } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
   ]);
+
+  // One History entry per combined payment — NOT one row per child order.
+  // Two child orders paid by one QR are one purchase to the buyer; the
+  // entry opens the group page, which stacks their independent receipts.
+  const groupedItemOrders = new Map<string, typeof gameItemOrders>();
+  const groupedAccountOrders = new Map<string, typeof gameAccountOrders>();
+  if (groups.length > 0) {
+    const ids = groups.map((g) => g.id);
+    const [gItems, gAccounts] = await Promise.all([
+      prisma.gameItemOrder.findMany({
+        where: { paymentGroupId: { in: ids } },
+        include: { items: { select: { name: true, quantity: true } } },
+      }),
+      prisma.gameAccountOrder.findMany({
+        where: { paymentGroupId: { in: ids } },
+        include: { items: { select: { title: true, quantity: true } } },
+      }),
+    ]);
+    for (const o of gItems) {
+      if (!o.paymentGroupId) continue;
+      const list = groupedItemOrders.get(o.paymentGroupId) ?? [];
+      list.push(o);
+      groupedItemOrders.set(o.paymentGroupId, list);
+    }
+    for (const o of gAccounts) {
+      if (!o.paymentGroupId) continue;
+      const list = groupedAccountOrders.get(o.paymentGroupId) ?? [];
+      list.push(o);
+      groupedAccountOrders.set(o.paymentGroupId, list);
+    }
+  }
 
   const orders = [
     ...topUpOrders.map((o) => ({
@@ -75,6 +112,30 @@ export async function GET() {
       createdAt: o.createdAt,
       viewHref: `/order/accounts?number=${o.orderNumber}&from=history`,
     })),
+    ...groups.map((g) => {
+      const items = groupedItemOrders.get(g.id) ?? [];
+      const accounts = groupedAccountOrders.get(g.id) ?? [];
+      const parts: string[] = [];
+      for (const o of items) {
+        parts.push(o.items.map((it) => `${it.name}${it.quantity > 1 ? ` x${it.quantity}` : ""}`).join(", "));
+      }
+      for (const o of accounts) {
+        parts.push(o.items.map((it) => `${it.title}${it.quantity > 1 ? ` x${it.quantity}` : ""}`).join(", "));
+      }
+      // The group has no single status of its own to show in a list; the
+      // page it opens shows each part's status separately.
+      return {
+        type: "GROUP" as const,
+        orderNumber: g.orderNumber,
+        status: g.status,
+        title: parts.filter(Boolean).join(" + ") || "Cart order",
+        subtitle: "Cart order",
+        imageUrl: null as string | null,
+        amountUsd: g.amountUsd,
+        createdAt: g.createdAt,
+        viewHref: `/order/group?number=${g.orderNumber}&from=history`,
+      };
+    }),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return NextResponse.json({ orders });

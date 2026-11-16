@@ -1,20 +1,15 @@
 "use client";
 
-import ShopCheckout from "@/components/ShopCheckout";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export default function GameItemsCheckoutPage() {
-  return (
-    <ShopCheckout
-      kind="items"
-      checkoutEndpoint="/api/game-item-orders"
-      cartItemIdField="gameItemId"
-      requireUsername
-      usernameLabel="In-game Username"
-      usernamePlaceholder="Your username in this game"
-      backHref="/game-items"
-      pageTitle="Checkout — Game Items"
-      paymentPageHref={(n) => `/checkout/items/${n}`}
-      collectContact={false}
-    />
-  );
+// The old Game-Items-only checkout is gone: every buy button now routes to
+// the COMBINED checkout (/cart/checkout), which sums both marketplace carts
+// into one payment. This page just forwards anyone with the old URL saved.
+export default function GameItemsCheckoutRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/cart/checkout");
+  }, [router]);
+  return null;
 }

@@ -3,9 +3,11 @@ export const dynamic = "force-dynamic";
 
 import { createUserSession, setUserSessionCookie } from "@/lib/userAuth";
 import { verifyTelegramAuth, TelegramAuthPayload } from "@/lib/telegramAuth";
+import { getTelegramBotToken } from "@/lib/telegramLogin";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/clientIp";
 
 const telegramAuthSchema = z.object({
   id: z.number(),
@@ -18,7 +20,7 @@ const telegramAuthSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(req);
   if (!(await checkRateLimit(`telegram-auth:${ip}`, 15, 10 * 60 * 1000))) {
     return NextResponse.json(
       { error: "Too many attempts. Please wait a few minutes and try again." },
@@ -26,11 +28,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const botToken = await getTelegramBotToken();
   if (!botToken) {
     // Not configured yet — fail loudly server-side so it's obvious during
     // setup, but don't leak internals to the client.
-    console.error("TELEGRAM_BOT_TOKEN is not set");
+    console.error("Telegram bot token is not set (Admin → Settings or TELEGRAM_BOT_TOKEN)");
     return NextResponse.json({ error: "Telegram login is not available right now" }, { status: 500 });
   }
 

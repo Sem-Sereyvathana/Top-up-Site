@@ -76,7 +76,7 @@ export default function WelcomePopupAdminPage() {
           data.error ||
             (res.status === 401
               ? "You're logged out — sign in again."
-              : "Upload failed. Check BLOB_READ_WRITE_TOKEN is set.")
+              : "Upload failed. Check the CLOUDINARY_* values in .env.")
         );
       }
       setForm((f) => ({ ...f, imageUrl: data.url }));

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 interface HistoryOrder {
-  type: "TOPUP" | "GAME_ITEM" | "GAME_ACCOUNT";
+  type: "TOPUP" | "GAME_ITEM" | "GAME_ACCOUNT" | "GROUP";
   orderNumber: string;
   status: string;
   title: string;
@@ -43,6 +43,9 @@ const TYPE_META: Record<HistoryOrder["type"], { label: string; Icon: typeof Zap 
   TOPUP: { label: "Top up", Icon: Zap },
   GAME_ITEM: { label: "Game Items", Icon: ShoppingBag },
   GAME_ACCOUNT: { label: "Account", Icon: UserRound },
+  // One combined payment for items + accounts. It opens the group page,
+  // which stacks each part's own receipt.
+  GROUP: { label: "Cart order", Icon: ShoppingBag },
 };
 
 const FILTERS: { key: FilterKey; label: string }[] = [
@@ -50,6 +53,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "TOPUP", label: "Top up" },
   { key: "GAME_ITEM", label: "Game Items" },
   { key: "GAME_ACCOUNT", label: "Account" },
+  { key: "GROUP", label: "Cart order" },
 ];
 
 const PAGE_SIZE = 6;
@@ -108,12 +112,12 @@ export default function HistoryPage() {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-fox-border bg-fox-card text-fox-primary">
               <LogIn className="h-5 w-5" strokeWidth={2} />
             </div>
-            <h2 className="font-semibold text-lg mb-1">Sign in with Google to view your history</h2>
+            <h2 className="font-semibold text-lg mb-1">Sign in to view your history</h2>
             <p className="text-sm text-fox-muted mb-5">
               Your order history is tied to your account so we can keep it safe and up to date.
             </p>
             <div className="flex items-center justify-center">
-              <Link href="/login" className="btn-primary">Sign in with Google</Link>
+              <Link href="/login" className="btn-primary">Sign in with Telegram</Link>
             </div>
           </div>
         ) : error ? (

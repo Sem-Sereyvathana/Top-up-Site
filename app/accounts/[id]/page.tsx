@@ -33,8 +33,9 @@ async function getAccount(id: string) {
   });
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const account = await getAccount(params.id);
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const account = await getAccount(id);
   if (!account) return { title: "Account — SHARUSTORE" };
   return {
     title: `${account.title} — SHARUSTORE`,
@@ -42,8 +43,9 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   };
 }
 
-export default async function AccountDetailsPage({ params }: { params: { id: string } }) {
-  const account = await getAccount(params.id);
+export default async function AccountDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const account = await getAccount(id);
   if (!account || !account.active) notFound();
 
   const isMulti = account.stockMode === "MULTI";

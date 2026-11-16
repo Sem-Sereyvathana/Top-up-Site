@@ -43,6 +43,15 @@ function buildCsp(nonce: string) {
     `img-src 'self' https: data:`,
     `font-src 'self' https://fonts.gstatic.com`,
     `connect-src 'self'`,
+    // The "how to redeem" clip is served from Cloudinary (or another https
+    // host the admin pasted). Without media-src it falls back to
+    // default-src 'self' and the <video> is blocked — the exact reason the
+    // video popup showed an empty player.
+    `media-src 'self' https: blob: data:`,
+    // Telegram Login Widget renders its iframe from oauth.telegram.org;
+    // the redeem clip may be a YouTube/Vimeo/Facebook embed. Everything else
+    // stays frameless (frame-ancestors below stops other sites framing US).
+    `frame-src https://oauth.telegram.org https://www.youtube.com https://youtube.com https://player.vimeo.com https://www.facebook.com`,
     `object-src 'none'`,
     `base-uri 'self'`,
     `form-action 'self'`,
@@ -84,7 +93,17 @@ export async function middleware(req: NextRequest) {
   // exempted from the session check below, same as before.
 
   // Always let the login page and the login/logout API through.
-  if (pathname === "/admin/login" || pathname.startsWith("/api/admin/auth")) {
+  // Exact paths only (a prefix match would also exempt things like
+  // /api/admin/authentication-anything). totp/setup and totp/status do their
+  // own requireAdmin() check inside the route.
+  const PUBLIC_ADMIN_PATHS = new Set([
+    "/admin/login",
+    "/api/admin/auth",
+    "/api/admin/auth/totp",
+    "/api/admin/auth/totp/setup",
+    "/api/admin/auth/totp/status",
+  ]);
+  if (PUBLIC_ADMIN_PATHS.has(pathname.replace(/\/+$/, ""))) {
     return next();
   }
 
@@ -96,6 +115,29 @@ export async function middleware(req: NextRequest) {
   const isProtected = pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
   if (!isProtected) {
     return next();
+  }
+
+  // CSRF defence-in-depth for admin mutations. The session cookie is
+  // SameSite=Lax, which already blocks cross-site POST/PATCH/DELETE from
+  // carrying it — this is the belt to that braces. If a request carries an
+  // Origin header for a different host, reject it outright. No Origin header
+  // (curl, server-to-server) passes, which matches how Next.js apps behave.
+  const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+  if (MUTATING_METHODS.has(req.method)) {
+    const origin = req.headers.get("origin");
+    if (origin) {
+      let sameHost = false;
+      try {
+        sameHost = new URL(origin).host === req.headers.get("host");
+      } catch {
+        sameHost = false;
+      }
+      if (!sameHost) {
+        return withCsp(
+          NextResponse.json({ error: "Cross-origin request blocked" }, { status: 403 })
+        );
+      }
+    }
   }
 
   // For /api/admin/* we still want to verify token (except auth routes)
@@ -110,7 +152,10 @@ export async function middleware(req: NextRequest) {
   }
 
   try {
-    await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, secret);
+    // Reject the 2FA "totp_pending" token (same signing key) — only a full
+    // session may reach the admin area.
+    if (payload.type !== "session") throw new Error("not a session token");
     return next();
   } catch {
     if (pathname.startsWith("/api/")) {

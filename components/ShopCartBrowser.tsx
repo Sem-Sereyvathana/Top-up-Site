@@ -10,10 +10,10 @@ import { Plus, Minus, Check, ShoppingCart, MessageCircle } from "lucide-react";
 // Shared cart-and-browse UI for the Game Items and Accounts marketplaces.
 // Both storefronts look identical (same grid, same category pills, same
 // floating cart bar) but hit different APIs and post different fields — see
-// the `kind`/checkout props below. Checking out now happens on a dedicated
-// page (see ShopCheckout.tsx) rather than inline at the bottom of this
-// browser; this component only owns picking things and adding them to the
-// shared cart (or jumping straight to checkout via "Buy Now").
+// the `kind` prop below. Checking out always happens on the COMBINED
+// checkout page (/cart/checkout), which sums both marketplace carts into
+// one payment; this component only owns picking things and adding them to
+// the shared cart.
 
 export interface ShopCartCard {
   id: string;
@@ -58,8 +58,6 @@ interface ShopCartBrowserProps {
   cards: ShopCartCard[];
   /** Which shared cart this browser reads/writes — "items" or "accounts". */
   kind: ShopKind;
-  /** Where the dedicated checkout page for this marketplace lives. */
-  checkoutHref: string;
   /** Default for cards that don't set their own `maxQty`. */
   allowQuantity: boolean;
   emptyStateTitle: string;
@@ -90,7 +88,6 @@ interface CardGroup {
 export default function ShopCartBrowser({
   cards,
   kind,
-  checkoutHref,
   allowQuantity,
   emptyStateTitle,
   emptyStateBody,
@@ -182,9 +179,9 @@ export default function ShopCartBrowser({
         <div className="space-y-10">
           {visibleGroups.map((group) => (
             <section key={group.key}>
-              <div className="mb-4 flex items-center gap-3 rounded-xl bg-gradient-to-r from-fox-primary to-fox-accent px-4 py-3 shadow-glow-sm">
+              <div className="mb-3 flex items-center gap-2.5 px-1">
                 {group.imageUrl && (
-                  <span className="h-6 w-6 shrink-0 overflow-hidden rounded">
+                  <span className="h-7 w-7 sm:h-8 sm:w-8 shrink-0 overflow-hidden rounded-lg">
                     <img
                       src={group.imageUrl}
                       alt=""
@@ -194,7 +191,7 @@ export default function ShopCartBrowser({
                     />
                   </span>
                 )}
-                <h2 className="text-sm font-bold uppercase tracking-wider text-white sm:text-base">
+                <h2 className="font-display text-xl font-extrabold uppercase tracking-wide text-white sm:text-2xl">
                   {group.label}
                 </h2>
               </div>
@@ -350,7 +347,11 @@ export default function ShopCartBrowser({
                           {inCart && (
                             <button
                               type="button"
-                              onClick={() => router.push(checkoutHref)}
+                              // Always the COMBINED checkout — it sums both
+                              // carts (Game Items + Accounts) into one
+                              // payment, so "Buy now" from any card checks
+                              // out everything picked, not just this card.
+                              onClick={() => router.push("/cart/checkout")}
                               className="flex w-full items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-fox-primary to-fox-accent py-1 text-[10px] font-bold sm:py-1.5 sm:text-xs text-black hover:opacity-90"
                             >
                               <ShoppingCart className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -378,7 +379,8 @@ export default function ShopCartBrowser({
             </span>
             <button
               type="button"
-              onClick={() => router.push(checkoutHref)}
+              // Combined checkout — one payment for both marketplace carts.
+              onClick={() => router.push("/cart/checkout")}
               className="btn-primary !py-2 text-sm"
             >
               Checkout

@@ -7,6 +7,7 @@ import { awardPointsForOrder } from "@/lib/loyalty";
 import { decrementStockForOrder } from "@/lib/stock";
 import { finalizeOrderAfterPayment } from "@/lib/fulfillment";
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/auth";
 
 /**
  * Admin debug endpoint: pulls the latest KHPay status for an order
@@ -16,10 +17,14 @@ import { NextRequest, NextResponse } from "next/server";
  */
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { orderNumber: string } }
+  { params }: { params: Promise<{  orderNumber: string  }> }
 ) {
+  const { orderNumber } = await params;
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const order = await prisma.order.findUnique({
-    where: { orderNumber: params.orderNumber },
+    where: { orderNumber: orderNumber },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -33,7 +38,13 @@ export async function POST(
   if (remote && (remote.paid || remote.status === "paid") && order.status === "PENDING") {
     const finalStatus = await finalizeOrderAfterPayment(order.id);
     await awardPointsForOrder(order.id);
-    await decrementStockForOrder(order.id);
+    const stockProblem = await decrementStockForOrder(order.id);
+    if (stockProblem) {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { deliveryNote: `PAID but stock problem: ${stockProblem}. Deliver manually or refund.` },
+      });
+    }
     updated = (await prisma.order.findUnique({ where: { id: order.id } })) ?? order;
     await writeAudit({
       action: "order.khpay_refresh.auto_paid",

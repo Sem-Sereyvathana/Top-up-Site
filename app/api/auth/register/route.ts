@@ -12,6 +12,7 @@ import {
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/clientIp";
 
 const registerSchema = z.object({
   identifier: z.string().min(3).max(120), // email or phone
@@ -20,10 +21,11 @@ const registerSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const ipAddress = getClientIp(req);
+
   // 5 new accounts per hour per IP — enough for a real household, tight
   // enough to make mass fake-account creation impractical.
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!(await checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000))) {
+  if (!(await checkRateLimit(`register:${ipAddress}`, 5, 60 * 60 * 1000, { failClosed: true }))) {
     return NextResponse.json(
       { error: "Too many accounts created from this connection. Please try again later." },
       { status: 429 }
@@ -52,6 +54,36 @@ export async function POST(req: NextRequest) {
 
   const email = asEmail ? identifier.toLowerCase() : null;
   const phone = asPhone ? normalizePhone(identifier) : null;
+
+  // Banlist: a blocked email/phone/IP must not be able to create an account.
+  const banCandidates = [
+    { type: "email", value: email },
+    { type: "phone", value: phone },
+    { type: "ip", value: ipAddress.toLowerCase() },
+  ].filter((c): c is { type: string; value: string } => !!c.value);
+  if (banCandidates.length > 0) {
+    const blocked = await prisma.blockedIdentity.findFirst({
+      where: { OR: banCandidates.map((c) => ({ type: c.type, value: c.value })) },
+    });
+    if (blocked) {
+      return NextResponse.json(
+        { error: "This account cannot be created. Contact support if you believe this is a mistake." },
+        { status: 403 }
+      );
+    }
+  }
+
+  // Account-level limit: 3 registration attempts per identifier per hour,
+  // counted atomically. Stops an attacker rotating IPs to retry the same
+  // email/phone (e.g. to race the "already exists" check or spam a victim's
+  // inbox). Temporary window, resets on its own.
+  const idKey = `register-id:${email ?? phone}`;
+  if (!(await checkRateLimit(idKey, 3, 60 * 60 * 1000, { failClosed: true }))) {
+    return NextResponse.json(
+      { error: "Too many attempts for this email/phone. Please try again later." },
+      { status: 429 }
+    );
+  }
 
   const existing = await prisma.user.findFirst({
     where: {

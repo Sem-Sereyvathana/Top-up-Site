@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AdminCopyButton from "@/components/admin/AdminCopyButton";
+import OrderTelegramButton from "@/components/admin/OrderTelegramButton";
 
 const STATUSES = ["ALL", "PENDING", "PAID", "DELIVERED", "FAILED", "REFUNDED", "CANCELLED"];
 
@@ -23,6 +25,19 @@ interface OrderRow {
   status: string;
   createdAt: string;
   items: { name: string; quantity: number }[];
+}
+
+// Everything the admin needs to hand over a MANUAL item in one paste-able
+// block: order, what was bought, who to send it to, and how much was paid.
+function orderInfoText(o: OrderRow): string {
+  const lines = o.items.map((it) => `${it.name}${it.quantity > 1 ? ` x${it.quantity}` : ""}`).join(", ");
+  return [
+    `Order #${o.orderNumber}`,
+    `Items: ${lines}`,
+    `In-game username: ${o.buyerUsername}`,
+    `Amount: $${o.amountUsd.toFixed(2)}`,
+    `Delivery: ${o.deliveryMode}`,
+  ].join("\n");
 }
 
 export default function AdminGameItemOrdersPage() {
@@ -200,16 +215,55 @@ export default function AdminGameItemOrdersPage() {
                       </span>
                     </td>
                     <td className="px-5 py-3 text-fox-muted text-xs">{new Date(o.createdAt).toLocaleString()}</td>
-                    <td className="px-5 py-3 text-right">
-                      {o.status === "PAID" && (
-                        <button
-                          onClick={() => markDelivered(o)}
-                          disabled={updatingId === o.id}
-                          className="text-xs font-semibold text-fox-primary hover:underline disabled:opacity-50"
-                        >
-                          {updatingId === o.id ? "Saving..." : "Mark Delivered"}
-                        </button>
-                      )}
+                    <td className="px-5 py-3">
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        {o.deliveryMode === "DIRECT" ? (
+                          // DIRECT: the admin delivers this alone using the
+                          // buyer's username — nothing to discuss, so the
+                          // only helpers needed are the username and the
+                          // "done" button.
+                          <>
+                            <AdminCopyButton
+                              value={o.buyerUsername}
+                              label="Copy username"
+                              title="Copy the buyer's in-game username"
+                            />
+                            {o.status === "PAID" && (
+                              <button
+                                onClick={() => markDelivered(o)}
+                                disabled={updatingId === o.id}
+                                className="rounded-lg border border-green-500/40 bg-green-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-green-300 transition-colors hover:bg-green-500/20 disabled:opacity-50"
+                              >
+                                {updatingId === o.id ? "Saving…" : "Mark Delivered"}
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          // MANUAL: the admin has to talk to the buyer first.
+                          // Open their Telegram, or copy the order details to
+                          // paste into the chat.
+                          <>
+                            <OrderTelegramButton
+                              buyerTelegramUsername={o.customerContact}
+                              orderNumber={o.orderNumber}
+                            />
+                            <AdminCopyButton
+                              value={orderInfoText(o)}
+                              label="Copy order"
+                              title="Copy the order details for the Telegram chat"
+                            />
+                            {o.status === "PAID" && (
+                              <button
+                                onClick={() => markDelivered(o)}
+                                disabled={updatingId === o.id}
+                                className="rounded-lg border border-green-500/40 bg-green-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-green-300 transition-colors hover:bg-green-500/20 disabled:opacity-50"
+                              >
+                                {updatingId === o.id ? "Saving…" : "Mark Delivered"}
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

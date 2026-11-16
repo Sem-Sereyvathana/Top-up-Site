@@ -2,12 +2,16 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/auth";
 
 /**
  * Revenue summary for the last N days.
  * Returns daily buckets and the top-5 products by revenue.
  */
 export async function GET(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const days = Math.min(365, Math.max(1, parseInt(req.nextUrl.searchParams.get("days") || "30")));
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
@@ -49,8 +53,8 @@ export async function GET(req: NextRequest) {
       existing.revenue += o.amountUsd;
     } else {
       productAgg.set(pk, {
-        name: o.product?.name ?? "â€”",
-        game: o.game?.name ?? "â€”",
+        name: o.product?.name ?? "—",
+        game: o.game?.name ?? "—",
         count: 1,
         revenue: o.amountUsd,
       });

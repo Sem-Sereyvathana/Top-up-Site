@@ -20,10 +20,15 @@ export default async function AdminLayout({
     redirect("/admin/login");
   }
 
+  // Viewport-locked shell: h-screen + overflow-hidden on the outer div means
+  // the PAGE itself never scrolls — only the sidebar nav and the main
+  // content scroll, each independently. No more "scrolling both at once".
+  // min-h-0 on the nav lets it shrink inside the flex column so ITS scroll
+  // area stays inside the screen (the classic flexbox scroll fix).
   return (
-    <div className="min-h-screen flex">
-      <aside className="w-60 border-r border-fox-border bg-fox-surface flex flex-col">
-        <Link href="/admin" className="p-6 border-b border-fox-border">
+    <div className="h-screen overflow-hidden flex">
+      <aside className="w-60 shrink-0 border-r border-fox-border bg-fox-surface flex flex-col h-screen">
+        <Link href="/admin" className="p-6 border-b border-fox-border shrink-0">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-fox-primary to-fox-accent flex items-center justify-center">
               <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-black">
@@ -41,7 +46,8 @@ export default async function AdminLayout({
           </div>
         </Link>
 
-        <nav className="flex-1 p-4 space-y-4 overflow-y-auto">
+        {/* The ONLY scroller in the sidebar: the nav list itself. */}
+        <nav className="flex-1 min-h-0 p-4 space-y-4 overflow-y-auto">
           <Link
             href="/admin"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-fox-text/80 hover:bg-fox-card hover:text-fox-primary transition-colors"
@@ -58,7 +64,8 @@ export default async function AdminLayout({
               title: "Orders",
               items: [
                 { href: "/admin/orders", label: "Orders", icon: "📦" },
-                { href: "/admin/robux-orders", label: "Robux Orders", icon: "🪙" },
+                { href: "/admin/robux-orders", label: "Robux Send", icon: "🪙" },
+                { href: "/admin/quick-login-orders", label: "Quick Login Orders", icon: "⚡" },
                 { href: "/admin/game-item-orders", label: "Item Orders", icon: "📮" },
                 { href: "/admin/account-orders", label: "Account Orders", icon: "🔑" },
               ],
@@ -82,6 +89,12 @@ export default async function AdminLayout({
                 { href: "/admin/banners", label: "Banners", icon: "🖼️" },
                 { href: "/admin/welcome-popup", label: "Welcome Popup", icon: "💬" },
                 { href: "/admin/blog", label: "Blog", icon: "📝" },
+              ],
+            },
+            {
+              title: "Money",
+              items: [
+                { href: "/admin/pricing", label: "Reseller Rates", icon: "💵" },
               ],
             },
             {
@@ -115,14 +128,16 @@ export default async function AdminLayout({
           ))}
         </nav>
 
-        <div className="p-4 border-t border-fox-border">
+        <div className="p-4 border-t border-fox-border shrink-0">
           <div className="text-xs text-fox-muted mb-1">Signed in as</div>
           <div className="text-sm font-medium mb-3 truncate">{admin.email}</div>
           <LogoutButton />
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">{children}</main>
+      {/* Main content scrolls independently of the sidebar. min-w-0 stops
+          wide tables from forcing the sidebar to shrink. */}
+      <main className="flex-1 min-w-0 h-screen overflow-y-auto">{children}</main>
     </div>
   );
 }

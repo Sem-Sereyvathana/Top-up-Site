@@ -5,7 +5,8 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Package, CheckCircle2, XCircle, Truck, CreditCard, Send, History } from "lucide-react";
+import { Package, CheckCircle2, XCircle, Truck, CreditCard, History, Send } from "lucide-react";
+import { toTelegramUrl } from "@/lib/telegramLink";
 
 // Order-status tracker shared by the Game Items and Accounts marketplaces.
 // Mirrors app/order/page.tsx (Top-up's tracker) but stops at PAID rather
@@ -158,20 +159,35 @@ export default function MarketplaceOrderTracker({
   const isFailed = order ? currentStep === -1 : false;
   const isPolling = order ? !TERMINAL_STATUSES.has(order.status) : false;
 
+  // MANUAL orders are arranged person-to-person: the buyer is sent to the
+  // admin's Telegram with the order details pre-filled, right after paying.
+  // (The old in-app chat was removed, so this now opens real Telegram.)
   const needsManualTelegram =
-    !!order && order.status === "PAID" && order.deliveryMode === "MANUAL" && !!order.supportTelegram;
-  const telegramUrl = needsManualTelegram
-    ? `https://t.me/${order!.supportTelegram!.replace(/^@/, "")}${
-        buildTelegramMessage ? `?text=${encodeURIComponent(buildTelegramMessage(order!))}` : ""
-      }`
+    !!order && order.status === "PAID" && order.deliveryMode === "MANUAL";
+  const telegramDraft = needsManualTelegram && buildTelegramMessage
+    ? buildTelegramMessage(order!)
     : null;
+  const telegramHref = (() => {
+    // toTelegramUrl() already returns a full https://t.me/... link (or null
+    // when Settings has nothing usable). Draft text is prefilled when the
+    // caller supplied a message builder.
+    const url = toTelegramUrl(order?.supportTelegram ?? null);
+    if (!url) return null;
+    return telegramDraft ? `${url}?text=${encodeURIComponent(telegramDraft)}` : url;
+  })();
+
+  function openTelegram() {
+    if (telegramHref) window.open(telegramHref, "_blank", "noopener,noreferrer");
+  }
 
   useEffect(() => {
-    if (!effectiveAutoRedirect || !needsManualTelegram || !telegramUrl) return;
+    if (!effectiveAutoRedirect || !needsManualTelegram) return;
     if (telegramRedirectedRef.current) return;
     telegramRedirectedRef.current = true;
-    window.location.href = telegramUrl;
-  }, [effectiveAutoRedirect, needsManualTelegram, telegramUrl]);
+    // Straight to Telegram, message pre-filled, as soon as payment clears.
+    openTelegram();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveAutoRedirect, needsManualTelegram]);
 
   return (
     <>
@@ -331,23 +347,21 @@ export default function MarketplaceOrderTracker({
               <div className="mx-5 sm:mx-6 mb-5 sm:mb-6 space-y-3">{renderPostPaidExtra(order)}</div>
             )}
 
-            {needsManualTelegram && telegramUrl && (
+            {needsManualTelegram && (
               <div className="mx-5 sm:mx-6 mb-5 sm:mb-6">
                 {effectiveAutoRedirect && (
                   <p className="mb-2 text-center text-xs text-fox-muted">
-                    Redirecting you to Telegram to confirm your order…
+                    Opening Telegram so you can confirm your order…
                   </p>
                 )}
                 <a
-                  href={telegramUrl}
+                  href={telegramHref ?? "#"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 w-full rounded-xl border border-[#229ED9]/40 bg-[#229ED9]/10 hover:bg-[#229ED9]/20 text-[#229ED9] py-3 text-sm font-medium transition-colors"
                 >
                   <Send className="h-4 w-4" strokeWidth={2} />
-                  {effectiveAutoRedirect
-                    ? "Open Telegram manually"
-                    : `Message @${order.supportTelegram!.replace(/^@/, "")} to arrange delivery`}
+                  {effectiveAutoRedirect ? "Open Telegram manually" : "Contact us on Telegram to arrange delivery"}
                 </a>
               </div>
             )}

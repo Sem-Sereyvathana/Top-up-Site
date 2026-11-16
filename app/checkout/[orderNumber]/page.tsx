@@ -49,6 +49,13 @@ export default function CheckoutPage() {
 
   const orderNumber = (params?.orderNumber || "").toUpperCase();
 
+  // Combined orders (GRP-) have their own payment screen — this page only
+  // knows top-up (RT-) orders and would 404 on a group number.
+  const isGroup = orderNumber.startsWith("GRP-");
+  useEffect(() => {
+    if (isGroup) router.replace(`/checkout/group/${orderNumber}`);
+  }, [isGroup, orderNumber, router]);
+
   const [order, setOrder] = useState<OrderPayment | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,9 +88,10 @@ export default function CheckoutPage() {
 
   // Initial load
   useEffect(() => {
+    if (isGroup) return; // group orders are handled by their own screen
     setLoading(true);
     fetchOrder().finally(() => setLoading(false));
-  }, [fetchOrder]);
+  }, [fetchOrder, isGroup]);
 
   // ─── Auto-redirect if order already has a KHPay payment URL ───
   useEffect(() => {
@@ -221,6 +229,12 @@ export default function CheckoutPage() {
     <>
       <Header />
       <main className="mx-auto max-w-3xl px-4 py-8 sm:py-12 sm:px-6">
+        {isGroup && (
+          <div className="flex items-center justify-center py-24 text-fox-muted">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            Opening your combined order…
+          </div>
+        )}
         {/* ── Redirecting / Creating txn ── */}
         {(redirecting || creatingTxn) && (
           <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -239,14 +253,14 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        {!redirecting && !creatingTxn && loading && (
+        {!isGroup && !redirecting && !creatingTxn && loading && (
           <div className="flex items-center justify-center py-24 text-fox-muted">
             <Loader2 className="h-6 w-6 animate-spin mr-2" />
             Loading payment...
           </div>
         )}
 
-        {!redirecting && !creatingTxn && !loading && error && (
+        {!isGroup && !redirecting && !creatingTxn && !loading && error && (
           <div className="rounded-xl border border-red-400/40 bg-red-400/10 p-6 text-center">
             <AlertCircle className="h-8 w-8 text-red-400 mx-auto mb-2" />
             <p className="text-red-300">{error}</p>
@@ -256,7 +270,7 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        {!redirecting && !creatingTxn && !loading && order && (
+        {!isGroup && !redirecting && !creatingTxn && !loading && order && (
           <>
             {/* Success state */}
             {isPaid && (

@@ -1,7 +1,7 @@
 "use client";
 
 import MarketplaceCheckout from "@/components/MarketplaceCheckout";
-import { useShopCart, clearBuyNow, clearPendingOrder } from "@/lib/shopCart";
+import { useShopCart, clearPendingOrder } from "@/lib/shopCart";
 
 export default function AccountsCheckoutPage() {
   const { clear } = useShopCart();
@@ -12,7 +12,6 @@ export default function AccountsCheckoutPage() {
       orderTrackHref={(n) => `/order/accounts?number=${n}`}
       onPaid={() => {
         clear("accounts");
-        clearBuyNow();
         clearPendingOrder("accounts");
       }}
       renderSummary={(order: any) => (

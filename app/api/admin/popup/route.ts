@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { writeAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdminApi } from "@/lib/auth";
 
 // /api/admin/* is already session-guarded by middleware.ts.
 
@@ -29,6 +30,9 @@ const schema = z.object({
 });
 
 export async function GET() {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const popup = await prisma.welcomePopup.upsert({
     where: { id: 1 },
     update: {},
@@ -38,6 +42,9 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = schema.safeParse(body);
   if (!parsed.success) {

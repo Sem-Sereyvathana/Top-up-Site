@@ -3,9 +3,11 @@ export const dynamic = "force-dynamic";
 
 import { createUserSession, setUserSessionCookie } from "@/lib/userAuth";
 import { verifyTelegramAuth, TelegramAuthPayload } from "@/lib/telegramAuth";
+import { getTelegramBotToken } from "@/lib/telegramLogin";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/clientIp";
 
 // Handles the redirect Telegram sends the browser back to after the user
 // approves login on oauth.telegram.org. Same signed payload as the old
@@ -32,15 +34,15 @@ export async function GET(req: NextRequest) {
   const next = safeNext(searchParams.get("next"));
   const loginUrl = new URL("/login", origin);
 
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(req);
   if (!(await checkRateLimit(`telegram-auth:${ip}`, 15, 10 * 60 * 1000))) {
     loginUrl.searchParams.set("error", "Too many attempts. Please wait a few minutes and try again.");
     return NextResponse.redirect(loginUrl);
   }
 
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const botToken = await getTelegramBotToken();
   if (!botToken) {
-    console.error("TELEGRAM_BOT_TOKEN is not set");
+    console.error("Telegram bot token is not set (Admin → Settings or TELEGRAM_BOT_TOKEN)");
     loginUrl.searchParams.set("error", "Telegram login is not available right now");
     return NextResponse.redirect(loginUrl);
   }

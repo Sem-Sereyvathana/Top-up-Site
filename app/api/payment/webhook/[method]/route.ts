@@ -9,7 +9,11 @@ import { finalizeOrderAfterPayment } from "@/lib/fulfillment";
 import { handleGameItemOrderWebhook } from "@/lib/gameItemFulfillment";
 import { handleGameAccountOrderWebhook } from "@/lib/gameAccountFulfillment";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { creditForPaidTopUp, refundOrderToWallet } from "@/lib/wallet";
+import { queueTopupReceipt } from "@/lib/receipt";
+import { finalizePaymentGroup } from "@/lib/paymentGroup";
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp } from "@/lib/clientIp";
 
 // KHPay webhook receiver.
 //   URL:     /api/payment/webhook/khpay
@@ -20,10 +24,145 @@ import { NextRequest, NextResponse } from "next/server";
 // The route is parameterized so legacy paths still resolve; unknown methods
 // are rejected with 400.
 
+// Wallet top-ups (WT-) credit the buyer's wallet instead of delivering a
+// product. Credited exactly once: creditForPaidTopUp claims the row
+// PENDING -> PAID atomically, so webhook replays are harmless.
+async function handleWalletTopUpWebhook(
+  orderNumber: string,
+  event: string,
+  data: any,
+  transactionId: string | undefined
+): Promise<NextResponse> {
+  const topUp = await prisma.walletTopUp.findUnique({ where: { orderNumber } });
+  if (!topUp) {
+    return NextResponse.json({ error: "Wallet top-up not found" }, { status: 404 });
+  }
+
+  if (event === "payment.paid") {
+    const paidAmount = parseFloat(String(data.amount ?? "0"));
+    const expectedUsd = topUp.amountCents / 100;
+    const amountOk = Number.isFinite(paidAmount) && Math.abs(paidAmount - expectedUsd) <= 0.01;
+    const currency: string | undefined = data.currency;
+    const currencyOk = !currency || currency.toUpperCase() === "USD";
+
+    if (!amountOk || !currencyOk) {
+      const reason = `Wallet top-up mismatch: got ${paidAmount} ${currency ?? ""}, expected ${expectedUsd} USD`;
+      await prisma.walletTopUp.update({
+        where: { id: topUp.id },
+        data: { status: "FAILED" },
+      }).catch(() => {});
+      await notifyTelegram(
+        `🚨 <b>Wallet top-up mismatch ${escapeHtml(topUp.orderNumber)}</b>\n${escapeHtml(reason)}`
+      ).catch(() => {});
+      return NextResponse.json({ error: "Payment mismatch" }, { status: 400 });
+    }
+
+    const result = await creditForPaidTopUp(topUp.id);
+    if (!result.ok) {
+      // Something went wrong crediting — leave it retryable and alert.
+      await notifyTelegram(
+        `🚨 <b>Wallet top-up credit failed ${escapeHtml(topUp.orderNumber)}</b>\n${escapeHtml(result.error ?? "unknown")}`
+      ).catch(() => {});
+      return NextResponse.json({ error: "Credit failed" }, { status: 500 });
+    }
+
+    await prisma.walletTopUp.update({
+      where: { id: topUp.id },
+      data: {
+        status: "PAID",
+        paidAt: topUp.paidAt ?? new Date(),
+        ...(transactionId ? { paymentRef: transactionId } : {}),
+      },
+    }).catch(() => {});
+
+    return NextResponse.json({ ok: true, alreadyCredited: !!result.alreadyCredited });
+  }
+
+  if (event === "payment.expired" || event === "payment.failed") {
+    await prisma.walletTopUp.updateMany({
+      where: { id: topUp.id, status: "PENDING" },
+      data: { status: "FAILED" },
+    });
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
+// Combined multi-store order (GRP-). The amount check runs against the
+// GROUP total — that's what KHPay charged — then each child order is handed
+// to its own finalizer. finalizePaymentGroup() is idempotent, so a replayed
+// webhook is a no-op.
+async function handlePaymentGroupWebhook(
+  orderNumber: string,
+  event: string,
+  data: any,
+  transactionId: string | undefined
+): Promise<NextResponse> {
+  const group = await prisma.paymentGroup.findUnique({ where: { orderNumber } });
+  if (!group) {
+    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+
+  if (group.status !== "PENDING") {
+    return NextResponse.json({ ok: true, skipped: true });
+  }
+
+  if (event === "payment.paid") {
+    const paidAmount = parseFloat(String(data.amount ?? "0"));
+    const amountOk = Number.isFinite(paidAmount) && Math.abs(paidAmount - group.amountUsd) <= 0.01;
+    const currency: string | undefined = data.currency;
+    const currencyOk = !currency || currency.toUpperCase() === "USD";
+
+    if (!amountOk || !currencyOk) {
+      const reason = [
+        !amountOk && `Amount mismatch: got ${paidAmount}, expected ${group.amountUsd}`,
+        !currencyOk && `Currency mismatch: got ${currency}, expected USD`,
+      ].filter(Boolean).join("; ");
+      await prisma.paymentGroup.update({
+        where: { id: group.id },
+        data: { status: "FAILED" },
+      }).catch(() => {});
+      await notifyTelegram(
+        `🚨 <b>Payment mismatch on combined order ${escapeHtml(group.orderNumber)}</b>\n${escapeHtml(reason)}`
+      ).catch(() => {});
+      return NextResponse.json({ error: "Payment mismatch" }, { status: 400 });
+    }
+
+    const result = await finalizePaymentGroup(group.id, {
+      paymentRef: transactionId || group.paymentRef || undefined,
+    });
+    return NextResponse.json({ ok: true, status: result.status });
+  }
+
+  if (event === "payment.expired" || event === "payment.failed") {
+    await prisma.paymentGroup.updateMany({
+      where: { id: group.id, status: "PENDING" },
+      data: { status: "FAILED" },
+    });
+    // Children were never paid — park them so they stop holding stock/
+    // accounts instead of sitting PENDING forever.
+    await prisma.order.updateMany({
+      where: { paymentGroupId: group.id, status: "PENDING" },
+      data: { status: "FAILED", failureReason: `KHPay: ${event}` },
+    });
+    await prisma.gameItemOrder.updateMany({
+      where: { paymentGroupId: group.id, status: "PENDING" },
+      data: { status: "FAILED", failureReason: `KHPay: ${event}` },
+    });
+    await prisma.gameAccountOrder.updateMany({
+      where: { paymentGroupId: group.id, status: "PENDING" },
+      data: { status: "FAILED", failureReason: `KHPay: ${event}` },
+    });
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(
   req: NextRequest,
-  { params }: { params: { method: string } }
+  { params }: { params: Promise<{  method: string  }> }
 ) {
+  const method = (await params).method.toUpperCase() as PaymentMethod;
   // 120 requests/min per IP — generous, since KHPay legitimately bursts
   // retries on timeout and this endpoint has no user-facing "too many
   // attempts" UI to fall back on. This isn't here to stop KHPay; it's here
@@ -31,12 +170,10 @@ export async function POST(
   // HMAC computations and DB lookups per second on a public, unauthenticated
   // route. Signature verification below is still the real gate — this is
   // just a cost/DoS backstop in front of it.
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!(await checkRateLimit(`webhook:${ip}`, 120, 60 * 1000))) {
+  const ip = getClientIp(req);
+  if (!(await checkRateLimit(`webhook:${ip}`, 120, 60 * 1000, { failClosed: true }))) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
-
-  const method = params.method.toUpperCase() as PaymentMethod;
 
   if (method !== "KHPAY") {
     return NextResponse.json({ error: "Invalid method" }, { status: 400 });
@@ -84,6 +221,16 @@ export async function POST(
   if (orderNumber?.startsWith("AC-")) {
     return handleGameAccountOrderWebhook(orderNumber, event, data, transactionId);
   }
+  if (orderNumber?.startsWith("WT-")) {
+    return handleWalletTopUpWebhook(orderNumber, event, data, transactionId);
+  }
+  // Combined multi-store checkout: ONE payment covering a Top-up order plus
+  // any Game Items / Accounts bought with it. The group is what KHPay
+  // charged, so the amount check runs against the group total and each child
+  // is then finalised through its own normal pipeline.
+  if (orderNumber?.startsWith("GRP-")) {
+    return handlePaymentGroupWebhook(orderNumber, event, data, transactionId);
+  }
 
   const order = orderNumber
     ? await prisma.order.findUnique({ where: { orderNumber } })
@@ -99,17 +246,45 @@ export async function POST(
   }
 
   if (event === "payment.paid") {
-    // Verify amount matches to prevent tampering
+    // Verify amount matches to prevent tampered signed events.
     const paidAmount = parseFloat(String(data.amount ?? "0"));
-    if (!Number.isFinite(paidAmount) || Math.abs(paidAmount - order.amountUsd) > 0.01) {
+    const amountOk = Number.isFinite(paidAmount) && Math.abs(paidAmount - order.amountUsd) <= 0.01;
+
+    // If the signed event carries a currency, it must be USD.
+    const currency: string | undefined = data.currency;
+    const currencyOk = !currency || currency.toUpperCase() === "USD";
+
+    // If the signed event carries a transaction_id AND the order already
+    // has a paymentRef, they must match (both values may be absent for
+    // older QR-only flows — only fail when BOTH sides are present).
+    const txId: string | undefined = transactionId;
+    const txOk = !txId || !order.paymentRef || txId === order.paymentRef;
+
+    if (!amountOk || !currencyOk || !txOk) {
+      const reason = [
+        !amountOk && `Amount mismatch: got ${paidAmount}, expected ${order.amountUsd}`,
+        !currencyOk && `Currency mismatch: got ${currency}, expected USD`,
+        !txOk && `Transaction ID mismatch: got ${txId}, stored ${order.paymentRef}`,
+      ]
+        .filter(Boolean)
+        .join("; ");
+
+      // Record failure reason but do NOT silently fail — the customer paid
+      // real money and must not be left with a FAILED order and no alert.
       await prisma.order.update({
         where: { id: order.id },
-        data: {
-          status: "FAILED",
-          failureReason: `Amount mismatch: got ${paidAmount}, expected ${order.amountUsd}`,
-        },
+        data: { failureReason: `PAYMENT MISMATCH — ${reason}` },
       });
-      return NextResponse.json({ error: "Amount mismatch" }, { status: 400 });
+
+      // Immediate Telegram alert so the operator can investigate.
+      await notifyTelegram(
+        `🚨 <b>Payment mismatch on order ${escapeHtml(order.orderNumber)}</b>\n` +
+          `${escapeHtml(reason)}\n` +
+          `Order NOT marked paid. Manual review required.`
+      );
+
+      console.error(`[webhook] Payment mismatch for ${order.orderNumber}: ${reason}`);
+      return NextResponse.json({ error: "Payment mismatch" }, { status: 400 });
     }
 
     // Roblox/Robux stops at PAID for manual admin fulfillment; every other
@@ -131,8 +306,31 @@ export async function POST(
     // guest orders / already-credited orders).
     await awardPointsForOrder(order.id);
 
-    // Take one unit off the product's stock (no-op for unlimited-stock products).
-    await decrementStockForOrder(order.id);
+    // Take stock units off (guarded decrements — can never go negative).
+    // A non-null result means the order is PAID but the stock was already
+    // gone (e.g. two checkouts raced for the last unit): the customer's
+    // money IS taken, so the order must not be failed silently — park it
+    // with a note and page the operator instead.
+    const stockProblem = await decrementStockForOrder(order.id);
+    if (stockProblem) {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          deliveryNote: `PAID but stock problem: ${stockProblem}. Deliver manually or refund.`,
+        },
+      });
+      await notifyTelegram(
+        `🚨 <b>Stock short on PAID order ${escapeHtml(order.orderNumber)}</b>\n` +
+          `${escapeHtml(stockProblem)}\n` +
+          `Customer has PAID. Deliver manually or refund.`
+      ).catch(() => {});
+      console.error(`[webhook] stock problem for ${order.orderNumber}: ${stockProblem}`);
+    }
+
+    // Public proof-channel receipt — queued in the ReceiptLog outbox and
+    // sent by the recovery sweep (also attempted immediately by the
+    // checkout page's polling). Never blocks or fails this webhook.
+    await queueTopupReceipt(order.id);
 
     // Fire-and-forget Telegram notification to the operator.
     const fullOrder = await prisma.order.findUnique({
@@ -170,6 +368,9 @@ export async function POST(
     await refundRedeemedPointsForOrder(order.id);
     // Give back stock too, in case it was already taken.
     await restoreStockForOrder(order.id);
+    // Wallet-paid money returns to the wallet (the gateway never took it —
+    // this only fires if a wallet-paid order somehow reaches FAILED).
+    await refundOrderToWallet(order);
   }
 
   return NextResponse.json({ ok: true });

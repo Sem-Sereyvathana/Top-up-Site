@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import GoogleLoginButton from "@/components/GoogleLoginButton";
-import { User, Coins, LogOut, ChevronDown } from "lucide-react";
+import TelegramLoginButton from "@/components/TelegramLoginButton";
+import { useTelegramBotUsername } from "@/lib/useTelegramBotUsername";
+import { User, Coins, LogOut, ChevronDown, Wallet } from "lucide-react";
 
-// Shown in the Header. Guests see the "Continue with Google" button
-// directly (no email/password sign in or sign up) — one click creates the
-// account on first use. Logged-in users see a dropdown with their points
-// balance and account/logout.
+// Shown in the Header. Guests see "Continue with Telegram" directly (the
+// sign-in is Telegram-first — it gives us their Telegram id/username for
+// order handover) with a small Google fallback. Logged-in users see a
+// dropdown with their points balance and account/logout.
 //
 // `inline`: used for the mobile hamburger panel. That panel animates open
 // via `max-h-* overflow-hidden` (see Header.tsx), which clips any popover
@@ -30,6 +32,7 @@ export default function AccountMenu({
 }) {
   const router = useRouter();
   const { user, loading, refresh } = useCurrentUser();
+  const botUsername = useTelegramBotUsername();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -55,9 +58,33 @@ export default function AccountMenu({
   }
 
   if (!user) {
+    // Telegram-first sign-in. The official Telegram login widget is the
+    // button here; if Telegram login isn't configured yet (no bot token),
+    // fall back to the /login page, which explains the options. Google is
+    // only offered inside the mobile panel, as a small fallback link.
+    //
+    // NB: the header bar is tight on phones (logo + nav), so the /login link
+    // uses a short mobile label and grows to the full one from `sm` up.
     return (
-      <div className={`flex items-center ${className}`}>
-        <GoogleLoginButton size={inline ? "medium" : "small"} compactIconOnly={!inline} />
+      <div className={`flex flex-col items-end gap-1.5 ${className}`}>
+        {botUsername ? (
+          <TelegramLoginButton
+            botUsername={botUsername}
+            size={inline ? "medium" : "small"}
+            label="Sign in with Telegram"
+          />
+        ) : (
+          <Link
+            href="/login"
+            className="btn-primary whitespace-nowrap px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm"
+          >
+            <span className="sm:hidden">Sign in</span>
+            <span className="hidden sm:inline">Sign in with Telegram</span>
+          </Link>
+        )}
+        {inline && (
+          <GoogleLoginButton size="small" label="Use Google instead" />
+        )}
       </div>
     );
   }
@@ -71,6 +98,17 @@ export default function AccountMenu({
           className="rounded-lg px-4 py-3 text-sm font-medium text-fox-text/90 hover:bg-fox-card hover:text-fox-primary transition-colors"
         >
           ករណីរបស់ខ្ញុំ
+        </Link>
+        <Link
+          href="/account/wallet"
+          onClick={onNavigate}
+          className="flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-fox-text/90 hover:bg-fox-card hover:text-fox-primary transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Wallet className="h-4 w-4" />
+            Wallet
+          </span>
+          <span className="font-semibold text-green-400">${user.walletUsd.toFixed(2)}</span>
         </Link>
         <button
           onClick={handleLogout}
@@ -97,6 +135,10 @@ export default function AccountMenu({
           <Coins className="h-3 w-3" strokeWidth={2.5} />
           {user.points.toLocaleString()}
         </span>
+        <span className="hidden sm:inline-flex items-center gap-1 text-green-400 text-xs font-semibold">
+          <Wallet className="h-3 w-3" strokeWidth={2.5} />
+          ${user.walletUsd.toFixed(2)}
+        </span>
         <ChevronDown className="h-3.5 w-3.5 text-fox-muted" strokeWidth={2.5} />
       </button>
 
@@ -108,6 +150,17 @@ export default function AccountMenu({
             className="block px-4 py-2 text-sm text-fox-text/90 hover:bg-fox-card hover:text-fox-primary transition-colors"
           >
             My account
+          </Link>
+          <Link
+            href="/account/wallet"
+            onClick={() => setOpen(false)}
+            className="flex items-center justify-between px-4 py-2 text-sm text-fox-text/90 hover:bg-fox-card hover:text-fox-primary transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Wallet className="h-3.5 w-3.5" />
+              Wallet
+            </span>
+            <span className="font-semibold text-green-400">${user.walletUsd.toFixed(2)}</span>
           </Link>
           <button
             onClick={handleLogout}

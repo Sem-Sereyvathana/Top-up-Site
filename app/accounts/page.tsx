@@ -75,7 +75,6 @@ export default async function AccountsPage() {
         <ShopCartBrowser
           cards={cards}
           kind="accounts"
-          checkoutHref="/accounts/checkout"
           allowQuantity={false}
           detailsBaseHref="/accounts"
           emptyStateTitle="នឹងមកដល់ឆាប់ៗនេះ"

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdminApi } from "@/lib/auth";
 
 // Accept either a full http(s) URL or a local uploaded path like /uploads/xxx.png
 const imagePath = z
@@ -32,10 +33,14 @@ const updateSchema = z.object({
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string  }> }
 ) {
+  const { id } = await params;
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const game = await prisma.game.findUnique({
-    where: { id: params.id },
+    where: { id: id },
     include: {
       products: { orderBy: { sortOrder: "asc" } },
     },
@@ -46,8 +51,12 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string  }> }
 ) {
+  const { id } = await params;
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
@@ -55,7 +64,7 @@ export async function PATCH(
   }
   try {
     const game = await prisma.game.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         ...parsed.data,
         ...(parsed.data.groupId !== undefined ? { groupId: parsed.data.groupId || null } : {}),
@@ -72,8 +81,12 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string  }> }
 ) {
-  await prisma.game.delete({ where: { id: params.id } });
+  const { id } = await params;
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
+  await prisma.game.delete({ where: { id: id } });
   return NextResponse.json({ ok: true });
 }

@@ -31,3 +31,20 @@ export function toTelegramUrl(raw: string | null | undefined): string | null {
 
   return null;
 }
+
+// Same as toTelegramUrl, but opens the chat with a pre-filled message.
+// Only plain https://t.me/<handle> links can carry ?text=; anything else
+// (invite links etc.) is returned unchanged.
+export function toTelegramUrlWithText(raw: string | null | undefined, text: string): string | null {
+  const url = toTelegramUrl(raw);
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (!/^(t|telegram)\.me$/i.test(u.hostname)) return url;
+    if (!/^\/[A-Za-z0-9_]{3,32}\/?$/.test(u.pathname)) return url;
+    if (u.search) return url;
+    return `${u.origin}${u.pathname}?text=${encodeURIComponent(text)}`;
+  } catch {
+    return url;
+  }
+}

@@ -16,7 +16,7 @@ const empty: PopupForm = {
   enabled: false,
   imageUrl: "",
   title: "Sign in to continue",
-  body: "Create a free account with Google to top up or buy — it takes a few seconds.",
+  body: "Create a free account with Telegram to top up or buy — it takes a few seconds.",
   bullets: "",
   closeLabel: "Not now",
 };
@@ -67,7 +67,7 @@ export default function SignInPopupAdminPage() {
           data.error ||
             (res.status === 401
               ? "You're logged out — sign in again."
-              : "Upload failed. Check BLOB_READ_WRITE_TOKEN is set.")
+              : "Upload failed. Check the CLOUDINARY_* values in .env.")
         );
       }
       setForm((f) => ({ ...f, imageUrl: data.url }));
@@ -120,7 +120,7 @@ export default function SignInPopupAdminPage() {
         <h1 className="font-display text-2xl sm:text-3xl font-bold">Sign-in Popup</h1>
         <p className="text-fox-muted text-sm">
           Shown when a visitor who isn&apos;t signed in tries to top up or buy something, right
-          next to the Continue with Google button. Turn it off to show just the button with no
+          next to the Telegram sign-in button. Turn it off to show just the button with no
           extra message.
         </p>
       </div>

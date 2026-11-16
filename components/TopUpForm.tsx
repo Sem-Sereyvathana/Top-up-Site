@@ -5,12 +5,14 @@ import {
   isValidUid,
   formatUsd,
   isRobuxGame,
+  isGiftcardGame,
+  isQuickLoginGame,
 } from "@/lib/utils";
 import { useCurrency } from "@/lib/currency";
 import DualPrice from "@/components/DualPrice";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { getGameIdConfig } from "@/lib/gameIdConfig";
-import { requireLogin, isLoginRequired } from "@/lib/loginGate";
+import { requireLogin, isLoginRequired, GOOGLE_LOGIN_REQUIRED } from "@/lib/loginGate";
 import { saveDraft, loadDraft, clearDraft } from "@/lib/formDraft";
 import {
   ArrowRight,
@@ -40,6 +42,9 @@ interface Product {
   badge: string | null;
   imageUrl?: string | null;
   stock?: number | null;
+  // "First Top-Up Bonus" pack: only pays double on an account's very first
+  // recharge. Selecting one confirms with the buyer before continuing.
+  isFirstTopUp?: boolean;
 }
 
 interface Game {
@@ -61,6 +66,59 @@ function isOutOfStock(product: Product): boolean {
 
 function requiredRobux(product: Product): number {
   return Math.max(0, product.amount);
+}
+
+// ── Package display ─────────────────────────────────────────────────────
+// The customer sees ONE number per pack. FazerCards names packs by their
+// split ("78 + 8 Diamonds", "1860 + 335 Diamonds"), which reads like a
+// formula and clutters the tile, so:
+//
+//   * First Top-Up Bonus pack  -> "50 + 50 Diamonds" (the doubling IS the
+//                                 selling point, so it stays visible)
+//   * Any other pack           -> "86 Diamonds" (amount + bonus summed)
+//   * Pass / bundle            -> no amount line at all (Weekly Pass has no
+//                                 diamond count; showing "0 Diamonds" is
+//                                 meaningless)
+//
+// The name is shown underneath only when it adds information. If the name
+// is just the pack's own amount ("78 + 8 Diamonds"), it is suppressed —
+// otherwise the tile would read "86 Diamonds / 78 + 8 Diamonds".
+function totalAmount(product: Product): number {
+  return Math.max(0, product.amount) + Math.max(0, product.bonus);
+}
+
+function isFirstTopUpPack(product: Product): boolean {
+  return !!product.isFirstTopUp && product.amount > 0;
+}
+
+/** "50 + 50 Diamonds" for first-top-up packs, "86 Diamonds", or "" for passes. */
+function amountLabel(product: Product, currency: string): string {
+  const base = Math.max(0, product.amount);
+  if (isFirstTopUpPack(product)) {
+    return `${base.toLocaleString()} + ${base.toLocaleString()} ${currency}`;
+  }
+  const total = totalAmount(product);
+  return total > 0 ? `${total.toLocaleString()} ${currency}` : "";
+}
+
+/**
+ * The product name to show under the amount, or "" when it is redundant.
+ * Dropped when the name is only the pack's own amount, optionally with a
+ * trailing note — the number line above already says it:
+ *   "86 Diamonds"                                  -> ""
+ *   "475 VP" / "100 Diamonds"                      -> ""
+ *   "50 + 50 Diamonds (First Top-Up Bonus)"        -> "" (badge says FIRST TOP UP)
+ * Real labels ("Weekly Pass", "First Recharge 100 (50 + 50 Bonus)") stay.
+ */
+function displayName(product: Product): string {
+  const name = product.name.trim();
+
+  // "<amount> [+ <amount>] <currency>" with an optional trailing "( ... )".
+  const bareAmount =
+    /^[\d,\s]+(?:\+\s*[\d,\s]+)?\s*(diamonds?|vp|robux|silver|fc\s*points|points)?\s*(\([^)]*\))?$/i;
+
+  if (bareAmount.test(name)) return "";
+  return name;
 }
 
 function isRobuxProductAvailable(
@@ -92,10 +150,17 @@ export default function TopUpForm({
   const { user } = useCurrentUser();
 
   const robuxGame = isRobuxGame(game);
+  // Gift card packs need no account ID at all (see lib/utils.ts).
+  const giftcardGame = isGiftcardGame(game);
+  // Games with the multi-package cart (pick several packs, per-pack quantity
+  // controls): the Roblox-style Robux games AND the Robux Giftcard page.
+  // The orders API accepts an `items` cart for exactly the same set, so the
+  // client and server can't drift apart.
+  const cartMode = robuxGame || giftcardGame;
   // Packages with an admin-set badge (Hot, Best Selling, ...) are also
-  // shown in a compact "Popular" section above the full list. Roblox is
-  // excluded because its cards have quantity controls.
-  const popularProducts = robuxGame
+  // shown in a compact "Popular" section above the full list. Cart games
+  // are excluded because their cards have quantity controls.
+  const popularProducts = cartMode
     ? []
     : products.filter((p) => !!p.badge?.trim());
 
@@ -116,7 +181,7 @@ export default function TopUpForm({
         key={`${keyPrefix}-${product.id}`}
         type="button"
         disabled={unavailable}
-        onClick={() => setSelected(product.id)}
+        onClick={() => pickProduct(product)}
         className={`card relative overflow-hidden text-left transition-all ${
           large ? "p-4" : "p-3"
         } ${hasBadge ? (large ? "pb-11" : "pb-9") : ""} ${
@@ -152,18 +217,24 @@ export default function TopUpForm({
             >
               <DualPrice usd={product.priceUsd} stacked />
             </div>
-            <div
-              className={`mt-1 truncate text-fox-muted ${
-                large ? "text-sm" : "text-xs"
-              }`}
-            >
-              {product.name}
-            </div>
-            {product.bonus > 0 && (
-              <div className="text-xs text-green-400">
-                +{product.bonus.toLocaleString()} Bonus
+            {amountLabel(product, game.currencyName) ? (
+              <div
+                className={`font-display font-bold mt-1 ${
+                  large ? "text-sm" : "text-xs"
+                }`}
+              >
+                {amountLabel(product, game.currencyName)}
               </div>
-            )}
+            ) : null}
+            {displayName(product) ? (
+              <div
+                className={`mt-1 truncate text-fox-muted ${
+                  large ? "text-sm" : "text-xs"
+                }`}
+              >
+                {displayName(product)}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -196,6 +267,23 @@ export default function TopUpForm({
   // Normal games use one selected package
   const [selected, setSelected] =
     useState<string | null>(null);
+
+  // First Top-Up Bonus confirmation: clicking a first-top-up pack opens a
+  // dialog asking whether this account has NEVER topped up this package
+  // before. Confirm -> select it; Go back -> nothing selected. The popup
+  // re-appears on re-click so there is always an explicit confirmation.
+  const [firstTopUpCandidate, setFirstTopUpCandidate] =
+    useState<Product | null>(null);
+
+  // Pick a package. First Top-Up Bonus packs go through the confirmation
+  // dialog instead of selecting immediately.
+  const pickProduct = useCallback((product: Product) => {
+    if (product.isFirstTopUp) {
+      setFirstTopUpCandidate(product);
+    } else {
+      setSelected(product.id);
+    }
+  }, []);
 
   // Roblox uses multiple packages
   // IMPORTANT: starts EMPTY — no automatic package
@@ -233,6 +321,10 @@ export default function TopUpForm({
       finalAmountUsd: number;
       discountType: string;
       discountValue: number;
+      // Set by the server when the coupon is tied to one exact package.
+      // The storefront re-checks this if the shopper changes package.
+      applicableProductId?: string | null;
+      applicableProductName?: string | null;
     } | null>(null);
 
   const [promoLoading, setPromoLoading] =
@@ -249,6 +341,11 @@ export default function TopUpForm({
     !!user &&
     user.points >= user.minRedeemPoints;
 
+  // Pay from wallet balance instead of the KHQR. Only offered when signed
+  // in with enough balance to cover the whole order (no partial payments).
+  const [payWithWallet, setPayWithWallet] = useState(false);
+  const walletUsd = user?.walletUsd ?? 0;
+
   // Nickname lookup
   type NicknameStatus =
     | "idle"
@@ -263,6 +360,19 @@ export default function TopUpForm({
 
   const [nickname, setNickname] =
     useState<string | null>(null);
+
+  // Region verdict from the account check. `allowed === false` means this
+  // account's region can't be served by the packs on this page — checkout is
+  // blocked (the orders API enforces the same rule).
+  const [regionVerdict, setRegionVerdict] = useState<{
+    region: string | null;
+    allowed: boolean | null;
+    label: string | null;
+    allowedRegions: string[] | null;
+  }>({ region: null, allowed: null, label: null, allowedRegions: null });
+
+  const clearRegionVerdict = () =>
+    setRegionVerdict({ region: null, allowed: null, label: null, allowedRegions: null });
 
   const debounceRef =
     useRef<ReturnType<typeof setTimeout> | null>(
@@ -298,6 +408,11 @@ export default function TopUpForm({
 
     setNicknameStatus("idle");
     setNickname(null);
+    // A verdict only describes the ID it was checked for — drop it whenever
+    // the buyer edits the ID/zone, so a stale answer can never block (or
+    // wrongly allow) a different account.
+    clearRegionVerdict();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Runs the nickname lookup right now. Used by the debounced auto-check
@@ -328,6 +443,15 @@ export default function TopUpForm({
       const data = await res.json();
 
       if (controller.signal.aborted) return;
+
+      // Region verdict — null when this game isn't gated or the region is
+      // unknown. Only an explicit false blocks checkout.
+      setRegionVerdict({
+        region: typeof data.region === "string" ? data.region : null,
+        allowed: typeof data.regionAllowed === "boolean" ? data.regionAllowed : null,
+        label: typeof data.regionLabel === "string" ? data.regionLabel : null,
+        allowedRegions: Array.isArray(data.allowedRegions) ? data.allowedRegions : null,
+      });
 
       const status: string =
         data.status ??
@@ -529,7 +653,7 @@ export default function TopUpForm({
   const needsServer =
     !robuxGame && useZoneField;
 
-  const packageReady = robuxGame
+  const packageReady = cartMode
     ? cartLines.length > 0 &&
       !cartExceedsStock
     : !!selectedProduct &&
@@ -539,10 +663,15 @@ export default function TopUpForm({
     !robuxGame ||
     !!robloxAccount;
 
+  // The region gate: true only when the checker returned a definite
+  // mismatch. An unknown region (null) never blocks — see lib/regionRules.ts.
+  const regionBlocked = regionVerdict.allowed === false;
+
   const canSubmit =
     packageReady &&
-    isValidUid(uid) &&
+    (giftcardGame || isValidUid(uid)) &&
     robloxAvatarConfirmed &&
+    !regionBlocked &&
     (
       !needsServer ||
       serverId.trim().length > 0
@@ -598,7 +727,7 @@ export default function TopUpForm({
 
     if (draft.uid) setUid(draft.uid);
     if (draft.serverId) setServerId(draft.serverId);
-    if (robuxGame) {
+    if (cartMode) {
       if (draft.cart) {
         const validIds = new Set(products.map((p) => p.id));
         const restored: Record<string, number> = {};
@@ -622,7 +751,7 @@ export default function TopUpForm({
   // last time on this game — unless we just restored a pre-sign-in draft,
   // or they've already typed something themselves.
   useEffect(() => {
-    if (!user || restoredFromDraftRef.current || uid.trim()) return;
+    if (!user || giftcardGame || restoredFromDraftRef.current || uid.trim()) return;
 
     let cancelled = false;
     fetch(`/api/auth/saved-id?gameId=${encodeURIComponent(game.id)}`)
@@ -689,7 +818,7 @@ export default function TopUpForm({
     }
   }
 
-  const orderTotalUsd = robuxGame
+  const orderTotalUsd = cartMode
     ? cartSubtotal
     : selectedProduct?.priceUsd ?? 0;
 
@@ -717,6 +846,15 @@ export default function TopUpForm({
           body: JSON.stringify({
             code: promoInput.trim(),
             orderAmountUsd: orderTotalUsd,
+            // Lets the server check package-restricted coupons against what's
+            // actually in the cart, and discount only the matching line(s).
+            productIds: (cartMode ? cartLines : selectedProduct ? [{ product: selectedProduct, quantity: 1 }] : [])
+              .map((line) => line.product.id),
+            lineItems: (cartMode ? cartLines : selectedProduct ? [{ product: selectedProduct, quantity: 1 }] : [])
+              .map((line) => ({
+                productId: line.product.id,
+                lineTotalUsd: line.product.priceUsd * line.quantity,
+              })),
           }),
         }
       );
@@ -747,9 +885,70 @@ export default function TopUpForm({
     setPromoError(null);
   }
 
-  const priceAfterPromo = promoApplied
-    ? promoApplied.finalAmountUsd
-    : orderTotalUsd;
+  // Package-restricted coupons: if the shopper changes package after applying
+  // a coupon tied to one exact package, drop it here so the price shown
+  // matches what the server will charge (it rejects the order otherwise).
+  const promoIdsKey = JSON.stringify(
+    (cartMode
+      ? cartLines
+      : selectedProduct
+        ? [{ product: selectedProduct, quantity: 1 }]
+        : []
+    ).map((line) => line.product.id)
+  );
+
+  useEffect(() => {
+    if (!promoApplied?.applicableProductId) return;
+
+    const ids: string[] = JSON.parse(promoIdsKey);
+    if (!ids.includes(promoApplied.applicableProductId)) {
+      setPromoApplied(null);
+      setPromoInput("");
+      setPromoError(
+        `That promo code only works on "${promoApplied.applicableProductName ?? "another package"}"`
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promoIdsKey]);
+
+  // Recompute the coupon discount from the *current* cart rather than reusing
+  // the amount the server returned at apply time, so changing quantities (or
+  // a multi-item cart) can't leave a stale total on screen. Mirrors the
+  // server's rule in /api/orders and /api/promo-codes/validate exactly.
+  const promoDiscount = (() => {
+    if (!promoApplied) return 0;
+
+    const lines = (cartMode
+      ? cartLines
+      : selectedProduct
+        ? [{ product: selectedProduct, quantity: 1 }]
+        : []
+    ).map((line) => ({
+      productId: line.product.id,
+      lineTotalUsd: line.product.priceUsd * line.quantity,
+    }));
+
+    const restrictedId = promoApplied.applicableProductId;
+    const base = restrictedId
+      ? lines
+          .filter((line) => line.productId === restrictedId)
+          .reduce((sum, line) => sum + line.lineTotalUsd, 0)
+      : lines.reduce((sum, line) => sum + line.lineTotalUsd, 0);
+
+    if (base <= 0) return 0;
+
+    const raw =
+      promoApplied.discountType === "PERCENT"
+        ? (base * promoApplied.discountValue) / 100
+        : promoApplied.discountValue;
+
+    return Math.round(Math.min(raw, base) * 100) / 100;
+  })();
+
+  const priceAfterPromo = Math.max(
+    0,
+    Math.round((orderTotalUsd - promoDiscount) * 100) / 100
+  );
 
   const pointsDiscount =
     usePoints &&
@@ -768,6 +967,11 @@ export default function TopUpForm({
         100
     ) / 100;
 
+  // Wallet can only pay the FULL total (no partial wallet+QR). Computed
+  // here, after effectivePrice is known.
+  const walletCanCover =
+    user != null && effectivePrice > 0 && walletUsd >= effectivePrice;
+
   async function handleSubmit(
     e: React.FormEvent
   ) {
@@ -775,14 +979,14 @@ export default function TopUpForm({
 
     if (!canSubmit || submitting) return;
 
-    if (!user) {
+    if (!user && GOOGLE_LOGIN_REQUIRED) {
       // Keep what they've filled in so it's still here once they're back
       // from signing in, then send them there instead of submitting.
       saveDraft(draftKey, {
         uid,
         serverId,
         selected,
-        cart: robuxGame ? cart : undefined,
+        cart: cartMode ? cart : undefined,
       });
       requireLogin();
       return;
@@ -793,7 +997,7 @@ export default function TopUpForm({
 
     try {
       const usesCart =
-        robuxGame &&
+        cartMode &&
         (
           cartLines.length > 1 ||
           (cartLines[0]?.quantity ?? 0) > 1
@@ -824,12 +1028,12 @@ export default function TopUpForm({
                   ),
                 }
               : {
-                  productId: robuxGame
+                  productId: cartMode
                     ? cartLines[0]?.product.id
                     : selected,
                 }),
 
-            playerUid: uid.trim(),
+            playerUid: giftcardGame ? "giftcard" : uid.trim(),
 
             serverId: needsServer
               ? serverId.trim()
@@ -840,6 +1044,9 @@ export default function TopUpForm({
             promoCode:
               promoApplied?.code ||
               undefined,
+
+            payWithWallet:
+              payWithWallet || undefined,
 
             playerNickname:
               nickname || undefined,
@@ -860,7 +1067,7 @@ export default function TopUpForm({
             uid,
             serverId,
             selected,
-            cart: robuxGame ? cart : undefined,
+            cart: cartMode ? cart : undefined,
           });
           requireLogin();
           setSubmitting(false);
@@ -891,7 +1098,8 @@ export default function TopUpForm({
         {/* LEFT COLUMN */}
         <div className="space-y-8">
 
-          {/* STEP 1 */}
+          {/* STEP 1 (hidden for gift cards) */}
+          {!giftcardGame && (
           <div className="fade-up scroll-mt-24" ref={step1Ref}>
             <div className="flex items-center gap-3 mb-4">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-fox-primary to-fox-accent font-display font-bold text-black shadow-lg shadow-fox-primary/40">
@@ -978,9 +1186,37 @@ export default function TopUpForm({
                 )}
               </div>
 
-              {/* CHECK USER ID (only games SabayStore can check) */}
+              {/* CHECK USER ID + inline result (only games FazerCards can check).
+                  The verified-name pill sits on the same row as the button so the
+                  container doesn't stretch to leave space below it. */}
               {!robuxGame && supportsLookup && (
-                <div className="flex justify-end">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  {/* Left slot: compact results — spinner, verified, region-block */}
+                  <div>
+                    {nicknameStatus === "checking" && (
+                      <div className="flex items-center gap-2 text-sm text-fox-muted">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Verifying account…
+                      </div>
+                    )}
+
+                    {nicknameStatus === "verified" && nickname && !regionBlocked && (
+                      <div className="inline-flex items-center gap-2 rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-sm text-green-300">
+                        <UserRoundCheck className="h-4 w-4" />
+                        Player: <strong>{nickname}</strong>
+                      </div>
+                    )}
+
+                    {regionBlocked && (
+                      <div className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-sm text-red-300">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span>
+                          <strong>{nickname}</strong> — wrong region, please select another server.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1078,23 +1314,9 @@ export default function TopUpForm({
                 </div>
               )}
 
-              {/* LOOKUP RESULT */}
-              {!robuxGame && nicknameStatus !== "idle" && (
+              {/* LOOKUP ERRORS (successful and region results are beside the check button) */}
+              {!robuxGame && ["not_found", "unavailable", "unsupported"].includes(nicknameStatus) && (
                 <div>
-                  {nicknameStatus === "checking" && (
-                    <div className="flex items-center gap-2 text-sm text-fox-muted">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Verifying account…
-                    </div>
-                  )}
-
-                  {nicknameStatus === "verified" && nickname && (
-                    <div className="inline-flex items-center gap-2 rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-2 text-sm text-green-300">
-                      <UserRoundCheck className="h-4 w-4" />
-                      Player: <strong>{nickname}</strong>
-                    </div>
-                  )}
-
                   {nicknameStatus === "not_found" && (
                     <div className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
                       <AlertCircle className="h-4 w-4" />
@@ -1123,11 +1345,13 @@ export default function TopUpForm({
             </div>
           </div>
 
+          )}
+
           {/* STEP 2 — PACKAGES */}
           <div className="fade-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-fox-primary to-fox-accent font-display font-bold text-black shadow-lg shadow-fox-primary/40">
-                2
+                {giftcardGame ? 1 : 2}
               </div>
 
               <h2 className="font-display text-xl font-bold">
@@ -1137,13 +1361,13 @@ export default function TopUpForm({
               </h2>
             </div>
 
-            {robuxGame && (
+            {robuxGame && !isQuickLoginGame(game) && (
               <div className="mb-4">
                 <RobuxStockBadge />
               </div>
             )}
 
-            {!robuxGame && popularProducts.length > 0 && (
+            {!cartMode && popularProducts.length > 0 && (
               <div className="mb-6">
                 <div className="mb-3 flex items-center gap-2">
                   <Star className="h-5 w-5 text-fox-primary" fill="currentColor" />
@@ -1164,7 +1388,7 @@ export default function TopUpForm({
               </div>
             )}
 
-            {!robuxGame && (
+            {!cartMode && (
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                 {products.map((product) =>
                   renderTile(product, "compact", "all")
@@ -1172,26 +1396,21 @@ export default function TopUpForm({
               </div>
             )}
 
-            {/* Roblox keeps its original cards (quantity controls) */}
-            {robuxGame && (
+            {/* Cart games (Roblox / Quick Login / Robux Giftcard) get the
+                original cards with quantity controls */}
+            {cartMode && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
               {products.map((product) => {
                 const inCart =
                   !!cart[product.id];
 
-                const unavailable =
-                  robuxGame
-                    ? !isRobuxProductAvailable(
-                        product,
-                        currentRobuxStock
-                      )
-                    : isOutOfStock(product);
+                const unavailable = isRobuxProductAvailable(
+                  product,
+                  currentRobuxStock
+                ) === false;
 
-                const isSelected =
-                  robuxGame
-                    ? inCart
-                    : selected === product.id;
+                const isSelected = inCart;
 
                 return (
                   <button
@@ -1199,14 +1418,12 @@ export default function TopUpForm({
                     type="button"
                     disabled={unavailable}
                     onClick={() => {
-                      if (robuxGame) {
+                      if (cartMode) {
                         toggleCartCard(
                           product.id
                         );
                       } else {
-                        setSelected(
-                          product.id
-                        );
+                        pickProduct(product);
                       }
                     }}
                     className={`
@@ -1253,19 +1470,14 @@ export default function TopUpForm({
                       )}
 
                       <div className="font-display text-xl font-bold">
-                        {product.amount.toLocaleString()}{" "}
-                        {game.currencyName}
+                        {amountLabel(product, game.currencyName) || product.name}
                       </div>
 
-                      {product.bonus > 0 && (
-                        <div className="text-sm text-green-400 mt-1">
-                          +{product.bonus.toLocaleString()} Bonus
+                      {amountLabel(product, game.currencyName) && displayName(product) ? (
+                        <div className="text-fox-muted text-sm mt-2">
+                          {displayName(product)}
                         </div>
-                      )}
-
-                      <div className="text-fox-muted text-sm mt-2">
-                        {product.name}
-                      </div>
+                      ) : null}
 
                       <div className="font-display text-xl font-bold mt-4">
                         <DualPrice usd={product.priceUsd} />
@@ -1277,8 +1489,8 @@ export default function TopUpForm({
                         </div>
                       )}
 
-                      {/* QUANTITY FOR ROBLOX */}
-                      {robuxGame &&
+                      {/* QUANTITY (cart games) */}
+                      {cartMode &&
                         inCart &&
                         !unavailable && (
                           <div
@@ -1341,7 +1553,7 @@ export default function TopUpForm({
           <div className="fade-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-fox-primary to-fox-accent font-display font-bold text-black shadow-lg shadow-fox-primary/40">
-                3
+                {giftcardGame ? 2 : 3}
               </div>
 
               <h2 className="font-display text-xl font-bold">
@@ -1403,6 +1615,12 @@ export default function TopUpForm({
 
                     <div className="text-xs text-fox-muted">
                       {promoApplied.code}
+                      {promoApplied.applicableProductName ? (
+                        <>
+                          <span className="ml-2"> · </span>
+                          only works on &quot;{promoApplied.applicableProductName}&quot;
+                        </>
+                      ) : null}
                     </div>
                   </div>
 
@@ -1423,7 +1641,7 @@ export default function TopUpForm({
             <div className="fade-up">
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-fox-primary to-fox-accent font-display font-bold text-black shadow-lg shadow-fox-primary/40">
-                  4
+                  {giftcardGame ? 3 : 4}
                 </div>
 
                 <h2 className="font-display text-xl font-bold">
@@ -1478,7 +1696,7 @@ export default function TopUpForm({
           <div className="fade-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-fox-primary to-fox-accent font-display font-bold text-black shadow-lg shadow-fox-primary/40">
-                {user ? "5" : "4"}
+                {giftcardGame ? (user ? 4 : 3) : user ? 5 : 4}
               </div>
 
               <h2 className="font-display text-xl font-bold">
@@ -1488,7 +1706,38 @@ export default function TopUpForm({
 
             <div className="card p-5 sm:p-6">
 
-              <div className="rounded-xl border border-fox-primary/40 bg-fox-primary/5 p-4">
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => setPayWithWallet(!payWithWallet)}
+                  disabled={!walletCanCover && !payWithWallet}
+                  className={`w-full rounded-xl border p-4 mb-3 text-left transition-colors ${
+                    payWithWallet
+                      ? "border-fox-primary/60 bg-fox-primary/10"
+                      : "border-fox-border bg-fox-card hover:border-fox-primary/40"
+                  } ${!walletCanCover && !payWithWallet ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold">
+                        💰 Wallet  {walletUsd.toFixed(2)}$
+                      </div>
+                      <div className="text-sm text-fox-muted">
+                        {!walletCanCover
+                          ? `Balance not enough (need ${effectivePrice.toFixed(2)}$)`
+                          : "Pay instantly from your wallet balance"}
+                      </div>
+                    </div>
+                    {payWithWallet ? (
+                      <Check className="h-5 w-5 text-fox-primary" />
+                    ) : (
+                      <div className="h-5 w-5 rounded-full border border-fox-border" />
+                    )}
+                  </div>
+                </button>
+              )}
+
+              <div className={`rounded-xl border p-4 ${payWithWallet ? "border-fox-border opacity-60" : "border-fox-primary/40 bg-fox-primary/5"}`}>
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-semibold">
@@ -1500,7 +1749,7 @@ export default function TopUpForm({
                     </div>
                   </div>
 
-                  <Check className="h-5 w-5 text-fox-primary" />
+                  {!payWithWallet && <Check className="h-5 w-5 text-fox-primary" />}
                 </div>
               </div>
 
@@ -1556,7 +1805,7 @@ export default function TopUpForm({
                 Order Summary
               </h3>
 
-              {robuxGame ? (
+              {cartMode ? (
                 cartLines.length > 0 ? (
                   <div className="space-y-4">
 
@@ -1570,10 +1819,9 @@ export default function TopUpForm({
                         >
                           <div>
                             <div>
-                              {
-                                line.product.amount
-                              }{" "}
-                              Robux
+                              {giftcardGame
+                                ? line.product.name
+                                : `${line.product.amount} ${game.currencyName}`}
                             </div>
 
                             <div className="text-xs text-fox-muted">
@@ -1592,30 +1840,32 @@ export default function TopUpForm({
                       )
                     )}
 
-                    <div className="border-t border-fox-border pt-4">
+                    {!giftcardGame && (
+                      <div className="border-t border-fox-border pt-4">
 
-                      <div className="flex justify-between text-sm">
-                        <span className="text-fox-muted">
-                          Total Robux
-                        </span>
-
-                        <span>
-                          {cartRobuxTotal.toLocaleString()}
-                        </span>
-                      </div>
-
-                      {uid && (
-                        <div className="flex justify-between text-sm mt-3">
+                        <div className="flex justify-between text-sm">
                           <span className="text-fox-muted">
-                            Username
+                            Total Robux
                           </span>
 
-                          <span className="font-mono text-xs">
-                            {uid}
+                          <span>
+                            {cartRobuxTotal.toLocaleString()}
                           </span>
                         </div>
-                      )}
-                    </div>
+
+                        {uid && (
+                          <div className="flex justify-between text-sm mt-3">
+                            <span className="text-fox-muted">
+                              Username
+                            </span>
+
+                            <span className="font-mono text-xs">
+                              {uid}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-fox-muted">
@@ -1626,12 +1876,7 @@ export default function TopUpForm({
                 <div className="space-y-4">
 
                   <div className="flex justify-between">
-                    <span>
-                      {
-                        selectedProduct.amount
-                      }{" "}
-                      {game.currencyName}
-                    </span>
+                    <span>{amountLabel(selectedProduct, game.currencyName) || selectedProduct.name}</span>
 
                     <span>
                       {format(
@@ -1693,7 +1938,7 @@ export default function TopUpForm({
                       <span>
                         -
                         {format(
-                          promoApplied.discountUsd
+                          promoDiscount
                         )}
                       </span>
                     </div>
@@ -1727,6 +1972,108 @@ export default function TopUpForm({
           </div>
         </div>
       </div>
+
+      {/* First Top-Up Bonus confirmation */}
+      {firstTopUpCandidate && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div
+            aria-hidden
+            onClick={() => setFirstTopUpCandidate(null)}
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="first-topup-title"
+            className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-fox-border bg-fox-card shadow-2xl"
+          >
+            {/* Header band */}
+            <div className="relative bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent px-5 pt-5 pb-4 border-b border-fox-border">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/30">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 pr-6">
+                  <h3
+                    id="first-topup-title"
+                    className="font-display text-lg font-bold leading-snug"
+                  >
+                    បញ្ជាក់កញ្ចប់បញ្ចូលលើកដំបូង
+                  </h3>
+                  <p className="mt-0.5 text-xs text-fox-muted">
+                    First Top-Up Bonus
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFirstTopUpCandidate(null)}
+                className="absolute right-3 top-3 rounded-lg p-1.5 text-fox-muted hover:bg-white/5 hover:text-fox-text"
+                aria-label="បិទ"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4 space-y-4">
+              <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 p-3.5">
+                <p className="text-sm leading-relaxed text-amber-100/90">
+                  សូមបញ្ជាក់ថា អ្នក{" "}
+                  <strong className="text-amber-200">មិនធ្លាប់</strong> បញ្ចូលកញ្ចប់នេះ
+                  ទៅលើគណនី{" "}
+                  <strong className="text-amber-200">
+                    {uid.trim() || "របស់អ្នក"}
+                  </strong>{" "}
+                  ពីមុនទេ។
+                </p>
+              </div>
+
+              <p className="text-sm leading-relaxed text-fox-muted">
+                កញ្ចប់ <strong className="text-fox-text">បញ្ចូលលើកដំបូង</strong> នឹងផ្តល់{" "}
+                <strong className="text-fox-text">{game.currencyName}</strong> បន្ថែម
+                តែពេលបញ្ចូលលើកដំបូងប៉ុណ្ណោះ។ ប្រសិនបើគណនីនេះ
+                ធ្លាប់បញ្ចូលកញ្ចប់នេះរួចហើយ ប្រព័ន្ធនឹងបដិសេធការបញ្ជាទិញ។
+              </p>
+
+              <div className="rounded-xl border border-fox-border bg-fox-bg/60 p-3.5 flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-display text-base font-bold text-fox-text">
+                    {amountLabel(firstTopUpCandidate, game.currencyName)}
+                  </div>
+                  <div className="text-xs text-fox-muted mt-0.5">
+                    {firstTopUpCandidate.name}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <DualPrice usd={firstTopUpCandidate.priceUsd} />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 pb-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setFirstTopUpCandidate(null)}
+                className="btn-ghost flex-1 !py-2.5 text-sm justify-center"
+              >
+                ត្រឡប់ក្រោយ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelected(firstTopUpCandidate.id);
+                  setFirstTopUpCandidate(null);
+                }}
+                className="btn-primary flex-1 !py-2.5 text-sm justify-center"
+              >
+                បញ្ជាក់
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

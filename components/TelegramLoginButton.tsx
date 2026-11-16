@@ -1,66 +1,109 @@
 "use client";
 
-import { useState } from "react";
-import { Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
-// Sends the user to Telegram's own redirect-based OAuth page
-// (oauth.telegram.org) instead of embedding Telegram's JS widget in an
-// iframe. The old iframe widget relies on cross-site cookies/storage that
-// Chrome blocks for some users (their "Signature mismatch" / silently
-// broken widget symptom) — a plain top-level redirect avoids that
-// entirely and works the same way in every browser.
+// Telegram Login Widget button.
 //
-// Flow:
-//   1. User clicks the button -> full-page navigation to oauth.telegram.org
-//   2. Telegram shows its own login/approve screen
-//   3. Telegram redirects back to /api/auth/telegram/callback with the
-//      signed auth payload as query params
-//   4. That route verifies the signature (same HMAC check as before) and
-//      creates the session, then redirects to `next`
+// Renders Telegram's official login widget in an iframe; the widget calls
+// our global callback with the signed payload, which POSTs it to
+// /api/auth/telegram (server verifies hash + auth_date against the bot
+// token) and sets the session cookie. Telegram only renders the widget for
+// the domain it's configured for — add the site domain in the bot's
+// /setdomain command via @BotFather.
+//
+// Env needed:
+//   NEXT_PUBLIC_TELEGRAM_BOT_USERNAME — bot username WITHOUT the @, e.g.
+//   "sharustore_bot" (read at build/runtime via next.config inline; passed
+//   in as a prop so this component stays server-agnostic).
+
+declare global {
+  interface Window {
+    OnTelegramAuth?: (user: Record<string, unknown>) => void;
+  }
+}
+
 export default function TelegramLoginButton({
+  botUsername,
   next = "/account",
   size = "large",
+  label = "Continue with Telegram",
 }: {
+  botUsername: string;
   next?: string;
   size?: "small" | "medium" | "large";
+  label?: string;
 }) {
-  const [loading, setLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
-  const botId = process.env.NEXT_PUBLIC_TELEGRAM_BOT_ID;
+  useEffect(() => {
+    mountedRef.current = true;
+    const host = containerRef.current;
 
-  if (!botId) {
-    // Not configured yet (NEXT_PUBLIC_TELEGRAM_BOT_ID missing from .env) —
-    // quietly hide the button rather than showing a broken one.
-    return null;
-  }
+    // Global callback the widget invokes with the signed user object.
+    window.OnTelegramAuth = async (user: Record<string, unknown>) => {
+      try {
+        const res = await fetch("/api/auth/telegram", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(user),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Telegram sign-in failed");
+        // Full reload so server components (header, account menu) re-render
+        // with the new session.
+        window.location.href = next.startsWith("/") ? next : "/account";
+      } catch (err: any) {
+        if (mountedRef.current) setError(err.message || "Telegram sign-in failed");
+      }
+    };
 
-  const sizeClasses: Record<string, string> = {
-    small: "px-4 py-2 text-sm",
-    medium: "px-5 py-2.5 text-sm",
-    large: "px-6 py-3 text-base",
-  };
+    // Telegram's widget script (only loaded once).
+    if (!document.getElementById("telegram-login-script")) {
+      const script = document.createElement("script");
+      script.id = "telegram-login-script";
+      script.src = "https://telegram.org/js/telegram-widget.js?22";
+      script.async = true;
+      document.head.appendChild(script);
+    }
 
-  function handleClick() {
-    setLoading(true);
-    const origin = window.location.origin;
-    const returnTo = `${origin}/api/auth/telegram/callback?next=${encodeURIComponent(next)}`;
-    const authUrl =
-      `https://oauth.telegram.org/auth?bot_id=${encodeURIComponent(botId!)}` +
-      `&origin=${encodeURIComponent(origin)}` +
-      `&embed=0&request_access=write` +
-      `&return_to=${encodeURIComponent(returnTo)}`;
-    window.location.href = authUrl;
-  }
+    // Render the widget button into our container.
+    const el = containerRef.current;
+    // Captured for the cleanup below (Telegram writes its iframe straight
+    // into this element, so React can't remove it for us).
+    if (el) {
+      el.innerHTML = "";
+      const sizePx = size === "large" ? "large" : size === "medium" ? "medium" : "small";
+      const widget = document.createElement("script");
+      widget.src = "https://telegram.org/js/telegram-widget.js?22";
+      widget.setAttribute("data-telegram-login", botUsername);
+      widget.setAttribute("data-size", sizePx);
+      widget.setAttribute("data-radius", "8");
+      widget.setAttribute("data-onauth", "OnTelegramAuth(user)");
+      widget.setAttribute("data-request-access", "write");
+      el.appendChild(widget);
+    }
+
+    return () => {
+      mountedRef.current = false;
+      // Drop the iframe Telegram rendered. React never managed this DOM
+      // (we wrote it imperatively), so without this the button lingers when
+      // the header unmounts/rebuilds it — e.g. after navigating pages.
+      if (host) host.innerHTML = "";
+    };
+  }, [botUsername, next, size]);
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg bg-[#2AABEE] font-medium text-white transition hover:bg-[#229ED9] disabled:opacity-60 ${sizeClasses[size]}`}
-    >
-      <Send className="h-4 w-4" strokeWidth={2.5} />
-      {loading ? "Redirecting..." : "Log in with Telegram"}
-    </button>
+    <div>
+      <div ref={containerRef} className="flex justify-center min-h-[40px]" />
+      {!botUsername && (
+        <p className="text-xs text-red-400 text-center mt-2">
+          Telegram login is not configured (missing bot username).
+        </p>
+      )}
+      {error && <p className="text-xs text-red-400 text-center mt-2">{error}</p>}
+      <noscript>Enable JavaScript to sign in with Telegram.</noscript>
+    </div>
   );
 }

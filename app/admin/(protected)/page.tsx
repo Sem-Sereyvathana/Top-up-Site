@@ -1,44 +1,99 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import RevenueSparkline from "@/components/RevenueSparkline";
+import MonthlyRevenueChart from "@/components/MonthlyRevenueChart";
 import {
   ShoppingBag,
   DollarSign,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  Gamepad2,
+  TrendingUp,
   Package,
   ArrowRight,
-  TrendingUp,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
+// Dashboard = the old dashboard + the Revenue tab, merged.
+//
+//   * Three slim "today" tiles that reset every day at 00:00 (UTC+7):
+//       - Total orders   — every order placed today
+//       - Total revenue  — money actually collected today
+//       - Profit         — raw profit across every package sold today,
+//                          whatever its status (pending/failed included), so
+//                          this is a running business figure, not an
+//                          accounting one. Refunded/cancelled are excluded.
+//   * Monthly revenue chart (current month, day by day) rendered in the same
+//     card style as Recent Orders below it.
+//   * Recent Orders table, unchanged.
+//
+// The separate /admin/revenue page was removed — this replaces it.
+//
+// Day boundaries use UTC+7 (Cambodia), same as the old Revenue tab.
+
+const TZ_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function startOfDayUtc7(date: Date): Date {
+  const shifted = new Date(date.getTime() + TZ_OFFSET_MS);
+  shifted.setUTCHours(0, 0, 0, 0);
+  return new Date(shifted.getTime() - TZ_OFFSET_MS);
+}
+
+function startOfMonthUtc7(date: Date): Date {
+  const shifted = new Date(date.getTime() + TZ_OFFSET_MS);
+  shifted.setUTCDate(1);
+  shifted.setUTCHours(0, 0, 0, 0);
+  return new Date(shifted.getTime() - TZ_OFFSET_MS);
+}
+
+// Statuses that represent money actually collected.
+const COLLECTED = ["PAID", "PROCESSING", "DELIVERED"];
+// Statuses the profit tile counts (everything except refunded/cancelled —
+// those never became a sale). Deliberately includes PENDING and FAILED per
+// the operator's request: this tile is a daily business overview, not a
+// ledger.
+const PROFIT_STATUSES = ["PENDING", "PAID", "PROCESSING", "DELIVERED", "FAILED"];
+
 export default async function AdminDashboard() {
   const now = new Date();
-  const since = new Date(now);
-  since.setDate(since.getDate() - 29);
-  since.setHours(0, 0, 0, 0);
+  const dayStart = startOfDayUtc7(now);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  const monthStart = startOfMonthUtc7(now);
 
   const [
-    totalOrders,
-    pendingOrders,
-    deliveredOrders,
-    failedOrders,
-    totalRevenue,
+    todayOrders,
+    todayCollected,
+    todayProfitOrders,
     recentOrders,
-    gameCount,
-    productCount,
-    last30PaidOrders,
+    monthOrders,
   ] = await Promise.all([
-    prisma.order.count(),
-    prisma.order.count({ where: { status: "PENDING" } }),
-    prisma.order.count({ where: { status: "DELIVERED" } }),
-    prisma.order.count({ where: { status: "FAILED" } }),
+    // Total orders placed today — "placed" uses createdAt so an order that is
+    // still PENDING still counts on the day the customer made it.
+    prisma.order.count({
+      where: { createdAt: { gte: dayStart, lt: dayEnd } },
+    }),
+    // Revenue actually collected today (paidAt, falling back to createdAt for
+    // legacy rows without paidAt).
     prisma.order.aggregate({
-      where: { status: { in: ["PAID", "DELIVERED"] } },
+      where: {
+        status: { in: COLLECTED },
+        OR: [
+          { paidAt: { gte: dayStart, lt: dayEnd } },
+          { AND: [{ paidAt: null }, { createdAt: { gte: dayStart, lt: dayEnd } }] },
+        ],
+      },
       _sum: { amountUsd: true },
+    }),
+    // Profit tile: every order of today in PROFIT_STATUSES, with the columns
+    // needed to work out per-line profit.
+    prisma.order.findMany({
+      where: {
+        status: { in: PROFIT_STATUSES },
+        createdAt: { gte: dayStart, lt: dayEnd },
+      },
+      select: {
+        amountUsd: true,
+        costUsd: true,
+        productId: true,
+        items: { select: { productId: true, quantity: true, unitPriceUsd: true } },
+      },
     }),
     prisma.order.findMany({
       take: 10,
@@ -46,50 +101,140 @@ export default async function AdminDashboard() {
       include: {
         game: { select: { name: true } },
         product: { select: { name: true } },
-        // Only present for multi-package cart orders (Roblox) — combined
-        // into a single Robux total in the table below.
         items: { select: { amount: true, quantity: true } },
       },
     }),
-    prisma.game.count({ where: { active: true } }),
-    prisma.product.count({ where: { active: true } }),
+    // Current month for the chart (profit + revenue per day).
     prisma.order.findMany({
       where: {
-        status: { in: ["PAID", "DELIVERED"] },
-        paidAt: { gte: since },
+        status: { in: PROFIT_STATUSES },
+        OR: [
+          { paidAt: { gte: monthStart } },
+          { AND: [{ paidAt: null }, { createdAt: { gte: monthStart } }] },
+        ],
       },
-      select: { paidAt: true, amountUsd: true },
+      select: {
+        amountUsd: true,
+        costUsd: true,
+        paidAt: true,
+        createdAt: true,
+        productId: true,
+        items: { select: { productId: true, quantity: true, unitPriceUsd: true } },
+      },
     }),
   ]);
 
-  // Aggregate last-30-days revenue.
-  const dayKey = (d: Date) => d.toISOString().slice(0, 10);
-  const buckets = new Map<string, { revenue: number; count: number }>();
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(since);
-    d.setDate(since.getDate() + i);
-    buckets.set(dayKey(d), { revenue: 0, count: 0 });
+  // ── Profit: price paid − cost snapshot ──────────────────────────────
+  // Orders with no cost snapshot fall back to the product's CURRENT cost
+  // (marked "estimated"), matching the old Revenue tab's rule. Cart orders
+  // price per line; single-package orders use amountUsd directly.
+  const missingCostIds = [
+    ...new Set(
+      todayProfitOrders
+        .filter((o) => o.costUsd === null)
+        .map((o) => (o.items.length > 0 ? o.items[0].productId : o.productId))
+    ),
+  ];
+  const costById = new Map<string, number | null>();
+  if (missingCostIds.length > 0) {
+    const products = await prisma.product.findMany({
+      where: { id: { in: missingCostIds } },
+      select: { id: true, costUsd: true },
+    });
+    for (const p of products) costById.set(p.id, p.costUsd);
   }
-  for (const o of last30PaidOrders) {
-    if (!o.paidAt) continue;
-    const k = dayKey(o.paidAt);
-    const b = buckets.get(k);
-    if (b) {
-      b.revenue += o.amountUsd;
-      b.count += 1;
-    }
-  }
-  const dailyRevenue = Array.from(buckets.entries()).map(([date, v]) => ({ date, ...v }));
-  const last30Total = dailyRevenue.reduce((s, d) => s + d.revenue, 0);
 
-  const stats = [
-    { label: "Total Orders", value: totalOrders.toLocaleString(),                          color: "text-fox-text",    Icon: ShoppingBag, gradient: "from-fox-primary/20 to-fox-accent/5" },
-    { label: "Revenue",      value: `$${(totalRevenue._sum.amountUsd ?? 0).toFixed(2)}`,   color: "text-fox-primary", Icon: DollarSign,  gradient: "from-fox-primary/25 to-fox-gold/5" },
-    { label: "Delivered",    value: deliveredOrders.toLocaleString(),                      color: "text-green-400",   Icon: CheckCircle2, gradient: "from-green-500/20 to-green-500/5" },
-    { label: "Pending",      value: pendingOrders.toLocaleString(),                        color: "text-yellow-400",  Icon: Clock,       gradient: "from-yellow-500/20 to-yellow-500/5" },
-    { label: "Failed",       value: failedOrders.toLocaleString(),                         color: "text-red-400",     Icon: XCircle,     gradient: "from-red-500/15 to-red-500/5" },
-    { label: "Active Games", value: gameCount.toString(),                                  color: "text-fox-accent",  Icon: Gamepad2,    gradient: "from-fox-accent/20 to-fox-accent/5" },
-    { label: "Products",     value: productCount.toString(),                               color: "text-fox-accent",  Icon: Package,     gradient: "from-fox-accent/15 to-fox-gold/5" },
+  const profitFor = (o: {
+    amountUsd: number;
+    costUsd: number | null;
+    productId: string;
+    items: { productId: string; quantity: number; unitPriceUsd: number }[];
+  }): number | null => {
+    if (o.costUsd !== null && o.costUsd !== undefined) {
+      return o.amountUsd - o.costUsd;
+    }
+    // No snapshot → estimate from the current product cost.
+    const pid = o.items.length > 0 ? o.items[0].productId : o.productId;
+    const currentCost = costById.get(pid);
+    if (currentCost !== null && currentCost !== undefined && currentCost > 0) {
+      const units = o.items.reduce((n, it) => n + it.quantity, 0) || 1;
+      return o.amountUsd - currentCost * units;
+    }
+    return null; // completely unknown — excluded from the tile
+  };
+
+  let todayProfit = 0;
+  for (const o of todayProfitOrders) {
+    const p = profitFor(o);
+    if (p !== null) todayProfit += p;
+  }
+
+  // ── Monthly daily series ───────────────────────────────────────────
+  // Same cost fallback, resolved in one query for the whole month.
+  const monthMissingIds = [
+    ...new Set(
+      monthOrders
+        .filter((o) => o.costUsd === null)
+        .map((o) => (o.items.length > 0 ? o.items[0].productId : o.productId))
+    ),
+  ];
+  if (monthMissingIds.length > 0) {
+    const products = await prisma.product.findMany({
+      where: { id: { in: monthMissingIds } },
+      select: { id: true, costUsd: true },
+    });
+    for (const p of products) costById.set(p.id, p.costUsd);
+  }
+
+  const dayKey = (d: Date) => new Date(d.getTime() + TZ_OFFSET_MS).toISOString().slice(0, 10);
+  const daysInMonth = new Date(
+    Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 0)
+  ).getUTCDate();
+  const buckets = new Map<string, { date: string; revenue: number; profit: number; orders: number }>();
+  for (let i = 0; i < daysInMonth; i++) {
+    const d = new Date(monthStart.getTime() + i * 24 * 60 * 60 * 1000);
+    buckets.set(dayKey(d), { date: dayKey(d), revenue: 0, profit: 0, orders: 0 });
+  }
+  for (const o of monthOrders) {
+    const when = o.paidAt ?? o.createdAt;
+    const b = buckets.get(dayKey(when));
+    if (!b) continue;
+    // Only collected orders add to revenue; profit counts the same statuses
+    // as the tile.
+    if (COLLECTED.includes((o as { status?: string }).status ?? "")) b.revenue += o.amountUsd;
+    const p = profitFor(o);
+    if (p !== null) b.profit += p;
+    b.orders += 1;
+  }
+  const monthly = Array.from(buckets.values());
+  const monthTotalRevenue = monthly.reduce((s, d) => s + d.revenue, 0);
+  const monthTotalProfit = monthly.reduce((s, d) => s + d.profit, 0);
+
+  const money = (n: number) => `$${n.toFixed(2)}`;
+
+  const tiles = [
+    {
+      label: "Total Orders",
+      sub: "today",
+      value: todayOrders.toLocaleString(),
+      color: "text-fox-text",
+      Icon: ShoppingBag,
+    },
+    {
+      label: "Total Revenue",
+      sub: "collected today",
+      value: money(todayCollected._sum.amountUsd ?? 0),
+      color: "text-fox-primary",
+      Icon: DollarSign,
+    },
+    {
+      label: "Profit",
+      sub: "all packages today",
+      // Negative profit is possible (cost > price) — show it in red.
+      value: `${todayProfit < 0 ? "-" : ""}${money(Math.abs(todayProfit))}`,
+      color: todayProfit >= 0 ? "text-green-400" : "text-red-400",
+      Icon: TrendingUp,
+    },
   ];
 
   return (
@@ -105,73 +250,50 @@ export default async function AdminDashboard() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 mb-8">
-        {stats.map((s) => (
+      {/* Three thin daily tiles — reset at 00:00 (UTC+7). */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+        {tiles.map((t) => (
           <div
-            key={s.label}
-            className="group relative overflow-hidden card p-4 transition-all duration-300 hover:border-fox-primary/40 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-fox-primary/10"
+            key={t.label}
+            className="card flex items-center justify-between px-4 py-3 transition-colors hover:border-fox-primary/40"
           >
-            {/* Gradient overlay */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${s.gradient} opacity-60 pointer-events-none rounded-2xl`} />
-
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-[10px] sm:text-xs text-fox-muted uppercase tracking-wider">{s.label}</div>
-                <div className={`flex h-8 w-8 items-center justify-center rounded-lg bg-fox-surface/80 ${s.color} transition-transform duration-300 group-hover:scale-110`}>
-                  <s.Icon className="h-4 w-4" strokeWidth={2} />
-                </div>
-              </div>
-              <div className={`font-display text-xl sm:text-2xl font-bold ${s.color}`}>{s.value}</div>
-
-              {/* CSS mini bar — purely decorative */}
-              <div className="mt-3 h-1 rounded-full bg-fox-border overflow-hidden">
-                <div
-                  className={`h-full rounded-full bg-gradient-to-r ${
-                    s.color.includes("green") ? "from-green-500 to-green-400" :
-                    s.color.includes("yellow") ? "from-yellow-500 to-yellow-400" :
-                    s.color.includes("red") ? "from-red-500 to-red-400" :
-                    "from-fox-primary to-fox-accent"
-                  }`}
-                  style={{ width: `${Math.min(100, Math.max(15, (Number(s.value.replace(/[$,]/g, "")) || 1) * 10))}%` }}
-                />
-              </div>
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-wider text-fox-muted">{t.label}</div>
+              <div className={`font-display text-2xl font-bold leading-tight ${t.color}`}>{t.value}</div>
+              <div className="text-[10px] text-fox-muted/70">{t.sub}</div>
+            </div>
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-fox-surface/80 ${t.color}`}>
+              <t.Icon className="h-4 w-4" strokeWidth={2} />
             </div>
           </div>
         ))}
       </div>
 
-      <div className="card overflow-hidden">
+      {/* Monthly revenue — same card style as Recent Orders below. */}
+      <div className="card overflow-hidden mb-8">
         <div className="p-4 sm:p-5 border-b border-fox-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-fox-primary" strokeWidth={2} />
-            <h2 className="font-semibold">Revenue — last 30 days</h2>
+            <h2 className="font-semibold">Monthly Revenue</h2>
+            <span className="text-xs text-fox-muted">
+              {dayKey(monthStart).slice(0, 7)} · UTC+7
+            </span>
           </div>
-          <div className="text-xs text-fox-muted">
-            <span className="text-fox-primary font-bold text-sm">${last30Total.toFixed(2)}</span> total
+          <div className="flex items-center gap-4 text-xs text-fox-muted">
+            <span>
+              <span className="text-fox-primary font-bold text-sm">{money(monthTotalRevenue)}</span> revenue
+            </span>
+            <span>
+              <span className={`font-bold text-sm ${monthTotalProfit >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {money(monthTotalProfit)}
+              </span>{" "}
+              profit
+            </span>
           </div>
         </div>
         <div className="p-4 sm:p-5">
-          <RevenueSparkline data={dailyRevenue} />
+          <MonthlyRevenueChart data={monthly} />
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 my-8">
-        {[
-          { href: "/admin/banners", icon: "🖼️", label: "Banners" },
-          { href: "/admin/blog", icon: "📝", label: "Blog" },
-          { href: "/admin/customers", icon: "👥", label: "Customers" },
-          { href: "/admin/banlist", icon: "🚫", label: "Banlist" },
-          { href: "/admin/audit-logs", icon: "📜", label: "Audit" },
-        ].map((q) => (
-          <Link
-            key={q.href}
-            href={q.href}
-            className="card p-4 text-center hover:border-fox-primary/40 hover:-translate-y-0.5 transition-all"
-          >
-            <div className="text-2xl mb-1">{q.icon}</div>
-            <div className="text-xs font-medium">{q.label}</div>
-          </Link>
-        ))}
       </div>
 
       <div className="card overflow-hidden">

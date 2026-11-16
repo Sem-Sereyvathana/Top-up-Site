@@ -1,4 +1,5 @@
-﻿import crypto from "crypto";
+﻿import { isSimulationMode } from "./simMode";
+import crypto from "crypto";
 
 // KHPay supports a single unified KHQR code that is scannable by any
 // Cambodian bank app (ABA Pay, ACLEDA Pay, Wing, TrueMoney, Sathapana,
@@ -26,7 +27,7 @@ export interface PaymentInitResult {
 
 const KHPAY_BASE = (process.env.KHPAY_BASE_URL || "https://khpay.site/api/v1").trim();
 const KHPAY_KEY = (process.env.KHPAY_API_KEY || "").trim();
-const SIM_MODE = process.env.PAYMENT_SIMULATION_MODE === "true";
+const SIM_MODE = isSimulationMode();
 
 /** Common headers so Cloudflare doesn't serve a JS challenge to Vercel IPs. */
 const KHPAY_HEADERS: Record<string, string> = {
@@ -188,7 +189,7 @@ export function verifyWebhook(
 
   const secret = process.env.KHPAY_WEBHOOK_SECRET;
   if (!secret) {
-    console.warn("[webhook] KHPAY_WEBHOOK_SECRET not set â€” rejecting.");
+    console.warn("[webhook] KHPAY_WEBHOOK_SECRET not set — rejecting.");
     return false;
   }
 

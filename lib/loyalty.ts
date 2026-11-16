@@ -25,14 +25,21 @@ export async function pointsToUsd(points: number): Promise<number> {
 // and the admin manual-status-update route without double-crediting.
 export async function awardPointsForOrder(orderId: string) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order || !order.userId || order.pointsAwarded) return;
+  if (!order || !order.userId) return;
+
+  // RACE-SAFE claim: flip pointsAwarded false -> true atomically. Only the
+  // caller whose updateMany matches 1 row gets to credit points — a second
+  // concurrent caller (webhook + recovery job + admin route) matches 0 rows
+  // and returns, so points can never be awarded twice.
+  const claimed = await prisma.order.updateMany({
+    where: { id: orderId, pointsAwarded: false },
+    data: { pointsAwarded: true },
+  });
+  if (claimed.count === 0) return;
 
   const { pointsPerUsd } = await getPointsSettings();
   const earned = Math.floor(order.amountUsd * pointsPerUsd);
-  if (earned <= 0) {
-    await prisma.order.update({ where: { id: order.id }, data: { pointsAwarded: true } });
-    return;
-  }
+  if (earned <= 0) return;
 
   await prisma.$transaction([
     prisma.user.update({
@@ -50,36 +57,56 @@ export async function awardPointsForOrder(orderId: string) {
     }),
     prisma.order.update({
       where: { id: order.id },
-      data: { pointsEarned: earned, pointsAwarded: true },
+      data: { pointsEarned: earned },
     }),
   ]);
 }
 
 // Called when a PENDING order that had points redeemed ends up FAILED /
-// CANCELLED / REFUNDED — gives the spent points back. Idempotent: it checks
-// for an existing REFUND ledger entry for this order before crediting again.
+// CANCELLED / REFUNDED — gives the spent points back.
+//
+// Idempotency without a schema change: re-check the REFUND ledger entry
+// INSIDE a serializable transaction, so two concurrent callers (webhook +
+// recovery job) can't both pass the findFirst check and double-refund. If
+// a concurrent transaction commits first, this one's create fails the
+// serialization conflict and Prisma throws — the caller's catch treats a
+// duplicate as success (the refund exists, which is the goal).
 export async function refundRedeemedPointsForOrder(orderId: string) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order || !order.userId || order.pointsRedeemed <= 0) return;
 
-  const existingRefund = await prisma.pointsLedger.findFirst({
-    where: { orderId: order.id, type: "REFUND" },
-  });
-  if (existingRefund) return;
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        const existingRefund = await tx.pointsLedger.findFirst({
+          where: { orderId: order.id, type: "REFUND" },
+        });
+        if (existingRefund) return;
 
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: order.userId },
-      data: { points: { increment: order.pointsRedeemed } },
-    }),
-    prisma.pointsLedger.create({
-      data: {
-        userId: order.userId,
-        orderId: order.id,
-        type: "REFUND",
-        points: order.pointsRedeemed,
-        note: `Refund for ${order.orderNumber}`,
+        await tx.user.update({
+          where: { id: order.userId! },
+          data: { points: { increment: order.pointsRedeemed } },
+        });
+        await tx.pointsLedger.create({
+          data: {
+            userId: order.userId!,
+            orderId: order.id,
+            type: "REFUND",
+            points: order.pointsRedeemed,
+            note: `Refund for ${order.orderNumber}`,
+          },
+        });
       },
-    }),
-  ]);
+      { isolationLevel: "Serializable" }
+    );
+  } catch (err) {
+    // A serialization failure means a concurrent refund won — that is the
+    // desired outcome (points refunded exactly once), so don't surface it.
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/serializ|conflict|deadlock/i.test(msg)) {
+      console.warn(`[loyalty] refund for ${order.orderNumber} already handled concurrently`);
+      return;
+    }
+    throw err;
+  }
 }

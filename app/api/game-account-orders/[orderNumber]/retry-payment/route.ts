@@ -5,25 +5,36 @@ import { NextRequest, NextResponse } from "next/server";
 import { initiatePayment } from "@/lib/payment";
 import { resolvePublicUrl } from "@/lib/utils";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { getCurrentUserRecord } from "@/lib/userAuth";
+import { getClientIp } from "@/lib/clientIp";
 
 // Server-side equivalent of app/api/orders/[orderNumber]/retry-payment —
 // see that file for why this exists (avoids ever sending KHPAY_API_KEY to
 // the browser).
 export async function POST(
   req: NextRequest,
-  { params }: { params: { orderNumber: string } }
+  { params }: { params: Promise<{  orderNumber: string  }> }
 ) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!(await checkRateLimit(`retry-payment:account:${ip}`, 10, 10 * 60 * 1000))) {
+  const { orderNumber } = await params;
+  const ip = getClientIp(req);
+  if (!(await checkRateLimit(`retry-payment:account:${ip}`, 10, 10 * 60 * 1000, { failClosed: true }))) {
     return NextResponse.json({ error: "Too many requests. Please wait a bit and try again." }, { status: 429 });
   }
 
   const order = await prisma.gameAccountOrder.findUnique({
-    where: { orderNumber: params.orderNumber.toUpperCase() },
+    where: { orderNumber: orderNumber.toUpperCase() },
   });
   if (!order) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
+
+  // Owner-only: only the signed-in buyer may (re)start payment on their own
+  // order — and this MUST be checked before any KHPay API call is made.
+  const user = await getCurrentUserRecord();
+  if (!user || !order.userId || user.id !== order.userId) {
+    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+
   if (order.status !== "PENDING") {
     return NextResponse.json({ error: "Order is no longer pending" }, { status: 409 });
   }

@@ -11,6 +11,15 @@
 export const LOGIN_REQUIRED_CODE = "LOGIN_REQUIRED";
 export const LOGIN_REQUIRED_EVENT = "sharustore:login-required";
 
+// Master switch, same idea as PAYMENT_SIMULATION_MODE. In .env (and Vercel):
+//   NEXT_PUBLIC_REQUIRE_GOOGLE_LOGIN="false"  -> guests can order without signing in
+//   anything else / not set                   -> Google sign-in is required (default)
+// It's NEXT_PUBLIC_ so the browser and the server both see the same value.
+// Next.js reads it when the app starts/builds, so restart `npm run dev`
+// (or redeploy on Vercel) after changing it.
+export const GOOGLE_LOGIN_REQUIRED =
+  process.env.NEXT_PUBLIC_REQUIRE_GOOGLE_LOGIN !== "false";
+
 export function requireLogin(): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(

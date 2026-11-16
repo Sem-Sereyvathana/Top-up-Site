@@ -6,7 +6,6 @@ export default function GameItemsCartPage() {
       kind="items"
       title="ទំនិញដែលអ្នកបានជ្រើសរើស"
       backHref="/game-items"
-      checkoutHref="/game-items/checkout"
       allowQuantity
     />
   );

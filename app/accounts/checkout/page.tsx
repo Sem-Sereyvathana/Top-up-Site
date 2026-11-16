@@ -1,18 +1,15 @@
 "use client";
 
-import ShopCheckout from "@/components/ShopCheckout";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export default function AccountsCheckoutPage() {
-  return (
-    <ShopCheckout
-      kind="accounts"
-      checkoutEndpoint="/api/game-account-orders"
-      cartItemIdField="gameAccountId"
-      requireUsername={false}
-      backHref="/accounts"
-      pageTitle="Checkout — Accounts"
-      paymentPageHref={(n) => `/checkout/accounts/${n}`}
-      collectContact={false}
-    />
-  );
+// The old Accounts-only checkout is gone: every buy button now routes to the
+// COMBINED checkout (/cart/checkout), which sums both marketplace carts into
+// one payment. This page just forwards anyone with the old URL saved.
+export default function AccountsCheckoutRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/cart/checkout");
+  }, [router]);
+  return null;
 }

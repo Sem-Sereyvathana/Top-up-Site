@@ -18,12 +18,19 @@ import { prisma } from "./prisma";
  * @param key      Unique identifier (e.g. `admin-auth:203.0.113.4`)
  * @param max      Maximum requests allowed in the window
  * @param windowMs Window duration in milliseconds
+ * @param opts     failClosed: when true, a database error BLOCKS the request
+ *                 instead of allowing it. Use for login, register, admin
+ *                 auth, webhook, order creation and payment retry — the
+ *                 places where "let it through" is a security hole. Harmless
+ *                 read-only routes can leave it off so a DB hiccup doesn't
+ *                 break the site.
  * @returns        true if the request is allowed, false if rate-limited
  */
 export async function checkRateLimit(
   key: string,
   max: number,
-  windowMs: number
+  windowMs: number,
+  opts: { failClosed?: boolean } = {}
 ): Promise<boolean> {
   const now = Date.now();
   // Fixed window: all requests within the same windowMs-sized slice of
@@ -52,9 +59,15 @@ export async function checkRateLimit(
 
     return bucket.count <= max;
   } catch (err) {
-    // Fail open: a rate-limit table hiccup shouldn't take down login or
-    // registration entirely. This only gates abuse-prevention, not
-    // correctness, so availability wins here.
+    if (opts.failClosed) {
+      // Security-sensitive endpoint: a dead rate limiter must not silently
+      // disable brute-force protection, so block the request instead.
+      console.error("[rateLimit] check failed, FAIL-CLOSED blocking request:", err);
+      return false;
+    }
+    // Fail open: a rate-limit table hiccup shouldn't take down a harmless
+    // read-only route. This only gates abuse-prevention, not correctness,
+    // so availability wins there.
     console.error("[rateLimit] check failed, allowing request:", err);
     return true;
   }

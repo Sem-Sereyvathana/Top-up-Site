@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { authenticator } from "otplib";
 import { prisma } from "./prisma";
@@ -45,6 +46,10 @@ export async function createSession(payload: AdminSession): Promise<string> {
 export async function verifySession(token: string): Promise<AdminSession | null> {
   try {
     const { payload } = await jwtVerify(token, getSecret());
+    // Only a real session token counts. The short-lived "totp_pending" token
+    // (issued after the password step, before the 2FA code) is signed with the
+    // same secret and must never be accepted as a login.
+    if (payload.type !== "session" || !payload.adminId) return null;
     return {
       adminId: payload.adminId as string,
       email: payload.email as string,
@@ -56,7 +61,7 @@ export async function verifySession(token: string): Promise<AdminSession | null>
 }
 
 export async function setSessionCookie(token: string) {
-  cookies().set(SESSION_COOKIE, token, {
+  (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -66,11 +71,11 @@ export async function setSessionCookie(token: string) {
 }
 
 export async function clearSessionCookie() {
-  cookies().delete(SESSION_COOKIE);
+  (await cookies()).delete(SESSION_COOKIE);
 }
 
 export async function getCurrentAdmin(): Promise<AdminSession | null> {
-  const token = cookies().get(SESSION_COOKIE)?.value;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   return await verifySession(token);
 }
@@ -81,6 +86,43 @@ export async function requireAdmin(): Promise<AdminSession> {
   return admin;
 }
 
+// Defence-in-depth gate for every /api/admin/** handler.
+//
+// middleware.ts already blocks unsigned visitors at the edge, but its
+// matcher has blind spots (paths ending in static extensions) and it runs
+// on Edge where it CANNOT check the database. This helper is the second
+// lock on the door: it verifies the JWT session AND re-checks the admin
+// still exists and is active in the database — so a session that was valid
+// when issued stops working the moment the admin is deactivated, even
+// before its 7-day expiry.
+//
+// Returns either { ok: true, admin } or { ok: false, response } — call it
+// at the top of each handler and return `response` on failure:
+//   const gate = await requireAdminApi();
+//   if (!gate.ok) return gate.response;
+export async function requireAdminApi(): Promise<
+  { ok: true; admin: AdminSession } | { ok: false; response: NextResponse }
+> {
+  const session = await getCurrentAdmin();
+  if (!session) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+  const dbAdmin = await prisma.admin.findUnique({
+    where: { id: session.adminId },
+    select: { active: true },
+  });
+  if (!dbAdmin?.active) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+  return { ok: true, admin: session };
+}
+
 // ---- Lockout helpers ----------------------------------------------------
 
 function remainingLockMs(admin: { lockedUntil: Date | null }): number {
@@ -89,17 +131,25 @@ function remainingLockMs(admin: { lockedUntil: Date | null }): number {
   return ms > 0 ? ms : 0;
 }
 
-async function recordFailedAttempt(adminId: string, currentAttempts: number) {
-  const attempts = currentAttempts + 1;
-  const lockedUntil = attempts >= MAX_LOGIN_ATTEMPTS ? new Date(Date.now() + LOCKOUT_MS) : null;
-  await prisma.admin.update({
+async function recordFailedAttempt(adminId: string) {
+  // Atomic increment (single statement — no read-then-write race). Returns
+  // the new attempt count, or null if the admin row is gone.
+  const updated = await prisma.admin.update({
     where: { id: adminId },
-    data: {
-      failedLoginAttempts: attempts >= MAX_LOGIN_ATTEMPTS ? 0 : attempts,
-      lockedUntil,
-    },
-  });
-  return lockedUntil;
+    data: { failedLoginAttempts: { increment: 1 } },
+    select: { failedLoginAttempts: true },
+  }).catch(() => null);
+  const attempts = updated?.failedLoginAttempts ?? 0;
+
+  if (attempts >= MAX_LOGIN_ATTEMPTS) {
+    const lockedUntil = new Date(Date.now() + LOCKOUT_MS);
+    await prisma.admin.update({
+      where: { id: adminId },
+      data: { failedLoginAttempts: 0, lockedUntil },
+    });
+    return lockedUntil;
+  }
+  return null;
 }
 
 async function resetFailedAttempts(adminId: string) {
@@ -133,7 +183,7 @@ export async function attemptAdminLogin(email: string, password: string): Promis
 
   const ok = await bcrypt.compare(password, admin.passwordHash);
   if (!ok) {
-    const lockedUntil = await recordFailedAttempt(admin.id, admin.failedLoginAttempts);
+    const lockedUntil = await recordFailedAttempt(admin.id);
     if (lockedUntil) return { ok: false, error: lockMessage(LOCKOUT_MS) };
     return { ok: false, error: genericError };
   }
@@ -193,7 +243,7 @@ export async function completeTotpLogin(pendingToken: string, code: string): Pro
   }
 
   if (!matched) {
-    const lockedUntil = await recordFailedAttempt(admin.id, admin.failedLoginAttempts);
+    const lockedUntil = await recordFailedAttempt(admin.id);
     if (lockedUntil) return { ok: false, error: lockMessage(LOCKOUT_MS) };
     return { ok: false, error: "Invalid code" };
   }

@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { z } from "zod";
 import { completeTotpLogin, setSessionCookie } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/clientIp";
 
 const schema = z.object({
   pendingToken: z.string().min(1),
@@ -19,8 +20,8 @@ export async function POST(req: NextRequest) {
     // Same 10-per-10-minutes-per-IP limit as the password step — see the
     // comment in app/api/admin/auth/route.ts for why this lives here
     // instead of middleware.ts.
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    if (!(await checkRateLimit(`admin-auth:${ip}`, 10, 10 * 60 * 1000))) {
+    const ip = getClientIp(req);
+    if (!(await checkRateLimit(`admin-auth:${ip}`, 10, 10 * 60 * 1000, { failClosed: true }))) {
       return NextResponse.json(
         { error: "Too many attempts. Please wait a few minutes and try again." },
         { status: 429 }
@@ -41,8 +42,8 @@ export async function POST(req: NextRequest) {
     await setSessionCookie(result.token);
     return NextResponse.json({ ok: true, email: result.email });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Server error";
-    console.error("[admin/auth/totp] verify failed:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Log details server-side; return a generic message to the browser.
+    console.error("[admin/auth/totp] verify failed:", err);
+    return NextResponse.json({ error: "Verification failed. Please try again." }, { status: 500 });
   }
 }

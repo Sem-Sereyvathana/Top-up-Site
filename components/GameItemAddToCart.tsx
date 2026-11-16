@@ -10,6 +10,10 @@ import { Plus, Minus, ShoppingCart } from "lucide-react";
 // Mirrors the Add/quantity controls on the Game Items grid (ShopCartBrowser)
 // but for a single card on its dedicated details page. Modeled directly on
 // AccountAddToCart.tsx — same layout, wired to the "items" cart instead.
+//
+// "Buy now" always goes to the COMBINED checkout (/cart/checkout) and shows
+// the FULL cart total — items + accounts — because that's what will actually
+// be paid, no matter where the buy button was clicked.
 export default function GameItemAddToCart({ card }: { card: ShopCartCard }) {
   const { format } = useCurrency();
   const router = useRouter();
@@ -19,6 +23,17 @@ export default function GameItemAddToCart({ card }: { card: ShopCartCard }) {
     const line = linesFor("items").find((l) => l.card.id === card.id);
     return line?.quantity ?? 0;
   }, [linesFor, card.id]);
+
+  // The combined cart's total across BOTH marketplace carts — the button
+  // below checks out everything, so it advertises everything.
+  const cartTotal = useMemo(
+    () =>
+      [...linesFor("items"), ...linesFor("accounts")].reduce(
+        (s, l) => s + l.card.priceUsd * l.quantity,
+        0
+      ),
+    [linesFor]
+  );
 
   const inCart = qty > 0;
   const effectiveMax = card.maxQty ?? 20;
@@ -84,11 +99,11 @@ export default function GameItemAddToCart({ card }: { card: ShopCartCard }) {
       {inCart && (
         <button
           type="button"
-          onClick={() => router.push("/game-items/checkout")}
+          onClick={() => router.push("/cart/checkout")}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fox-primary to-fox-accent py-3 text-sm font-bold text-black hover:opacity-90"
         >
           <ShoppingCart className="h-4 w-4" strokeWidth={2.5} />
-          ទិញឥឡូវនេះ · {format(card.priceUsd * qty)}
+          ទិញឥឡូវនេះ · {format(cartTotal)}
         </button>
       )}
     </div>

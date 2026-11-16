@@ -31,8 +31,15 @@ export default function AdminOrderDetailPage() {
   // ?from=robux so "Back to orders" returns admins to the queue they were
   // actually working from, instead of always dropping them on the general
   // Orders list.
-  const backHref = searchParams.get("from") === "robux" ? "/admin/robux-orders" : "/admin/orders";
-  const backLabel = searchParams.get("from") === "robux" ? "← Back to Robux orders" : "← Back to orders";
+  const from = searchParams.get("from");
+  const backHref =
+    from === "robux" ? "/admin/robux-orders" : from === "quicklogin" ? "/admin/quick-login-orders" : "/admin/orders";
+  const backLabel =
+    from === "robux"
+      ? "← Back to Robux orders"
+      : from === "quicklogin"
+        ? "← Back to Quick Login orders"
+        : "← Back to orders";
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);

@@ -44,7 +44,6 @@ export default async function GameItemsPage() {
         <ShopCartBrowser
           cards={cards}
           kind="items"
-          checkoutHref="/game-items/checkout"
           allowQuantity
           detailsBaseHref="/game-items"
           emptyStateTitle="នឹងមកដល់ឆាប់ៗនេះ"

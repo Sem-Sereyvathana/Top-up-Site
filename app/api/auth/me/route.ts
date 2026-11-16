@@ -23,6 +23,9 @@ export async function GET() {
       points: user.points,
       pointsValueUsd: await pointsToUsd(user.points),
       minRedeemPoints,
+      isReseller: user.isReseller,
+      walletCents: user.walletCents,
+      walletUsd: Math.round(user.walletCents) / 100,
     },
   });
 }

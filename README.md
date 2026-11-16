@@ -435,7 +435,7 @@ Nickname lookup depends on a third-party validation API and can fail intermitten
 <details>
 <summary><b>Uploaded images disappear on Vercel</b></summary>
 
-`public/uploads/` is **read-only** on Vercel. Wire any upload feature to Vercel Blob / Cloudinary / S3 instead of the filesystem.
+`public/uploads/` is **read-only** on Vercel. Uploads go to Cloudinary (see the `CLOUDINARY_*` variables in `.env.example`) instead of the filesystem.
 </details>
 
 ---

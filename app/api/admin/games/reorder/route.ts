@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { writeAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdminApi } from "@/lib/auth";
 
 const schema = z.object({
   id: z.string(),
@@ -15,6 +16,9 @@ const schema = z.object({
  * lineup without a drag-drop library.
  */
 export async function POST(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid" }, { status: 400 });

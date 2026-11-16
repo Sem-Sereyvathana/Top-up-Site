@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { writeAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdminApi } from "@/lib/auth";
 
 const adjustSchema = z.object({
   op: z.enum(["add", "remove", "set"]),
@@ -11,6 +12,9 @@ const adjustSchema = z.object({
 });
 
 export async function GET() {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const stock = await prisma.robuxStock.upsert({
     where: { id: 1 },
     update: {},
@@ -20,6 +24,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = adjustSchema.safeParse(body);
   if (!parsed.success) {

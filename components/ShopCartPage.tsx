@@ -18,14 +18,12 @@ export default function ShopCartPage({
   kind,
   title,
   backHref,
-  checkoutHref,
   allowQuantity,
 }: {
   kind: ShopKind;
   title: string;
   /** Where the back button and the empty-state "Continue shopping" link go. */
   backHref: string;
-  checkoutHref: string;
   /** Whether lines here can have their quantity adjusted (vs. just removed). */
   allowQuantity: boolean;
 }) {
@@ -142,7 +140,9 @@ export default function ShopCartPage({
 
             <button
               type="button"
-              onClick={() => router.push(checkoutHref)}
+              // Combined checkout — sums BOTH marketplace carts into one
+              // payment, so this button checks out everything picked.
+              onClick={() => router.push("/cart/checkout")}
               className="btn-primary w-full"
             >
               ទិញឥឡូវនេះ

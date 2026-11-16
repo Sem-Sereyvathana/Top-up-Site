@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { z } from "zod";
 import { attemptAdminLogin, setSessionCookie, clearSessionCookie } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/clientIp";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -19,8 +20,8 @@ export async function POST(req: NextRequest) {
     // 10 attempts per 10 minutes per IP — kept here (rather than in
     // middleware.ts) so it stays right next to the login logic it
     // protects. The TOTP step below uses the same limit/window.
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    if (!(await checkRateLimit(`admin-auth:${ip}`, 10, 10 * 60 * 1000))) {
+    const ip = getClientIp(req);
+    if (!(await checkRateLimit(`admin-auth:${ip}`, 10, 10 * 60 * 1000, { failClosed: true }))) {
       return NextResponse.json(
         { error: "Too many attempts. Please wait a few minutes and try again." },
         { status: 429 }
@@ -48,9 +49,9 @@ export async function POST(req: NextRequest) {
     await setSessionCookie(result.token);
     return NextResponse.json({ ok: true, requiresTotp: false, email: result.email });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Server error";
-    console.error("[admin/auth] login failed:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Log details server-side; return a generic message to the browser.
+    console.error("[admin/auth] login failed:", err);
+    return NextResponse.json({ error: "Sign-in failed. Please try again." }, { status: 500 });
   }
 }
 

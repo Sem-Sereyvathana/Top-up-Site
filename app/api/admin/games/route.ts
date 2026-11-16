@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdminApi } from "@/lib/auth";
 
 // Accept either a full http(s) URL or a local uploaded path like /uploads/xxx.png
 const imagePath = z
@@ -33,6 +34,9 @@ const gameSchema = z.object({
 });
 
 export async function GET() {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const games = await prisma.game.findMany({
     orderBy: { sortOrder: "asc" },
     include: { _count: { select: { products: true, orders: true } } },
@@ -41,6 +45,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = gameSchema.safeParse(body);
   if (!parsed.success) {

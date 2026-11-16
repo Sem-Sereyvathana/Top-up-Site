@@ -45,9 +45,8 @@ model Game {
   // arrange handoff after paying. Only used by the Accounts marketplace —
   // Top-up / Products never read this field.
   deliveryMode   String        @default("DIRECT")
-  // SabayStore supplier game slug (e.g. "free-fire-my-sg"). When set, paid
-  // orders for this game are topped up automatically through the supplier
-  // API. Filled in by `npm run db:sync-sabay`.
+  // FazerCards category id for this game. When set, paid orders for this
+  // game are topped up automatically through the supplier API.
   supplierSlug   String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -76,24 +75,34 @@ model GameGroup {
 }
 
 model User {
-  id           String         @id @default(cuid())
-  email        String?        @unique
-  phone        String?        @unique
-  passwordHash String?
-  telegramId       String?    @unique
-  telegramUsername String?
-  googleId         String?    @unique
-  avatarUrl        String?
-  name         String?
-  points       Int            @default(0)
-  active       Boolean        @default(true)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  lastLoginAt  DateTime?
-  orders       Order[]
-  gameItemOrders    GameItemOrder[]
-  gameAccountOrders GameAccountOrder[]
-  pointsLedger PointsLedger[]
+  id                 String              @id @default(cuid())
+  email              String?             @unique
+  phone              String?             @unique
+  passwordHash       String?
+  telegramId         String?             @unique
+  telegramUsername   String?
+  googleId           String?             @unique
+  avatarUrl          String?
+  name               String?
+  points             Int                 @default(0)
+  active             Boolean             @default(true)
+  // Resellers see (and are charged) Product.resellerPriceUsd instead of the
+  // normal price everywhere in the Top-up storefront. Promoted/demoted from
+  // the admin Users page; every change is written to the audit log.
+  isReseller         Boolean             @default(false)
+  // Wallet balance in INTEGER CENTS (never float — money math on floats
+  // corrupts). Every change goes through WalletTransaction so the balance
+  // always equals the ledger sum (see lib/wallet.ts).
+  walletCents        Int                 @default(0)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  lastLoginAt        DateTime?
+  orders             Order[]
+  gameItemOrders     GameItemOrder[]
+  gameAccountOrders  GameAccountOrder[]
+  pointsLedger       PointsLedger[]
+  walletTransactions WalletTransaction[]
+  walletTopUps       WalletTopUp[]
 }
 
 model PointsLedger {
@@ -110,26 +119,104 @@ model PointsLedger {
   @@index([orderId])
 }
 
+// One wallet ledger entry per balance change. User.walletCents must always
+// equal the sum of amountCents over this table for that user — lib/wallet.ts
+// enforces that invariant by writing balance + ledger row in one transaction.
+// amountCents is signed: positive credits (topup/refund/admin_adjust credit),
+// negative debits (purchase/admin_adjust deduction).
+model WalletTransaction {
+  id                String   @id @default(cuid())
+  userId            String
+  // "TOPUP" | "PURCHASE" | "REFUND" | "ADMIN_ADJUST"
+  type              String
+  amountCents       Int
+  balanceAfterCents Int
+  // Top-up Order id (PURCHASE), WalletTopUp id (TOPUP), or null.
+  relatedOrderId    String?
+  note              String?
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([relatedOrderId])
+}
+
+// A wallet top-up initiated by the user: one KHPay QR per top-up. Credited
+// to the wallet exactly once by the payment webhook — idempotent via the
+// status flip below (same atomic-claim pattern as Order stock/points).
+model WalletTopUp {
+  id               String    @id @default(cuid())
+  // WT-prefixed order number, shared namespace with GI-/AC- (lib/utils).
+  orderNumber      String    @unique
+  userId           String
+  amountCents      Int
+  status           String    @default("PENDING")
+  paymentMethod    String    @default("KHPAY")
+  paymentRef       String?
+  paymentUrl       String?
+  qrString         String?
+  paymentExpiresAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  paidAt           DateTime?
+  user             User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+}
+
+// Outbox for the public proof-channel receipts. Written when an order is
+// paid; a background sweep retries PENDING/FAILED rows so a Telegram outage
+// never blocks or loses a receipt. Duplicate delivery is preferred over
+// lost receipts, so retries continue until Telegram confirms.
+model ReceiptLog {
+  id          String    @id @default(cuid())
+  // Top-up "topup:ORDER_ID" · items "gi:ORDER_ID" · accounts "ac:ORDER_ID"
+  dedupeKey   String    @unique
+  orderNumber String
+  channel     String
+  status      String    @default("PENDING")
+  attempts    Int       @default(0)
+  lastError   String?
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, createdAt])
+}
+
 model Product {
-  id        String   @id @default(cuid())
-  gameId    String
-  name      String
-  amount    Int
-  bonus     Int      @default(0)
-  priceUsd  Float
-  priceKhr  Float?
-  badge     String?
-  imageUrl  String?
-  active    Boolean  @default(true)
-  stock     Int?
-  // SabayStore supplier offer id for this package (CSV "Offer ID").
-  supplierOfferId String?
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  orders    Order[]
-  orderItems OrderItem[]
-  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  id               String      @id @default(cuid())
+  gameId           String
+  name             String
+  amount           Int
+  bonus            Int         @default(0)
+  priceUsd         Float
+  priceKhr         Float?
+  // Reseller price for this exact package. Null = resellers pay priceUsd
+  // too (fall back). For Robux Send packages the admin UI derives this from
+  // a per-100-Robux rate (amount/100 × rate) but the stored value is always
+  // the full package price — the server never does per-100 math at checkout.
+  resellerPriceUsd Float?
+  // What ONE unit of this package costs the operator. Supplier-linked
+  // products get this snapshotted from FazerCards at dispatch; own-stock
+  // products (Quick Login, Robux Send) use the admin-set value here.
+  // Snapshot onto Order.costUsd at purchase so later edits don't rewrite
+  // past profit.
+  costUsd          Float?
+  badge            String?
+  imageUrl         String?
+  active           Boolean     @default(true)
+  stock            Int?
+  // FazerCards offer id for this package (e.g. "234_23 + 78_8" for a bundle).
+  supplierOfferId  String?
+  sortOrder        Int         @default(0)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  orders           Order[]
+  orderItems       OrderItem[]
+  promoCodes       PromoCode[]
+  game             Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
   @@index([gameId, active])
 }
@@ -157,66 +244,87 @@ model OrderItem {
 }
 
 model Order {
-  id                String     @id @default(cuid())
-  orderNumber       String     @unique
-  gameId            String
-  productId         String
-  playerUid         String
-  serverId          String?
-  playerNickname    String?
-  customerEmail     String?
-  customerPhone     String?
-  amountUsd         Float
-  amountKhr         Float?
-  currency          String     @default("USD")
-  paymentMethod     String
-  paymentRef        String?
-  paymentUrl        String?
-  qrString          String?
-  paymentExpiresAt  DateTime?
-  status            String     @default("PENDING")
-  deliveryNote      String?
-  failureReason     String?
-  ipAddress         String?
-  userAgent         String?
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  paidAt            DateTime?
-  deliveredAt       DateTime?
-  promoCodeId       String?
-  discountUsd       Float      @default(0)
-  pointsAwarded     Boolean    @default(false)
-  pointsDiscountUsd Float      @default(0)
-  pointsEarned      Int        @default(0)
-  pointsRedeemed    Int        @default(0)
-  stockDecremented  Boolean    @default(false)
+  id                  String      @id @default(cuid())
+  orderNumber         String      @unique
+  gameId              String
+  productId           String
+  playerUid           String
+  serverId            String?
+  playerNickname      String?
+  customerEmail       String?
+  customerPhone       String?
+  amountUsd           Float
+  amountKhr           Float?
+  currency            String      @default("USD")
+  paymentMethod       String
+  paymentRef          String?
+  paymentUrl          String?
+  qrString            String?
+  paymentExpiresAt    DateTime?
+  status              String      @default("PENDING")
+  deliveryNote        String?
+  failureReason       String?
+  ipAddress           String?
+  userAgent           String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  paidAt              DateTime?
+  deliveredAt         DateTime?
+  promoCodeId         String?
+  discountUsd         Float       @default(0)
+  pointsAwarded       Boolean     @default(false)
+  pointsDiscountUsd   Float       @default(0)
+  pointsEarned        Int         @default(0)
+  pointsRedeemed      Int         @default(0)
+  stockDecremented    Boolean     @default(false)
   supplierOrderNumber String?
-  userId            String?
-  game              Game       @relation(fields: [gameId], references: [id])
-  product           Product    @relation(fields: [productId], references: [id])
-  promoCode         PromoCode? @relation(fields: [promoCodeId], references: [id])
-  user              User?      @relation(fields: [userId], references: [id])
-  items             OrderItem[]
+  userId              String?
+  // ── Reseller + cost snapshots (features: reseller pricing, profit) ──
+  // What the package(s) would have cost a normal customer at purchase time.
+  // Null on old orders. For reseller orders amountUsd < normalPriceUsd;
+  // receipts always show normalPriceUsd.
+  normalPriceUsd      Float?
+  // True when the buyer was a reseller at checkout and paid reseller prices.
+  isResellerOrder     Boolean     @default(false)
+  // What this order cost the operator, snapshotted at purchase/dispatch.
+  // Supplier orders: real FazerCards cost (fallback estimate, flagged).
+  // Own stock: Product.costUsd at purchase time. Null = unknown (old order
+  // or no cost set) — profit views treat it as "estimated" using current cost.
+  costUsd             Float?
+  costEstimated       Boolean     @default(false)
+  game                Game        @relation(fields: [gameId], references: [id])
+  product             Product     @relation(fields: [productId], references: [id])
+  promoCode           PromoCode?  @relation(fields: [promoCodeId], references: [id])
+  user                User?       @relation(fields: [userId], references: [id])
+  items               OrderItem[]
+  // Set when this order was paid as part of a combined multi-store
+  // checkout (see PaymentGroup). Null for the normal single-store flow.
+  paymentGroupId      String?
 
   @@index([status])
   @@index([createdAt])
   @@index([customerEmail])
   @@index([userId])
+  @@index([paymentGroupId])
 }
 
 model PromoCode {
-  id            String    @id @default(cuid())
-  code          String    @unique
-  discountType  String
-  discountValue Float
-  minOrderUsd   Float     @default(0)
-  maxUses       Int       @default(0)
-  usedCount     Int       @default(0)
-  expiresAt     DateTime?
-  active        Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  orders        Order[]
+  id                  String    @id @default(cuid())
+  code                String    @unique
+  discountType        String
+  discountValue       Float
+  minOrderUsd         Float     @default(0)
+  maxUses             Int       @default(0)
+  usedCount           Int       @default(0)
+  expiresAt           DateTime?
+  active              Boolean   @default(true)
+  // When set, this coupon only applies to orders containing this exact
+  // package. Null = works on any product, any game.
+  applicableProductId String?
+  applicableProduct   Product?  @relation(fields: [applicableProductId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  orders              Order[]
 }
 
 // Backs lib/rateLimit.ts. A row per (key, window-start) — atomic increment
@@ -234,14 +342,14 @@ model RateLimitBucket {
 }
 
 model Admin {
-  id                  String    @id @default(cuid())
-  email               String    @unique
-  passwordHash        String
-  name                String?
-  role                String    @default("ADMIN")
-  active              Boolean   @default(true)
-  createdAt           DateTime  @default(now())
-  lastLoginAt         DateTime?
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String?
+  role         String    @default("ADMIN")
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
 
   // Failed-attempt lockout (per account, keyed by email — see lib/auth.ts).
   failedLoginAttempts Int       @default(0)
@@ -252,28 +360,70 @@ model Admin {
   // login actually requires a code, so scanning the QR doesn't lock anyone
   // out mid-setup. `totpBackupCodes` are bcrypt-hashed single-use recovery
   // codes shown once at enrollment, for when the admin loses their device.
-  totpSecret          String?
-  totpEnabled         Boolean   @default(false)
-  totpBackupCodes     String[]  @default([])
+  totpSecret      String?
+  totpEnabled     Boolean  @default(false)
+  totpBackupCodes String[] @default([])
 }
 
 model Settings {
-  id                 Int      @id @default(1)
-  siteName           String   @default("SharuStore")
-  logoUrl            String?
-  exchangeRate       Float    @default(4100)
-  supportTelegram    String?  @default("@sharustore")
-  supportEmail       String?
-  maintenanceMode    Boolean  @default(false)
-  maintenanceMessage String?
-  announcement       String?
-  announcementTone   String?  @default("info")
-  telegramBotToken   String?
-  telegramChatId     String?
-  updatedAt          DateTime @updatedAt
-  minRedeemPoints    Int      @default(100)
-  pointsPerUsd       Float    @default(1)
-  pointsRedeemRate   Float    @default(100)
+  id                         Int      @id @default(1)
+  siteName                   String   @default("SharuStore")
+  logoUrl                    String?
+  exchangeRate               Float    @default(4100)
+  supportTelegram            String?  @default("@sharustore")
+  supportChannel             String?
+  supportEmail               String?
+  maintenanceMode            Boolean  @default(false)
+  maintenanceMessage         String?
+  announcement               String?
+  announcementTone           String?  @default("info")
+  telegramBotToken           String?
+  telegramChatId             String?
+  updatedAt                  DateTime @updatedAt
+  minRedeemPoints            Int      @default(100)
+  pointsPerUsd               Float    @default(1)
+  pointsRedeemRate           Float    @default(100)
+  // Public proof-channel receipts (feature: Telegram receipt webhook).
+  // Uses the SAME bot token as operator notifications; only the destination
+  // chat differs. Empty = receipts disabled.
+  receiptTelegramChatId      String?
+  // "How to redeem your code" video shown in a popup from the gift-card
+  // order page (Admin -> Settings). A direct video URL (mp4/webm) or an embed
+  // URL; empty = the button falls back to a short written hint.
+  redeemVideoUrl             String?
+  // Per-100-Robux rates the admin sets for Robux Send packages. Stored as
+  // Settings-level defaults (normal + reseller + cost) that the Products
+  // admin page can apply to every Robux Send package in one click; the
+  // authoritative price remains per-Product (priceUsd / resellerPriceUsd /
+  // costUsd).
+  robuxSendPer100Usd         Float?
+  robuxSendPer100ResellerUsd Float?
+  robuxSendPer100CostUsd     Float?
+  // ── Reseller rate config (pricing page) ────────────────────────────────
+  // Robux Send: reseller $/100R and my cost $/100R (0.01–2 / 0.01–5).
+  // Quick Log-In: reseller multiplier on face value (0.01–2) and my cost in
+  // CENTS per $1 of face value (5–200). Normal prices are NEVER derived
+  // from these — they stay the per-package table set on the Products page.
+  resellerRobuxSendRate      Float?
+  costRobuxSendRate          Float?
+  resellerQuickLoginRate     Float?
+  costQuickLoginRate         Float?
+}
+
+// One row per admin "clear revenue" action. Orders are NEVER deleted — this
+// marker just tells the Revenue page which completed orders to EXCLUDE from
+// its summaries (everything completed before `from` was "cleared" visually).
+// Audit-safe: the orders, their payments, and wallet ledger stay untouched.
+model RevenueReset {
+  id         Int      @id @default(autoincrement())
+  // UTC instant of the reset action itself.
+  createdAt  DateTime @default(now())
+  // Orders completed BEFORE this instant (UTC+7 day boundary semantics in
+  // lib/revenue.ts) are excluded from Revenue summaries from now on.
+  cutoff     DateTime
+  // Which period the admin asked to clear, for the audit trail only.
+  period     String
+  adminEmail String?
 }
 
 model RobuxStock {
@@ -335,54 +485,56 @@ model BlockedIdentity {
 }
 
 model GameAccount {
-  id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
-  gameId      String?
+  id           String                 @id @default(dbgenerated("(gen_random_uuid())::text"))
+  gameId       String?
   // Optional label from the admin's own list (GameAccountCategory) — lets
   // an account be grouped/labelled without needing a full entry on the
   // Top-up `Game` list. Independent of gameId; an account can set either,
   // both, or neither (falls back to "General").
-  categoryId  String?
-  title       String
-  rank        String?
-  description String?
-  imageUrl    String?
-  priceUsd    Float
-  priceKhr    Float?
-  sold        Boolean  @default(false)
+  categoryId   String?
+  title        String
+  rank         String?
+  description  String?
+  imageUrl     String?
+  priceUsd     Float
+  priceKhr     Float?
+  sold         Boolean                @default(false)
   // Set only when an admin deletes an account that already has order
   // history (can't hard-delete without breaking past orders' FK — see
   // DELETE handler in app/api/admin/accounts/[id]/route.js). Archived
   // accounts are hidden from every admin list; their order-history rows
   // still work fine since those store their own title/price snapshot and
   // only need this row to keep existing, not to be visible anywhere.
-  archived    Boolean  @default(false)
+  archived     Boolean                @default(false)
   // "UNIQUE" = one-of-a-kind login handover; only ever one buyer, tracked by
   // the `sold` flag above (unchanged behaviour). "MULTI" = stackable stock —
   // buyers pick a quantity at checkout, tracked by the `stock` count below
   // instead of `sold`.
-  stockMode   String   @default("UNIQUE")
+  stockMode    String                 @default("UNIQUE")
   // Remaining units available. Only meaningful when stockMode = "MULTI";
   // UNIQUE accounts ignore this and rely on `sold` instead.
-  stock       Int      @default(1)
-  active      Boolean  @default(true)
-  sortOrder   Int      @default(0)
+  stock        Int                    @default(1)
+  active       Boolean                @default(true)
+  sortOrder    Int                    @default(0)
   // "DIRECT" = admin can hand over this account's login straight away (no
   // chat needed first); "MANUAL" = buyer is pointed to Telegram to arrange
   // handoff after paying. Set per account (like GameItem.deliveryMode),
   // not read from the linked Game anymore — see backfill script in
   // prisma/scripts/backfill-account-deliverymode.ts for the one-off copy
   // from each account's previous Game.deliveryMode onto this column.
-  deliveryMode String  @default("MANUAL")
+  deliveryMode String                 @default("MANUAL")
+  // What this account costs the operator (profit dashboard). Null = unknown.
+  costUsd      Float?
   // Admin-only login handover (username/password/notes), set when this
   // account's deliveryMode = "DIRECT". Never returned by any public
   // API until the buyer's order is PAID/DELIVERED.
-  credentials String?
-  createdAt   DateTime @default(now()) @db.Timestamp(6)
-  updatedAt   DateTime @default(now()) @db.Timestamp(6)
-  Game        Game?    @relation(fields: [gameId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  Category    GameAccountCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  orderItems  GameAccountOrderItem[]
-  stockItems  GameAccountStockItem[]
+  credentials  String?
+  createdAt    DateTime               @default(now()) @db.Timestamp(6)
+  updatedAt    DateTime               @default(now()) @db.Timestamp(6)
+  Game         Game?                  @relation(fields: [gameId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Category     GameAccountCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  orderItems   GameAccountOrderItem[]
+  stockItems   GameAccountStockItem[]
 
   @@index([gameId])
   @@index([categoryId])
@@ -401,7 +553,7 @@ model GameAccount {
 // here so every existing storefront/reservation check that reads
 // GameAccount.stock keeps working unchanged.
 model GameAccountStockItem {
-  id            String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id            String                @id @default(dbgenerated("(gen_random_uuid())::text"))
   gameAccountId String
   username      String
   password      String
@@ -409,10 +561,10 @@ model GameAccountStockItem {
   // "AVAILABLE" = unsold, waiting to be handed to a buyer. "ASSIGNED" =
   // handed to a specific paid order line (orderItemId set) and never
   // reused.
-  status        String    @default("AVAILABLE")
+  status        String                @default("AVAILABLE")
   orderItemId   String?
   assignedAt    DateTime?
-  createdAt     DateTime  @default(now()) @db.Timestamp(6)
+  createdAt     DateTime              @default(now()) @db.Timestamp(6)
   gameAccount   GameAccount           @relation(fields: [gameAccountId], references: [id], onDelete: Cascade)
   orderItem     GameAccountOrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
 
@@ -421,45 +573,47 @@ model GameAccountStockItem {
 }
 
 model GameAccountCategory {
-  id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id          String        @id @default(dbgenerated("(gen_random_uuid())::text"))
   name        String
-  slug        String   @unique
+  slug        String        @unique
   imageUrl    String?
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now()) @db.Timestamp(6)
-  updatedAt   DateTime @default(now()) @db.Timestamp(6)
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now()) @db.Timestamp(6)
+  updatedAt   DateTime      @default(now()) @db.Timestamp(6)
   GameAccount GameAccount[]
 }
 
 model GameItem {
-  id          String            @id @default(dbgenerated("(gen_random_uuid())::text"))
-  gameId      String?
-  categoryId  String?
-  name        String
-  description String?
-  imageUrl    String?
-  priceUsd    Float
-  priceKhr    Float?
-  badge       String?
-  active      Boolean           @default(true)
+  id           String              @id @default(dbgenerated("(gen_random_uuid())::text"))
+  gameId       String?
+  categoryId   String?
+  name         String
+  description  String?
+  imageUrl     String?
+  priceUsd     Float
+  priceKhr     Float?
+  badge        String?
+  active       Boolean             @default(true)
   // Manually toggled by admin when this item is out of stock. Unlike
   // `active` (which fully removes the item from the storefront — used when
   // admin wants to pull a listing that isn't selling well), `soldOut` keeps
   // the card visible but greyed out with a "Sold Out" badge and disables
   // the Add-to-cart action. See app/game-items/page.tsx / ShopCartBrowser.
-  soldOut     Boolean           @default(false)
-  sortOrder   Int               @default(0)
+  soldOut      Boolean             @default(false)
+  sortOrder    Int                 @default(0)
   // "DIRECT" = admin delivers this item straight into the buyer's game
   // account using the Username they typed at checkout; "MANUAL" = buyer is
   // pointed to Telegram to arrange face-to-face handoff after paying. Set
   // per item (not per category) since two items in the same category can
   // need different handling.
-  deliveryMode String           @default("DIRECT")
-  createdAt   DateTime          @default(now()) @db.Timestamp(6)
-  updatedAt   DateTime          @default(now()) @db.Timestamp(6)
-  Game        Game?             @relation(fields: [gameId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  Category    GameItemCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  orderItems  GameItemOrderItem[]
+  deliveryMode String              @default("DIRECT")
+  // What one unit costs the operator (profit dashboard). Null = unknown.
+  costUsd      Float?
+  createdAt    DateTime            @default(now()) @db.Timestamp(6)
+  updatedAt    DateTime            @default(now()) @db.Timestamp(6)
+  Game         Game?               @relation(fields: [gameId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Category     GameItemCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  orderItems   GameItemOrderItem[]
 
   @@index([gameId])
   @@index([categoryId])
@@ -487,6 +641,36 @@ model GameItemCategory {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Combined multi-store checkout. One PaymentGroup = one payment that covers
+// a Top-up order, a Game Items order and/or an Accounts order bought
+// together. Each child order keeps its own row and its own fulfilment
+// logic; the group is what the buyer actually pays, and the single receipt
+// is built from all three.
+//
+// orderNumber uses a "GRP-" prefix so the payment webhook / simulate route
+// can tell it apart from RT-/GI-/AC- numbers.
+// ─────────────────────────────────────────────────────────────────────────
+model PaymentGroup {
+  id               String   @id @default(cuid())
+  orderNumber      String   @unique
+  amountUsd        Float
+  amountKhr        Float?
+  paymentMethod    String
+  paymentRef       String?
+  paymentUrl       String?
+  qrString         String?
+  paymentExpiresAt DateTime?
+  status           String   @default("PENDING")
+  userId           String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  paidAt           DateTime?
+
+  @@index([status])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Game Items marketplace orders. Deliberately its own table, independent of
 // the Top-up `Order`/`Product` model — a shopper can select several GameItem
 // cards (optionally across different categories) and check out once; every
@@ -494,8 +678,8 @@ model GameItemCategory {
 // the same KHPay gateway as Top-up and Accounts via lib/payment.ts.
 // ─────────────────────────────────────────────────────────────────────────
 model GameItemOrder {
-  id               String    @id @default(cuid())
-  orderNumber      String    @unique
+  id               String              @id @default(cuid())
+  orderNumber      String              @unique
   buyerUsername    String
   // Optional Telegram/phone/email — no longer collected at checkout for
   // Game Items (a MANUAL order sends the buyer to admin's Telegram, with
@@ -504,7 +688,7 @@ model GameItemOrder {
   customerContact  String?
   amountUsd        Float
   amountKhr        Float?
-  currency         String    @default("USD")
+  currency         String              @default("USD")
   paymentMethod    String
   paymentRef       String?
   paymentUrl       String?
@@ -514,35 +698,41 @@ model GameItemOrder {
   // checkout time, so it can't change retroactively if admin edits an
   // item later. "DIRECT" only when every line item is DIRECT.
   deliveryMode     String
-  status           String    @default("PENDING")
+  status           String              @default("PENDING")
   deliveryNote     String?
   failureReason    String?
   ipAddress        String?
   userAgent        String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
   paidAt           DateTime?
   deliveredAt      DateTime?
   // Set when the buyer was signed in at checkout, so their order shows up
   // in the account History page. Null for guest checkouts — guest orders
   // stay lookup-only via the order number.
   userId           String?
-  user             User?     @relation(fields: [userId], references: [id])
+  user             User?               @relation(fields: [userId], references: [id])
   items            GameItemOrderItem[]
+  // Operator cost snapshot at purchase (profit dashboard). Null = unknown.
+  costUsd          Float?
+  costEstimated    Boolean             @default(false)
+  // Set when this order was paid inside a combined multi-store checkout.
+  paymentGroupId   String?
 
   @@index([status])
   @@index([createdAt])
   @@index([userId])
+  @@index([paymentGroupId])
 }
 
 model GameItemOrderItem {
-  id           String   @id @default(cuid())
+  id           String        @id @default(cuid())
   orderId      String
   gameItemId   String
   name         String
-  quantity     Int      @default(1)
+  quantity     Int           @default(1)
   unitPriceUsd Float
-  createdAt    DateTime @default(now())
+  createdAt    DateTime      @default(now())
   order        GameItemOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   gameItem     GameItem      @relation(fields: [gameItemId], references: [id])
 
@@ -557,12 +747,12 @@ model GameItemOrderItem {
 // look identical.
 // ─────────────────────────────────────────────────────────────────────────
 model GameAccountOrder {
-  id               String    @id @default(cuid())
-  orderNumber      String    @unique
+  id               String                 @id @default(cuid())
+  orderNumber      String                 @unique
   customerContact  String?
   amountUsd        Float
   amountKhr        Float?
-  currency         String    @default("USD")
+  currency         String                 @default("USD")
   paymentMethod    String
   paymentRef       String?
   paymentUrl       String?
@@ -571,37 +761,44 @@ model GameAccountOrder {
   // Snapshot of resolveDeliveryMode() across the order's accounts' Game at
   // checkout time. "DIRECT" only when every account's game is DIRECT.
   deliveryMode     String
-  status           String    @default("PENDING")
+  status           String                 @default("PENDING")
   deliveryNote     String?
   failureReason    String?
   ipAddress        String?
   userAgent        String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
   paidAt           DateTime?
   deliveredAt      DateTime?
   // Set when the buyer was signed in at checkout, so their order shows up
   // in the account History page. Null for guest checkouts — guest orders
   // stay lookup-only via the order number.
   userId           String?
-  user             User?     @relation(fields: [userId], references: [id])
+  user             User?                  @relation(fields: [userId], references: [id])
   items            GameAccountOrderItem[]
+  // What the operator paid/how much the accounts cost (profit dashboard).
+  // Accounts marketplace has no supplier — cost is admin-set per account.
+  costUsd          Float?
+  costEstimated    Boolean                @default(false)
+  // Set when this order was paid inside a combined multi-store checkout.
+  paymentGroupId   String?
 
   @@index([status])
   @@index([createdAt])
   @@index([userId])
+  @@index([paymentGroupId])
 }
 
 model GameAccountOrderItem {
-  id            String   @id @default(cuid())
+  id            String                 @id @default(cuid())
   orderId       String
   gameAccountId String
   title         String
-  quantity      Int      @default(1)
+  quantity      Int                    @default(1)
   unitPriceUsd  Float
-  createdAt     DateTime @default(now())
-  order         GameAccountOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  gameAccount   GameAccount      @relation(fields: [gameAccountId], references: [id])
+  createdAt     DateTime               @default(now())
+  order         GameAccountOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  gameAccount   GameAccount            @relation(fields: [gameAccountId], references: [id])
   stockItems    GameAccountStockItem[]
 
   @@index([orderId])

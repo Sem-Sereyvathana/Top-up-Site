@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import AccountMenu from "./AccountMenu";
-import CartButton from "./CartButton";
+import HeaderSearch from "./HeaderSearch";
+import CombinedCartButton from "./CombinedCartButton";
 import { DEFAULT_SITE_NAME, splitBrandName } from "@/lib/siteBrand";
 
 const NAV = [
@@ -17,7 +18,6 @@ export default function Header() {
   const pathname = usePathname();
   const isHome = pathname === "/";
   const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [siteName, setSiteName] = useState<string>(DEFAULT_SITE_NAME);
 
@@ -124,52 +124,17 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          {pathname?.startsWith("/game-items") && (
-            <CartButton kind="items" cartHref="/game-items/cart" />
-          )}
-          {pathname?.startsWith("/accounts") && (
-            <CartButton kind="accounts" cartHref="/accounts/cart" />
+          {/* Site-wide search — games, game items and accounts. Same round
+              icon + floating panel on every screen size (the old mobile
+              full-width bar squeezed the header and looked broken). */}
+          <HeaderSearch />
+          {/* Combined cart button — its badge adds up BOTH marketplace carts
+              (Game Items + Accounts) since they're paid together now. */}
+          {(pathname?.startsWith("/game-items") || pathname?.startsWith("/accounts")) && (
+            <CombinedCartButton />
           )}
           <AccountMenu />
-
-          {/* Mobile burger */}
-          <button
-            onClick={() => setMobileOpen((v) => !v)}
-            className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-lg border border-fox-border bg-fox-card/80 text-fox-text"
-            aria-label="Toggle menu"
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-              {mobileOpen ? (
-                <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
-              ) : (
-                <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
-              )}
-            </svg>
-          </button>
         </div>
-      </div>
-
-      {/* Mobile nav panel */}
-      <div
-        className={`md:hidden overflow-hidden border-t border-fox-border/60 bg-fox-bg/95 backdrop-blur-xl transition-[max-height,opacity] duration-300 ease-out ${
-          mobileOpen ? "max-h-[calc(100vh-4.5rem)] opacity-100" : "max-h-0 opacity-0"
-        }`}
-      >
-        <nav className="flex flex-col p-4 gap-1 overflow-y-auto max-h-[calc(100vh-4.5rem)]">
-          {fullNav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-              className="rounded-lg px-4 py-3 text-sm font-medium text-fox-text/90 hover:bg-fox-card hover:text-fox-primary transition-colors"
-            >
-              {item.label}
-            </Link>
-          ))}
-          <div className="mt-2">
-            <AccountMenu inline onNavigate={() => setMobileOpen(false)} />
-          </div>
-        </nav>
       </div>
     </header>
   );

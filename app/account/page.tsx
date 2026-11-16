@@ -13,6 +13,8 @@ import {
   History as HistoryIcon,
   LogOut,
   LogIn,
+  Wallet,
+  ChevronRight,
 } from "lucide-react";
 
 // The real "My account" page for signed-in customers — linked from the
@@ -49,12 +51,12 @@ export default function AccountPage() {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-fox-border bg-fox-card text-fox-primary">
               <LogIn className="h-5 w-5" strokeWidth={2} />
             </div>
-            <h2 className="font-semibold text-lg mb-1">Sign in with Google to view your account</h2>
+            <h2 className="font-semibold text-lg mb-1">Sign in with Telegram to view your account</h2>
             <p className="text-sm text-fox-muted mb-5">
-              Sign in with Google to see your profile, points balance, and order history.
+              Sign in with Telegram to see your profile, wallet, points balance, and order history.
             </p>
             <div className="flex items-center justify-center">
-              <Link href="/login" className="btn-primary">Sign in with Google</Link>
+              <Link href="/login" className="btn-primary">Sign in with Telegram</Link>
             </div>
           </div>
         ) : (
@@ -102,6 +104,27 @@ export default function AccountPage() {
                 </div>
               </div>
             </div>
+
+            {/* Wallet balance — links to the full wallet page (top-up +
+                transactions). This is the only wallet entry point on mobile,
+                where the desktop AccountMenu dropdown is hidden. */}
+            <Link
+              href="/account/wallet"
+              className="card p-5 sm:p-6 flex items-center justify-between gap-4 transition-all hover:border-fox-primary/60"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-fox-border bg-fox-card text-green-400">
+                  <Wallet className="h-5 w-5" strokeWidth={2} />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold">{user.walletUsd.toFixed(2)} USD wallet</p>
+                  <p className="text-xs text-fox-muted">
+                    Top up your balance and pay for orders instantly
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-fox-muted" strokeWidth={2} />
+            </Link>
 
             {/* Actions */}
             <div className="card p-5 sm:p-6 space-y-2">

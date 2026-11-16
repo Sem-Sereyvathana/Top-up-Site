@@ -112,9 +112,9 @@ export default function GameItemsBrowser({
         <div className="space-y-10">
           {visibleGroups.map((group) => (
             <section key={group.key}>
-              <div className="mb-4 flex items-center gap-3 rounded-xl bg-gradient-to-r from-fox-primary to-fox-accent px-4 py-3 shadow-glow-sm">
+              <div className="mb-3 flex items-center gap-2.5 px-1">
                 {group.imageUrl && (
-                  <span className="h-6 w-6 shrink-0 overflow-hidden rounded">
+                  <span className="h-7 w-7 sm:h-8 sm:w-8 shrink-0 overflow-hidden rounded-lg">
                     <img
                       src={group.imageUrl}
                       alt=""
@@ -124,7 +124,7 @@ export default function GameItemsBrowser({
                     />
                   </span>
                 )}
-                <h2 className="text-sm font-bold uppercase tracking-wider text-white sm:text-base">
+                <h2 className="font-display text-xl font-extrabold uppercase tracking-wide text-white sm:text-2xl">
                   {group.label}
                 </h2>
               </div>

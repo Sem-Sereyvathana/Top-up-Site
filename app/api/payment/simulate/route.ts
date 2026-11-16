@@ -1,8 +1,10 @@
-﻿import { prisma } from "@/lib/prisma";
+﻿import { isSimulationMode, isDemoMode } from "@/lib/simMode";
+import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 import { decrementStockForOrder } from "@/lib/stock";
 import { finalizeOrderAfterPayment } from "@/lib/fulfillment";
+import { finalizePaymentGroup } from "@/lib/paymentGroup";
 import { handleGameItemOrderWebhook } from "@/lib/gameItemFulfillment";
 import { handleGameAccountOrderWebhook } from "@/lib/gameAccountFulfillment";
 import { NextRequest, NextResponse } from "next/server";
@@ -15,12 +17,15 @@ import { NextRequest, NextResponse } from "next/server";
 // (app/api/payment/webhook/[method]/route.ts) — GI-/AC- orders go through
 // their own marketplace handlers instead of the Top-up `Order` table below.
 export async function GET(req: NextRequest) {
-  if (process.env.PAYMENT_SIMULATION_MODE !== "true") {
+  if (!isSimulationMode()) {
     return NextResponse.json({ error: "Simulation is disabled" }, { status: 404 });
   }
 
-  const orderNumber = req.nextUrl.searchParams.get("order");
+  const rawOrderNumber = req.nextUrl.searchParams.get("order") ?? "";
   const ref = req.nextUrl.searchParams.get("ref") || `SIM-${Date.now()}`;
+  // Escape before embedding in the HTML page below (defense in depth —
+  // this page only exists in simulation mode, but never trust query input).
+  const orderNumber = rawOrderNumber.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
   if (!orderNumber) {
     return NextResponse.json({ error: "Missing order" }, { status: 400 });
@@ -35,10 +40,11 @@ export async function GET(req: NextRequest) {
   const envBase = process.env.NEXT_PUBLIC_BASE_URL;
   const baseUrl = (isPublicHttpUrl(envBase) ? envBase : requestOrigin).replace(/\/$/, "");
 
+  const demo = isDemoMode();
   const simulatedPage = (trackerPath: string) => `<!doctype html>
 <html>
 <head>
-<title>Payment Simulated â€” SHARUSTORE</title>
+<title>${demo ? "Demo" : "Payment Simulated"} — SHARUSTORE</title>
 <meta http-equiv="refresh" content="3;url=${baseUrl}${trackerPath}">
 <style>
   body { font-family: system-ui; background: #0A0A0F; color: #F5F5F7; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
@@ -51,15 +57,24 @@ export async function GET(req: NextRequest) {
 </head>
 <body>
   <div class="box">
-    <div class="check">âœ…</div>
-    <h1>Payment Simulated</h1>
+    <div class="check">✅</div>
+    <h1>${demo ? "Demo payment" : "Payment Simulated"}</h1>
     <p>Order <code>${orderNumber}</code> is being processed.</p>
-    <p style="color:#8B8B9E;font-size:0.875rem">Simulation mode is active â€” in production this would be your real ABA Pay or Binance Pay confirmation.</p>
+    <p style="color:#8B8B9E;font-size:0.875rem">${demo ? "Demo mode is active — payment and delivery are simulated for every product. No real money moved." : "Simulation mode is active — in production this would be your real ABA Pay or Binance Pay confirmation."}</p>
     <p>Redirecting to order tracker in 3s...</p>
-    <p><a href="${baseUrl}${trackerPath}">Continue now â†’</a></p>
+    <p><a href="${baseUrl}${trackerPath}">Continue now →</a></p>
   </div>
 </body>
 </html>`;
+
+  if (orderNumber.startsWith("GRP-")) {
+    const group = await prisma.paymentGroup.findUnique({ where: { orderNumber } });
+    if (!group) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    await finalizePaymentGroup(group.id, { paymentRef: ref });
+    return new NextResponse(simulatedPage(`/order/group?number=${orderNumber}`), {
+      headers: { "Content-Type": "text/html" },
+    });
+  }
 
   if (orderNumber.startsWith("GI-")) {
     const order = await prisma.gameItemOrder.findUnique({ where: { orderNumber } });
@@ -90,7 +105,6 @@ export async function GET(req: NextRequest) {
     await finalizeOrderAfterPayment(order.id, { paymentRef: ref });
     await decrementStockForOrder(order.id);
   }
-
   return new NextResponse(simulatedPage(`/order?number=${orderNumber}`), {
     headers: { "Content-Type": "text/html" },
   });

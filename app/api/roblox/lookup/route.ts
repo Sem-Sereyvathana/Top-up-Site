@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/clientIp";
 
 export async function POST(req: Request) {
   try {
     // Each check costs an outbound call to Roblox's API — cap it so this
     // can't be used to scrape usernames or run up outbound requests.
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ip = getClientIp(req);
     if (!(await checkRateLimit(`roblox-lookup:${ip}`, 15, 10 * 60 * 1000))) {
       return NextResponse.json(
         { error: "Too many requests. Please wait a bit and try again." },

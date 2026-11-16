@@ -19,10 +19,9 @@ next-env.d.ts
 .vscode/
 .idea/
 
-# Env files
-.env
-.env*.local
-.env.production
+# Env files — ignore every .env variant; only the template is committed
+.env*
+!.env.example
 
 # Logs
 npm-debug.log*

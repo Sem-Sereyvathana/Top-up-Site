@@ -2,8 +2,12 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const { searchParams } = req.nextUrl;
   const status = searchParams.get("status") || "ALL";
   const q = searchParams.get("q")?.trim();

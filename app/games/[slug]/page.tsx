@@ -5,26 +5,47 @@ import TopUpForm from "@/components/TopUpForm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Zap } from "lucide-react";
-import { isRobuxGame } from "@/lib/utils";
+import { isQuickLoginGame, usesRobuxStock, isFirstTopUpOffer } from "@/lib/utils";
+import { getCurrentUser } from "@/lib/userAuth";
+import { buyerIsReseller } from "@/lib/reseller";
+import { getResellerRates } from "@/lib/resellerRates";
+import { unitPriceForBuyerWithRates } from "@/lib/reseller";
+
+// Small local helper: resolves the reseller flag from a session (null-safe).
+async function buyerIsResellerSession(
+  session: { userId: string } | null
+): Promise<boolean> {
+  return buyerIsReseller(session?.userId);
+}
 
 export const dynamic = "force-dynamic";
 
-export default async function GamePage({ params }: { params: { slug: string } }) {
-  const game = await prisma.game.findUnique({
-    where: { slug: params.slug },
-    include: {
-      products: {
-        where: { active: true },
-        orderBy: [{ priceUsd: "asc" }, { sortOrder: "asc" }],
+export default async function GamePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const [game, session] = await Promise.all([
+    prisma.game.findUnique({
+      where: { slug },
+      include: {
+        products: {
+          where: { active: true },
+          orderBy: [{ priceUsd: "asc" }, { sortOrder: "asc" }],
+        },
       },
-    },
-  });
+    }),
+    getCurrentUser(),
+  ]);
 
   if (!game || !game.active) notFound();
 
-  const robuxStock = isRobuxGame(game)
+  const robuxStock = usesRobuxStock(game)
     ? (await prisma.robuxStock.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } })).totalRobux
     : null;
+
+  // Resellers see (and are charged) their own price — resolved server-side
+  // so the listed price is exactly what /api/orders will charge. Rates come
+  // from Settings; only Robux Send / Quick Log-In derive a reseller price.
+  const isReseller = await buyerIsResellerSession(session);
+  const rates = isReseller ? await getResellerRates() : null;
 
   return (
     <>
@@ -77,7 +98,7 @@ export default async function GamePage({ params }: { params: { slug: string } })
                 </p>
                 <span className="inline-flex items-center gap-1 rounded-full border border-green-400/30 bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-green-300">
                   <Zap className="h-2.5 w-2.5" strokeWidth={3} />
-                  Instant delivery
+                  {isQuickLoginGame(game) ? "2-3 នាទី / រួចរាល់" : "Instant delivery"}
                 </span>
               </div>
             </div>
@@ -101,7 +122,21 @@ export default async function GamePage({ params }: { params: { slug: string } })
             name: p.name,
             amount: p.amount,
             bonus: p.bonus,
-            priceUsd: p.priceUsd,
+            // "First Top-Up Bonus" packs only pay double on an account's very
+            // first recharge, so selecting one confirms with the buyer first.
+            // Detected from the supplier offer id (ML: *_first_top_up_bonus,
+            // Magic Chess: first_recharge_*), NOT from the display name.
+            isFirstTopUp: isFirstTopUpOffer(p.supplierOfferId),
+            // Reseller price when the viewer is a reseller and the product
+            // qualifies (Robux Send / Quick Log-In with a rate set); rate-
+            // derived and capped at the normal price — same rule the orders
+            // API charges by.
+            priceUsd: unitPriceForBuyerWithRates(p, isReseller, game, rates ?? {
+              resellerRobuxSendRate: null,
+              costRobuxSendRate: null,
+              resellerQuickLoginRate: null,
+              costQuickLoginRate: null,
+            }),
             badge: p.badge,
             imageUrl: p.imageUrl,
             stock: p.stock,

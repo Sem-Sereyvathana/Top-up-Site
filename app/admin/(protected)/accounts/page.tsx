@@ -48,11 +48,11 @@ const empty = {
   imageUrl: "",
   priceUsd: 0,
   sold: false,
-  stockMode: "UNIQUE" as "UNIQUE" | "MULTI",
+  stockMode: "MULTI" as "UNIQUE" | "MULTI",
   stock: 0,
   active: true,
   sortOrder: 0,
-  deliveryMode: "MANUAL" as "DIRECT" | "MANUAL",
+  deliveryMode: "DIRECT" as "DIRECT" | "MANUAL",
   credUsername: "",
   credPassword: "",
   credNotes: "",
@@ -572,22 +572,14 @@ export default function AccountsAdminPage() {
               />
             </div>
             <div>
+              {/* Accounts are ALWAYS auto-delivered now: stock-pool logins
+                  handed over the moment payment clears. Manual delivery was
+                  removed, so there is nothing to choose here. */}
               <label className="label">Delivery</label>
-              <select
-                className="input"
-                value={form.deliveryMode}
-                onChange={(e) => {
-                  const deliveryMode = e.target.value as "DIRECT" | "MANUAL";
-                  // Delivery mode now decides stock type on its own: Direct
-                  // accounts are always a stock pool (multiple, auto-revealed
-                  // logins), Manual accounts are always a single one-of-a-kind
-                  // login — no separate "Stock type" choice needed.
-                  setForm({ ...form, deliveryMode, stockMode: deliveryMode === "DIRECT" ? "MULTI" : "UNIQUE" });
-                }}
-              >
-                <option value="DIRECT">Direct (auto-revealed to buyer once paid)</option>
-                <option value="MANUAL">Manual (buyer messages Telegram)</option>
-              </select>
+              <div className="input flex items-center gap-2 bg-fox-bg/40 text-fox-muted cursor-not-allowed">
+                <span className="text-green-400">✓</span>
+                Automatic — username &amp; password revealed once paid
+              </div>
             </div>
             {form.stockMode === "MULTI" && (
               <div>

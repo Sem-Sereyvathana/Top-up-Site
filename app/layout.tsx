@@ -7,6 +7,8 @@ import RouteProgress from "@/components/RouteProgress";
 import AnnouncementBar from "@/components/AnnouncementBar";
 import WelcomePopup from "@/components/WelcomePopup";
 import SignInPopup from "@/components/SignInPopup";
+import TelegramChatButton from "@/components/TelegramChatButton";
+import MobileBottomNav from "@/components/MobileBottomNav";
 
 export const metadata: Metadata = {
   title: "SHARUSTORE — Fast & Secure Game Top Up",
@@ -44,9 +46,11 @@ export default async function RootLayout({
         <CurrencyProvider exchangeRate={exchangeRate}>
           <ShopCartProvider>
             <AnnouncementBar />
-            <div className="site-shell flex min-h-screen flex-col">{children}</div>
+            <div className="site-shell flex min-h-screen flex-col pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</div>
             <WelcomePopup />
             <SignInPopup />
+            <TelegramChatButton />
+            <MobileBottomNav />
           </ShopCartProvider>
         </CurrencyProvider>
       </body>

@@ -27,8 +27,9 @@ async function getItem(id: string) {
   });
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const item = await getItem(params.id);
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const item = await getItem(id);
   if (!item) return { title: "Game Item — SHARUSTORE" };
   return {
     title: `${item.name} — SHARUSTORE`,
@@ -36,8 +37,9 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   };
 }
 
-export default async function GameItemDetailsPage({ params }: { params: { id: string } }) {
-  const item = await getItem(params.id);
+export default async function GameItemDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const item = await getItem(id);
   if (!item || !item.active) notFound();
 
   const card: ShopCartCard = {

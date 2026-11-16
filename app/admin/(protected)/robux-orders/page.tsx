@@ -2,13 +2,18 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import AdminCopyButton from "@/components/admin/AdminCopyButton";
 
-// Roblox/Robux is the one game on the site that can't auto-deliver — every
-// top-up has to be done by hand on the Roblox side, so admins work these
-// orders from a queue separate from the general Orders page. This page only
-// ever queries orders whose game matches isRobuxGame() (see lib/utils.ts),
-// via the ?robuxOnly=1 flag on /api/admin/orders — nothing about the
-// general orders page or its API changes.
+// Robux Send orders (robux-send). Sending Robux is done by hand on the
+// Roblox side, but it needs no conversation with the buyer: the username on
+// the order is all the admin needs, so each row offers Copy username and
+// Mark Delivered. Robux Quick Log-In is its own queue
+// (/admin/quick-login-orders) because that one DOES need a chat first, and
+// Robux gift cards are delivered automatically by FazerCards so they live
+// with the other top-up games on /admin/orders.
+//
+// This page only ever queries orders whose game matches isRobuxGame()
+// (see lib/utils.ts), via ?robuxOnly=1 on /api/admin/orders.
 
 const STATUSES = ["ALL", "PENDING", "PAID", "PROCESSING", "DELIVERED", "FAILED", "REFUNDED", "CANCELLED"];
 
@@ -86,7 +91,7 @@ export default function RobuxOrdersPage() {
       <div className="flex items-center justify-between mb-2 flex-wrap gap-3">
         <div>
           <h1 className="font-display text-3xl font-bold flex items-center gap-2">
-            🪙 Robux Orders
+            🪙 Robux Send
           </h1>
           <p className="text-fox-muted mt-1">
             Roblox top-ups need to be delivered manually — work through them here.
@@ -223,6 +228,13 @@ export default function RobuxOrdersPage() {
                         >
                           Open
                         </Link>
+                        {/* All the admin needs to send this order is the
+                            buyer's Roblox username. */}
+                        <AdminCopyButton
+                          value={o.playerUid}
+                          label="Copy username"
+                          title="Copy the buyer's Roblox username"
+                        />
                       </div>
                     </td>
                   </tr>

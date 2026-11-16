@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { notifyTelegram, escapeHtml } from "./telegram";
+import { isDemoMode } from "./simMode";
 import { NextResponse } from "next/server";
 
 // Webhook handling for Game Items marketplace orders — mirrors the Top-up
@@ -27,16 +28,37 @@ export async function handleGameItemOrderWebhook(
   }
 
   if (event === "payment.paid") {
+    // Amount + currency + transaction-id cross-checks (see the Top-up
+    // webhook for the full rationale). On any mismatch: do NOT deliver,
+    // do NOT silently fail — record the reason and alert the operator.
     const paidAmount = parseFloat(String(data.amount ?? "0"));
-    if (!Number.isFinite(paidAmount) || Math.abs(paidAmount - order.amountUsd) > 0.01) {
+    const amountOk = Number.isFinite(paidAmount) && Math.abs(paidAmount - order.amountUsd) <= 0.01;
+    const currency: string | undefined = data.currency;
+    const currencyOk = !currency || currency.toUpperCase() === "USD";
+    const txOk = !transactionId || !order.paymentRef || transactionId === order.paymentRef;
+
+    if (!amountOk || !currencyOk || !txOk) {
+      const reason = [
+        !amountOk && `Amount mismatch: got ${paidAmount}, expected ${order.amountUsd}`,
+        !currencyOk && `Currency mismatch: got ${currency}, expected USD`,
+        !txOk && `Transaction ID mismatch: got ${transactionId}, stored ${order.paymentRef}`,
+      ]
+        .filter(Boolean)
+        .join("; ");
+
       await prisma.gameItemOrder.update({
         where: { id: order.id },
-        data: {
-          status: "FAILED",
-          failureReason: `Amount mismatch: got ${paidAmount}, expected ${order.amountUsd}`,
-        },
+        data: { failureReason: `PAYMENT MISMATCH — ${reason}` },
       });
-      return NextResponse.json({ error: "Amount mismatch" }, { status: 400 });
+
+      await notifyTelegram(
+        `🚨 <b>Payment mismatch on Game Item order ${escapeHtml(order.orderNumber)}</b>\n` +
+          `${escapeHtml(reason)}\n` +
+          `Order NOT marked paid. Manual review required.`
+      );
+
+      console.error(`[webhook] Payment mismatch for ${order.orderNumber}: ${reason}`);
+      return NextResponse.json({ error: "Payment mismatch" }, { status: 400 });
     }
 
     const now = new Date();
@@ -47,8 +69,13 @@ export async function handleGameItemOrderWebhook(
     const claimed = await prisma.gameItemOrder.updateMany({
       where: { id: order.id, status: "PENDING" },
       data: {
+        // Game Items always stop at PAID: even a DIRECT item needs a human
+        // (the admin) to hand it over, so the admin marks DELIVERED from the
+        // queue. Demo mode follows the same rule — it only fakes the
+        // payment, not the delivery, so the admin flow stays walkable.
         status: "PAID",
         paidAt: now,
+        ...(isDemoMode() ? { deliveryNote: "DEMO MODE — payment simulated. Hand these items over, then mark Delivered." } : {}),
         ...(transactionId ? { paymentRef: transactionId } : {}),
       },
     });

@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { writeAudit } from "@/lib/audit";
+import { requireAdminApi } from "@/lib/auth";
 
 // Admin's own labels for the Accounts marketplace — same idea as
 // GameItemCategory for Game Items: independent of the Top-up `Game` list,
@@ -37,6 +38,9 @@ async function uniqueSlug(base: string): Promise<string> {
 }
 
 export async function GET() {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const categories = await prisma.gameAccountCategory.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
@@ -44,6 +48,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = categorySchema.safeParse(body);
   if (!parsed.success) {

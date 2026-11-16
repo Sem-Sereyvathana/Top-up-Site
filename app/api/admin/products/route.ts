@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdminApi } from "@/lib/auth";
 
 const productSchema = z.object({
   gameId: z.string().min(1),
@@ -18,6 +19,9 @@ const productSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const gameId = req.nextUrl.searchParams.get("gameId");
   const products = await prisma.product.findMany({
     where: gameId ? { gameId } : undefined,
@@ -28,6 +32,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = productSchema.safeParse(body);
   if (!parsed.success) {

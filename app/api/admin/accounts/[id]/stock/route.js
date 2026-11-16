@@ -5,14 +5,19 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { writeAudit } from "@/lib/audit";
 import { parseAccountStockText } from "@/lib/accountStockParser";
+import { requireAdminApi } from "@/lib/auth";
 
 // Lists the credential pool for one account — available units first (what
 // the admin can still remove/inspect), then already-sold/assigned ones for
 // a record of what went out. Used by the "Auto Top Up" panel on the
 // Accounts admin page.
 export async function GET(_req, { params }) {
+  const { id } = await params;
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const items = await prisma.gameAccountStockItem.findMany({
-    where: { gameAccountId: params.id },
+    where: { gameAccountId: id },
     orderBy: [{ status: "asc" }, { createdAt: "asc" }],
   });
   const available = items.filter((i) => i.status === "AVAILABLE").length;
@@ -28,13 +33,17 @@ const bodySchema = z.object({ text: z.string().min(1) });
 // and checkout reservation logic (which only ever reads that field) need no
 // changes at all.
 export async function POST(req, { params }) {
+  const { id } = await params;
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Paste or upload some accounts first." }, { status: 400 });
   }
 
-  const account = await prisma.gameAccount.findUnique({ where: { id: params.id } });
+  const account = await prisma.gameAccount.findUnique({ where: { id: id } });
   if (!account) return NextResponse.json({ error: "Account not found" }, { status: 404 });
 
   const creds = parseAccountStockText(parsed.data.text);
@@ -51,14 +60,14 @@ export async function POST(req, { params }) {
   const [, updated] = await prisma.$transaction([
     prisma.gameAccountStockItem.createMany({
       data: creds.map((c) => ({
-        gameAccountId: params.id,
+        gameAccountId: id,
         username: c.username,
         password: c.password,
         notes: c.notes || null,
       })),
     }),
     prisma.gameAccount.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { stock: { increment: creds.length } },
     }),
   ]);
@@ -66,7 +75,7 @@ export async function POST(req, { params }) {
   await writeAudit({
     action: "game-account.stock.top-up",
     targetType: "gameAccount",
-    targetId: params.id,
+    targetId: id,
     details: { added: creds.length },
   });
 

@@ -1,0 +1,215 @@
+{
+  "conversations": [
+    {
+      "id": "cmwbwdrgy0002q9j1bv5jp9cj",
+      "userId": "cmwbwdgoj0000q9j1kv46v4tc",
+      "guestTokenHash": null,
+      "displayName": "Izu Roblox1",
+      "createdAt": "2026-11-11T09:09:22.641Z",
+      "lastMessageAt": "2026-11-11T09:56:55.273Z",
+      "adminUnread": 0,
+      "customerUnread": 0
+    },
+    {
+      "id": "cmwcicao20001c3bx1z8ukr6g",
+      "userId": "cmwce6xoa000b127xw0uhx1xl",
+      "guestTokenHash": null,
+      "displayName": "Sem Sereyvathana",
+      "createdAt": "2026-11-11T19:24:05.763Z",
+      "lastMessageAt": "2026-11-11T19:25:00.399Z",
+      "adminUnread": 0,
+      "customerUnread": 0
+    },
+    {
+      "id": "cmwcdxweb0004127xmmvkjlja",
+      "userId": "cmwcdtq1d0000z56udmrqmlf8",
+      "guestTokenHash": null,
+      "displayName": "Business Vath",
+      "createdAt": "2026-11-11T17:20:55.620Z",
+      "lastMessageAt": "2026-11-12T01:42:29.125Z",
+      "adminUnread": 0,
+      "customerUnread": 0
+    }
+  ],
+  "messages": [
+    {
+      "id": "cmwbwdsfq0004q9j1bgslu2ws",
+      "conversationId": "cmwbwdrgy0002q9j1bv5jp9cj",
+      "sender": "CUSTOMER",
+      "kind": "TEXT",
+      "body": "hi",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": null,
+      "createdAt": "2026-11-11T09:09:23.894Z"
+    },
+    {
+      "id": "cmwbwk6wq0001lyaqnautbk70",
+      "conversationId": "cmwbwdrgy0002q9j1bv5jp9cj",
+      "sender": "ADMIN",
+      "kind": "TEXT",
+      "body": "gsdfds",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": "cmwagnv8s0000kn23752qhiwz",
+      "createdAt": "2026-11-11T09:14:22.584Z"
+    },
+    {
+      "id": "cmwbwl59k0005lyaq4of5ry6j",
+      "conversationId": "cmwbwdrgy0002q9j1bv5jp9cj",
+      "sender": "CUSTOMER",
+      "kind": "TEXT",
+      "body": "hiu",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": null,
+      "createdAt": "2026-11-11T09:15:07.112Z"
+    },
+    {
+      "id": "cmwbwl9uv0007lyaq2qf1s8zt",
+      "conversationId": "cmwbwdrgy0002q9j1bv5jp9cj",
+      "sender": "ADMIN",
+      "kind": "TEXT",
+      "body": "hi",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": "cmwagnv8s0000kn23752qhiwz",
+      "createdAt": "2026-11-11T09:15:13.064Z"
+    },
+    {
+      "id": "cmwby1rlt000blyaqr35bbfck",
+      "conversationId": "cmwbwdrgy0002q9j1bv5jp9cj",
+      "sender": "CUSTOMER",
+      "kind": "TEXT",
+      "body": "asdasd",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": null,
+      "createdAt": "2026-11-11T09:56:02.177Z"
+    },
+    {
+      "id": "cmwby205q000dlyaqebpg3xrx",
+      "conversationId": "cmwbwdrgy0002q9j1bv5jp9cj",
+      "sender": "ADMIN",
+      "kind": "TEXT",
+      "body": "fhgg",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": "cmwagnv8s0000kn23752qhiwz",
+      "createdAt": "2026-11-11T09:56:13.263Z"
+    },
+    {
+      "id": "cmwby2sfk000flyaqprgo31eg",
+      "conversationId": "cmwbwdrgy0002q9j1bv5jp9cj",
+      "sender": "ADMIN",
+      "kind": "TEXT",
+      "body": "sdaas",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": "cmwagnv8s0000kn23752qhiwz",
+      "createdAt": "2026-11-11T09:56:49.905Z"
+    },
+    {
+      "id": "cmwby2wkp000jlyaq4nh8bo7q",
+      "conversationId": "cmwbwdrgy0002q9j1bv5jp9cj",
+      "sender": "CUSTOMER",
+      "kind": "TEXT",
+      "body": "dsadasd",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": null,
+      "createdAt": "2026-11-11T09:56:55.273Z"
+    },
+    {
+      "id": "cmwcdxwsi0006127xgksupv92",
+      "conversationId": "cmwcdxweb0004127xmmvkjlja",
+      "sender": "ADMIN",
+      "kind": "ORDER_INFO",
+      "body": "Order details for RT-BBZQM6",
+      "orderNumber": "RT-BBZQM6",
+      "meta": {
+        "game": "Robux Quick Log-In",
+        "status": "PAID",
+        "product": "80 Robux",
+        "playerId": "vathhold1",
+        "createdAt": "2026-11-11T17:20:23.396Z",
+        "orderNumber": "RT-BBZQM6"
+      },
+      "adminId": "cmwagnv8s0000kn23752qhiwz",
+      "createdAt": "2026-11-11T17:20:56.130Z"
+    },
+    {
+      "id": "cmwcdykfp0009127x1ze8c909",
+      "conversationId": "cmwcdxweb0004127xmmvkjlja",
+      "sender": "ADMIN",
+      "kind": "TEXT",
+      "body": "hi",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": "cmwagnv8s0000kn23752qhiwz",
+      "createdAt": "2026-11-11T17:21:26.773Z"
+    },
+    {
+      "id": "cmwcicblr0003c3bxrsediqd1",
+      "conversationId": "cmwcicao20001c3bx1z8ukr6g",
+      "sender": "CUSTOMER",
+      "kind": "TEXT",
+      "body": "hi",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": null,
+      "createdAt": "2026-11-11T19:24:06.976Z"
+    },
+    {
+      "id": "cmwcidgtq0007c3bxc3p7glj5",
+      "conversationId": "cmwcicao20001c3bx1z8ukr6g",
+      "sender": "CUSTOMER",
+      "kind": "TEXT",
+      "body": "sad",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": null,
+      "createdAt": "2026-11-11T19:25:00.399Z"
+    },
+    {
+      "id": "cmwcifcb30006qpbigmc1hul9",
+      "conversationId": "cmwcdxweb0004127xmmvkjlja",
+      "sender": "ADMIN",
+      "kind": "ORDER_INFO",
+      "body": "Order details for RT-ZGUSU4",
+      "orderNumber": "RT-ZGUSU4",
+      "meta": {
+        "game": "Robux Quick Log-In",
+        "status": "PAID",
+        "product": "80 Robux",
+        "playerId": "vathhold1",
+        "createdAt": "2026-11-11T19:26:00.528Z",
+        "orderNumber": "RT-ZGUSU4"
+      },
+      "adminId": "cmwagnv8s0000kn23752qhiwz",
+      "createdAt": "2026-11-11T19:26:27.856Z"
+    },
+    {
+      "id": "cmwcvuugh0001xn4qrg01v3r4",
+      "conversationId": "cmwcdxweb0004127xmmvkjlja",
+      "sender": "ADMIN",
+      "kind": "TEXT",
+      "body": "sdadas",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": "cmwagnv8s0000kn23752qhiwz",
+      "createdAt": "2026-11-12T01:42:26.211Z"
+    },
+    {
+      "id": "cmwcvuwp10003xn4qgiobobdt",
+      "conversationId": "cmwcdxweb0004127xmmvkjlja",
+      "sender": "ADMIN",
+      "kind": "TEXT",
+      "body": "asdasda",
+      "orderNumber": null,
+      "meta": null,
+      "adminId": "cmwagnv8s0000kn23752qhiwz",
+      "createdAt": "2026-11-12T01:42:29.125Z"
+    }
+  ]
+}

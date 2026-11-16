@@ -5,6 +5,7 @@ import { createUserSession, setUserSessionCookie } from "@/lib/userAuth";
 import { exchangeGoogleCode } from "@/lib/googleAuth";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/clientIp";
 
 const STATE_COOKIE = "google_oauth_state";
 const NEXT_COOKIE = "google_oauth_next";
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
     return res;
   };
 
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(req);
   if (!(await checkRateLimit(`google-auth:${ip}`, 15, 10 * 60 * 1000))) {
     loginUrl.searchParams.set("error", "Too many attempts. Please wait a few minutes and try again.");
     return clearOauthCookies(NextResponse.redirect(loginUrl));
@@ -65,6 +66,22 @@ export async function GET(req: NextRequest) {
   }
 
   const googleId = profile.sub;
+
+  // Banlist: a blocked email or IP can't sign in / auto-register through
+  // Google either. Same treatment as the disabled-account case.
+  const googleBanCandidates = [
+    { type: "email", value: profile.email?.toLowerCase() },
+    { type: "ip", value: ip.toLowerCase() },
+  ].filter((c): c is { type: string; value: string } => !!c.value);
+  if (googleBanCandidates.length > 0) {
+    const blocked = await prisma.blockedIdentity.findFirst({
+      where: { OR: googleBanCandidates.map((c) => ({ type: c.type, value: c.value })) },
+    });
+    if (blocked) {
+      loginUrl.searchParams.set("error", "This account cannot sign in. Contact support if you believe this is a mistake.");
+      return clearOauthCookies(NextResponse.redirect(loginUrl));
+    }
+  }
 
   let user = await prisma.user.findUnique({ where: { googleId } });
 

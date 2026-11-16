@@ -460,8 +460,8 @@ function ImageField({
 
   async function handleFile(file: File) {
     setErr(null);
-    if (file.size > 5 * 1024 * 1024) {
-      setErr("Max 5MB.");
+    if (file.size > 4 * 1024 * 1024) {
+      setErr("Max 4MB.");
       return;
     }
     setUploading(true);

@@ -3,10 +3,15 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { writeAudit } from "@/lib/audit";
+import { requireAdminApi } from "@/lib/auth";
 
 export async function DELETE(_req, { params }) {
-  const item = await prisma.gameAccountStockItem.findUnique({ where: { id: params.stockId } });
-  if (!item || item.gameAccountId !== params.id) {
+  const { id, stockId } = await params;
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
+  const item = await prisma.gameAccountStockItem.findUnique({ where: { id: stockId } });
+  if (!item || item.gameAccountId !== id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (item.status !== "AVAILABLE") {
@@ -17,15 +22,15 @@ export async function DELETE(_req, { params }) {
   }
 
   await prisma.$transaction([
-    prisma.gameAccountStockItem.delete({ where: { id: params.stockId } }),
-    prisma.gameAccount.update({ where: { id: params.id }, data: { stock: { decrement: 1 } } }),
+    prisma.gameAccountStockItem.delete({ where: { id: stockId } }),
+    prisma.gameAccount.update({ where: { id: id }, data: { stock: { decrement: 1 } } }),
   ]);
 
   await writeAudit({
     action: "game-account.stock.remove",
     targetType: "gameAccount",
-    targetId: params.id,
-    details: { stockId: params.stockId },
+    targetId: id,
+    details: { stockId: stockId },
   });
 
   return NextResponse.json({ ok: true });

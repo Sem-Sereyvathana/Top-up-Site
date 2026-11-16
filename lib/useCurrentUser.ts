@@ -10,6 +10,11 @@ export interface CurrentUser {
   points: number;
   pointsValueUsd: number;
   minRedeemPoints: number;
+  // Resellers see/are charged reseller prices across the Top-up storefront.
+  isReseller: boolean;
+  // Wallet balance in USD (converted from integer cents server-side).
+  walletCents: number;
+  walletUsd: number;
 }
 
 // Shared client hook for reading the logged-in user (or null for guests).

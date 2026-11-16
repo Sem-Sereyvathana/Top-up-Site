@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { writeAudit } from "@/lib/audit";
+import { requireAdminApi } from "@/lib/auth";
 
 const gameItemSchema = z.object({
   categoryId: z.string().min(1).optional().nullable(),
@@ -19,6 +20,9 @@ const gameItemSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const categoryId = req.nextUrl.searchParams.get("categoryId");
   const items = await prisma.gameItem.findMany({
     where: categoryId ? { categoryId } : undefined,
@@ -29,6 +33,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const gate = await requireAdminApi();
+  if (!gate.ok) return gate.response;
+
   const body = await req.json().catch(() => ({}));
   const parsed = gameItemSchema.safeParse(body);
   if (!parsed.success) {

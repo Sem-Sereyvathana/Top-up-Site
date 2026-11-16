@@ -6,7 +6,6 @@ export default function AccountsCartPage() {
       kind="accounts"
       title="ទំនិញដែលអ្នកបានជ្រើសរើស"
       backHref="/accounts"
-      checkoutHref="/accounts/checkout"
       allowQuantity
     />
   );

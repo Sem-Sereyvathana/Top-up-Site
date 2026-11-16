@@ -8,6 +8,7 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [redeemUploading, setRedeemUploading] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/settings")
@@ -27,6 +28,22 @@ export default function AdminSettingsPage() {
     setLogoUploading(false);
   }
 
+  // The redeem clip goes through the same Cloudinary
+  // endpoint with ?kind=video (60MB cap, mp4/webm/mov).
+  async function uploadRedeemVideo(file: File) {
+    setRedeemUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/admin/upload?kind=video", { method: "POST", body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setForm((f: any) => ({ ...f, redeemVideoUrl: data.url }));
+    } else {
+      alert(data.error || "Upload failed");
+    }
+    setRedeemUploading(false);
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -39,13 +56,18 @@ export default function AdminSettingsPage() {
         logoUrl: form.logoUrl || null,
         exchangeRate: Number(form.exchangeRate),
         supportTelegram: form.supportTelegram,
+        supportChannel: form.supportChannel || null,
         supportEmail: form.supportEmail,
         maintenanceMode: form.maintenanceMode,
         maintenanceMessage: form.maintenanceMessage || null,
         announcement: form.announcement || null,
         announcementTone: form.announcementTone || "info",
-        telegramBotToken: form.telegramBotToken || null,
+        // Empty token = "leave the saved one unchanged" (the API never sends
+        // the stored token back, so resending the old value is impossible).
+        telegramBotToken: form.telegramBotToken || "",
         telegramChatId: form.telegramChatId || null,
+        receiptTelegramChatId: form.receiptTelegramChatId || null,
+        redeemVideoUrl: form.redeemVideoUrl || null,
         pointsPerUsd: Number(form.pointsPerUsd),
         pointsRedeemRate: Number(form.pointsRedeemRate),
         minRedeemPoints: Number(form.minRedeemPoints),
@@ -110,11 +132,60 @@ export default function AdminSettingsPage() {
         <div>
           <label className="label">Support Telegram Handle</label>
           <input className="input" value={form.supportTelegram || ""} onChange={(e) => setForm({ ...form, supportTelegram: e.target.value })} placeholder="@yourhandle" />
+          <p className="text-xs text-fox-muted mt-1">Your private chat with customers. Opens from the &quot;Open Telegram Chat&quot; button in the help widget.</p>
+        </div>
+
+        <div>
+          <label className="label">Telegram Channel (optional)</label>
+          <input className="input" value={form.supportChannel || ""} onChange={(e) => setForm({ ...form, supportChannel: e.target.value })} placeholder="@yourchannel" />
+          <p className="text-xs text-fox-muted mt-1">Shown as a &#34;Join&#34; button in the help widget. Leave empty to hide the button.</p>
         </div>
 
         <div>
           <label className="label">Support Email</label>
           <input className="input" type="email" value={form.supportEmail || ""} onChange={(e) => setForm({ ...form, supportEmail: e.target.value })} />
+        </div>
+
+        <div className="rounded-xl border border-fox-border p-4 space-y-3">
+          <div>
+            <h2 className="font-semibold mb-1">Gift-card redeem guide</h2>
+            <p className="text-xs text-fox-muted">
+              The &laquo;how to redeem your code&raquo; clip. On delivered Robux Giftcard orders the
+              buyer gets a button that opens this in a popup. MP4/WEBM/MOV up to 60MB, or paste a
+              YouTube / Vimeo / Facebook embed URL.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="btn-ghost cursor-pointer text-sm">
+              {redeemUploading ? "Uploading…" : "Upload video"}
+              <input
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime"
+                className="hidden"
+                disabled={redeemUploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadRedeemVideo(f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            {form.redeemVideoUrl && (
+              <button
+                type="button"
+                className="text-sm text-red-400 hover:underline"
+                onClick={() => setForm({ ...form, redeemVideoUrl: "" })}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <input
+            className="input font-mono text-xs"
+            value={form.redeemVideoUrl || ""}
+            onChange={(e) => setForm({ ...form, redeemVideoUrl: e.target.value })}
+            placeholder="https://res.cloudinary.com/... .mp4"
+          />
         </div>
 
         <div>
@@ -178,8 +249,14 @@ export default function AdminSettingsPage() {
                 className="input font-mono text-xs"
                 value={form.telegramBotToken || ""}
                 onChange={(e) => setForm({ ...form, telegramBotToken: e.target.value })}
-                placeholder="123456:ABC-DEF..."
+                placeholder={form.telegramBotTokenSet ? "••••• saved — type to replace" : "123456:ABC-DEF..."}
+                autoComplete="off"
               />
+              <p className="text-[11px] text-fox-muted mt-1">
+                {form.telegramBotTokenSet
+                  ? "A token is saved. It is never sent back to this page — type a new one only if you want to replace it."
+                  : "No token saved yet. You can also set the TELEGRAM_BOT_TOKEN environment variable instead."}
+              </p>
             </div>
             <div>
               <label className="label">Chat ID</label>
@@ -190,6 +267,19 @@ export default function AdminSettingsPage() {
                 placeholder="-1001234567890"
               />
             </div>
+          </div>
+          <div className="mt-3">
+            <label className="label">Receipt channel Chat ID (public proof channel)</label>
+            <input
+              className="input font-mono text-xs"
+              value={form.receiptTelegramChatId || ""}
+              onChange={(e) => setForm({ ...form, receiptTelegramChatId: e.target.value })}
+              placeholder="-1001234567890"
+            />
+            <p className="text-[11px] text-fox-muted mt-1">
+              Completed orders post a receipt here (same bot token, silent mode, normal customer price
+              only — never the reseller price). Leave empty to disable receipts.
+            </p>
           </div>
         </div>
 
