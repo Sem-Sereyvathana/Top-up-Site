@@ -77,8 +77,13 @@ services:
       # ---- FazerCards supplier + cron watcher ----
       - key: FAZER_API_KEY
         sync: false
+      # Minimum profit per pack (USD). Raise this if you want a bigger buffer
+      # against giftcard price spikes — packs that would sell at a loss get
+      # auto-closed to "sold out" by the price watcher below.
       - key: FAZER_MIN_PROFIT_USD
         value: "0.01"
+      # Secret for the price watcher cron (min 32 chars; auto-generated here).
+      # The cron sends: Authorization: Bearer <WATCHER_SECRET>
       - key: WATCHER_SECRET
         generateValue: true
 
@@ -88,6 +93,34 @@ services:
         value: "false"
       - key: DEMO_MODE
         value: "false"
+
+# ---- Price watcher cron ----
+# Pings the web service every minute so the FazerCards price guard runs
+# continuously while the site is up (same job the Telegram bot's loop does).
+# The web service is always-on on the paid plan, so the site is reachable
+# whenever the cron fires. Survives a future Vercel migration: just update
+# the URL below from your Render domain to your Vercel domain.
+jobs:
+  - type: cron
+    name: fazer-price-watch
+    runtime: node
+    schedule: "* * * * *" # every minute (Render minimum)
+    region: singapore
+    # curl is preinstalled on Render's node image; it exits non-zero on HTTP
+    # errors so a failed run is visible in the dashboard.
+    command: >-
+      curl -fsS --max-time 55
+      -H "Authorization: Bearer $WATCHER_SECRET"
+      "$WEB_SERVICE_URL/api/cron/fazer-watch"
+    envVars:
+      # Same secret as the web service — set it identically in both places.
+      - key: WATCHER_SECRET
+        sync: false
+      # Set this to your web service base URL after the first deploy
+      # (e.g. https://sharustore.onrender.com — no trailing slash).
+      # Later, change it to your Vercel domain.
+      - key: WEB_SERVICE_URL
+        sync: false
 
 # Optional: if you later move off Supabase onto a Render-managed Postgres,
 # add a `databases:` block here and point DATABASE_URL/DIRECT_URL at it.
