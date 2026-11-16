@@ -1,0 +1,93 @@
+# Render Blueprint — sharustore top-up site
+#
+# Deploy: push this file to your repo, then in the Render dashboard do
+#   New → Blueprint → pick this repo → Apply.
+# Render reads this file and creates the service. Fill in the secret
+# values in the dashboard (Environment tab) — they are marked sync:false
+# below so Render never commits them.
+#
+# Notes for the $7 Starter plan (512 MB RAM):
+#   - The build compiles a large admin panel. If `next build` runs out of
+#     memory, bump the plan or add swap. The NODE_OPTIONS below caps the
+#     Node heap so the build degrades gracefully instead of being OOM-killed
+#     without warning.
+
+services:
+  - type: web
+    name: sharustore
+    runtime: node
+    plan: starter
+    region: singapore        # closest Render region to Cambodia/SEA
+    branch: main             # change to upgrade/next-15 if deploying that branch
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      # ---- Runtime ----
+      - key: NODE_ENV
+        value: production
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=450
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+
+      # ---- Public URLs (set to your real domain after first deploy) ----
+      - key: NEXT_PUBLIC_BASE_URL
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
+
+      # ---- Database (Supabase Postgres) ----
+      # DATABASE_URL = pooled connection (port 6543, ?pgbouncer=true)
+      # DIRECT_URL   = direct connection (port 5432), used by prisma db push
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+
+      # ---- Admin auth ----
+      # Generate with: openssl rand -base64 32
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+      # ---- Payments (KHPay) ----
+      # Leave KHPAY_API_KEY blank to run in simulation mode.
+      - key: KHPAY_BASE_URL
+        value: https://khpay.site/api/v1
+      - key: KHPAY_API_KEY
+        sync: false
+      - key: KHPAY_WEBHOOK_SECRET
+        sync: false
+
+      # ---- Image storage (Cloudinary) ----
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: topupwebsite
+
+      # ---- FazerCards supplier + cron watcher ----
+      - key: FAZER_API_KEY
+        sync: false
+      - key: FAZER_MIN_PROFIT_USD
+        value: "0.01"
+      - key: WATCHER_SECRET
+        generateValue: true
+
+      # ---- Safety switches (must stay off in production) ----
+      # These are force-disabled here; do not override on a live site.
+      - key: PAYMENT_SIMULATION_MODE
+        value: "false"
+      - key: DEMO_MODE
+        value: "false"
+
+# Optional: if you later move off Supabase onto a Render-managed Postgres,
+# add a `databases:` block here and point DATABASE_URL/DIRECT_URL at it.
